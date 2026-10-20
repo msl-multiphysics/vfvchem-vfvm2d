@@ -17,9 +17,8 @@ pub struct OpSclBndDiffusion {
 impl OpSclBndDiffusion {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<OpSclBndDiffusion, VFVChemError> {
         // adds the diffusion term to the control volumes of boundary nodes
-        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
-        //                                         ^^^^^^^^^^^^^^^^^^^^^^^^^
-        // only the faces inside the domain are included; boundary faces are set by the boundary flux
+        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        //                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
 
         // input checking
         check_bnd_scldom(vars, bnd_id, unk_id)?;
@@ -41,7 +40,9 @@ impl OperatorBase for OpSclBndDiffusion {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
         // int_surf -div( -D * grad(c) ) dA
         // int_lin D * grad(c) . n dl
-        // sum_ngh D * dc/dn * dl
+        // sum_ngh D * grad(c) . n dl
+        //
+        // apply normal derivative
         // sum_ngh D_f * (c_n - c_v) / dn * dl
         
         // get objects
@@ -72,7 +73,7 @@ impl OperatorBase for OpSclBndDiffusion {
                 // get geometry
                 let face = face_n[loc];
                 let dist = dist_n[loc];
-                let (skew_x, skew_y) = skew_n[loc];
+                let (sx, sy) = skew_n[loc];
                 
                 // get neighbor properties
                 let diff_n = diff_dom.value[vid_n];
@@ -80,7 +81,7 @@ impl OperatorBase for OpSclBndDiffusion {
                 
                 // get face diffusion coefficient
                 let diff_m = 2.0 * diff_v * diff_n / (diff_v + diff_n);  // harmonic mean
-                let diff_f = diff_m + 0.5 * (skew_x * (diff_x_v + diff_x_n) + skew_y * (diff_y_v + diff_y_n));  // skew correction
+                let diff_f = diff_m + 0.5 * (sx * (diff_x_v + diff_x_n) + sy * (diff_y_v + diff_y_n));  // skew correction
                 let diff_f = if diff_f > 0.0 { diff_f } else { diff_m };  // guard against negative diffusion
 
                 // load into matrix

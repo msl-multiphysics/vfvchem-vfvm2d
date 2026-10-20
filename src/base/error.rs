@@ -215,6 +215,17 @@ pub enum VFVChemError {
     OperatorUseApplyTime {},
     #[error("Operator: Only unknown-type scalars and vectors can be solved for in the global linear system.")]
     OperatorNonUnknownInLinearSystem {},
+    #[error("Operator: Node ID {nid} for the reference pressure is not on Domain ID {dom_id}.")]
+    OperatorNodeNotFound {
+        dom_id: usize,
+        nid: usize,
+    },
+    #[error("Operator: Node ID {nid} of Domain ID {dom_id} for the reference pressure is on Interface ID {itf_id}; choose a node off the interface.")]
+    OperatorNodeOnInterface {
+        dom_id: usize,
+        nid: usize,
+        itf_id: usize,
+    },
     #[error("Operator: ScalarDomain ID {scldom_id} is not defined on Domain ID {dom_id}.")]
     OperatorScalarDomainNotOnDomain {
         scldom_id: usize,
@@ -240,6 +251,16 @@ pub enum VFVChemError {
     OperatorScalarInterfaceNotOnInterface {
         sclitf_id: usize,
         itf_id: usize,
+    },
+    #[error("Operator: ScalarFlow ID {sclflw_id} is not defined on Domain ID {dom_id}.")]
+    OperatorScalarFlowNotOnDomain {
+        sclflw_id: usize,
+        dom_id: usize,
+    },
+    #[error("Operator: ScalarFlow ID {sclflw_id} is not defined on Boundary ID {bnd_id}.")]
+    OperatorScalarFlowNotOnBoundary {
+        sclflw_id: usize,
+        bnd_id: usize,
     },
     #[error("Operator: VectorDomain ID {vecdom_id} is not defined on Domain ID {dom_id}.")]
     OperatorVectorDomainNotOnDomain {

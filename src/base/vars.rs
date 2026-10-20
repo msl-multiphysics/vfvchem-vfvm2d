@@ -16,6 +16,7 @@ pub struct Variables {
     pub scldom: Vec<ScalarDomain>,
     pub sclbnd: Vec<ScalarBoundary>,
     pub sclitf: Vec<ScalarInterface>,
+    pub sclflw: Vec<ScalarFlow>,
 
     // vector
     pub vecdom: Vec<VectorDomain>,
@@ -133,6 +134,14 @@ impl Variables {
         let sclitf = ScalarInterface::new_func(sclitf_id, itf, &self.scldom, func, unkn_a_id, unkn_b_id, file_path)?;
         self.sclitf.push(sclitf);
         Ok(sclitf_id)
+    }
+
+    pub fn add_sclflw(&mut self, dom_id: usize, vel_id: usize, pres_id: usize, den_id: usize, visc_id: usize, fce_id: usize) -> Result<usize, VFVChemError> {
+        let sclflw_id = self.sclflw.len();
+        let dom = &self.dom[dom_id];
+        let sclflw = ScalarFlow::new(sclflw_id, dom, vel_id, pres_id, den_id, visc_id, fce_id)?;
+        self.sclflw.push(sclflw);
+        Ok(sclflw_id)
     }
 
     // vector

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 pub trait SteadyBase {
     // to implement in specific solvers
-    fn initial_start(&self, vars: &mut Variables) -> Result<usize, VFVChemError>;  // set start indices and compute matrix sizes
+    fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError>;  // set start indices, create derived data, and compute matrix sizes
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError>;  // initializes operators
     fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError>;  // assemble global matrix
 
@@ -53,6 +53,7 @@ pub trait SteadyBase {
         // used for sparsity pattern and first iteration
         Self::_update_func(vars, 0.0);
         Self::_update_grad(vars);
+        Self::_update_flow(vars);
         self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
         lin.update_sparse(&a_triplet, mat_size)?;
         let mut a_mat = lin.build_matrix(&a_triplet)?;
@@ -78,6 +79,7 @@ pub trait SteadyBase {
             Self::_solu_to_unkn(vars, &x_damp_vec);
             Self::_update_func(vars, 0.0);
             Self::_update_grad(vars);
+            Self::_update_flow(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
             a_mat = lin.build_matrix(&a_triplet)?;
             let time_i2 = Instant::now();
@@ -248,6 +250,12 @@ pub trait SteadyBase {
         }
         for vecdom in vars.vecdom.iter_mut() {
             vecdom.update_grad(&vars.tri[vecdom.dom_id]);
+        }
+    }
+
+    fn _update_flow(vars: &mut Variables) {
+        for sclflw_id in 0..vars.sclflw.len() {
+            ScalarFlow::update_flow(vars, sclflw_id);
         }
     }
 

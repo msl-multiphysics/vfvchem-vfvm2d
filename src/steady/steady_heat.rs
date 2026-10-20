@@ -63,7 +63,7 @@ impl SteadyHeat {
 }
 
 impl SteadyBase for SteadyHeat {
-    fn initial_start(&self, vars: &mut Variables) -> Result<usize, VFVChemError> {
+    fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError> {
         // iterate over unknown scalars
         let mut xid = 0;  // index in solution vector
         for (&dom_id, &temp_id) in &self.itr_temp {
@@ -76,6 +76,11 @@ impl SteadyBase for SteadyHeat {
     }
 
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError> {
+        // purge operators from a previous solve
+        self.oper_itr.clear();
+        self.oper_bnd_temp.clear();
+        self.oper_bnd_hflx.clear();
+
         // internal
         for &dom_id in &self.itr_dom {
             let temp_id = self.itr_temp[&dom_id];

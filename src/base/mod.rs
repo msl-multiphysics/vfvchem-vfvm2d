@@ -9,6 +9,7 @@ pub mod pts;
 pub mod read_obj;
 pub mod scl_bnd;
 pub mod scl_dom;
+pub mod scl_flw;
 pub mod scl_itf;
 pub mod vars;
 pub mod vec_bnd;

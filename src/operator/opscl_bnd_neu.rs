@@ -9,7 +9,7 @@ pub struct OpSclBndNeumann {
     pub bnd_id: usize,
 
     // scalars
-    pub unk_id: usize,  // unknown scalar (c_i)
+    pub unk_id: usize,   // unknown scalar (c_i)
     pub flux_id: usize,  // flux (N_set)
 }
 

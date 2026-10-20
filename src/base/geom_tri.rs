@@ -37,6 +37,11 @@ pub struct Triangle {
     // delta_u = [u1 - u0, u2 - u0, ...]; u0 and uj are point and neighbor values
     // du/dx = wgt_x . delta_u; du/dy = wgt_y . delta_u
     pub grad_wgt: Vec<Vec<(f64, f64)>>,  // vid, loc -> least-squares weights (wgt_x, wgt_y)
+
+    // pressure gradient data
+    // int_surf grad(p) dA = sum_ngh p_f * n * dl + sum_bnd p_b * n * dl = sum_m (c_x, c_y) * p_m
+    // shared by the momentum and continuity operators so that both use the same pressure gradient
+    pub grad_coeff: Vec<Vec<(usize, f64, f64)>>,  // vid -> (vid_m, c_x, c_y) divergence theorem coefficients
 }
 
 impl Triangle {
@@ -67,6 +72,7 @@ impl Triangle {
         self.bnd_half = vec![Vec::new(); dom.num_tot()];
         self.bnd_norm = vec![Vec::new(); dom.num_tot()];
         self.grad_wgt = vec![Vec::new(); dom.num_tot()];
+        self.grad_coeff = vec![Vec::new(); dom.num_tot()];
 
         // collect points in domain
         let mut pts_pos = Vec::with_capacity(dom.num_tot());  // vid -> (x, y)
@@ -274,6 +280,57 @@ impl Triangle {
                 let omega = 1.0 / (dx * dx + dy * dy);
                 self.grad_wgt[vid_c].push((omega * (i_xx * dx + i_xy * dy), omega * (i_xy * dx + i_yy * dy)));
             }
+        }
+
+        // step 5: pressure gradient coefficients
+        // p_f = (p_v + p_n) / 2 + (grad(p_v) + grad(p_n)) / 2 . skew
+        // p_b = 0.75 * p_v + 0.25 * p_n
+        // grad(p_v) = sum_ngh w * (p_n - p_v), so the skewness correction is fully implicit
+        for vid_v in 0..dom.num_tot() {
+            // iterate through faces
+            let mut coeff_m = Vec::new();
+            for (loc, &vid_n) in self.ngh_vid[vid_v].iter().enumerate() {
+                // get geometry
+                let face = self.face_len[vid_v][loc];
+                let (nx, ny) = self.face_norm[vid_v][loc];
+                let (sx, sy) = self.face_skew[vid_v][loc];
+
+                // arithmetic mean
+                coeff_m.push((vid_v, 0.5 * face * nx, 0.5 * face * ny));
+                coeff_m.push((vid_n, 0.5 * face * nx, 0.5 * face * ny));
+
+                // skewness correction; (p_m - p_s) terms for s = v, n
+                for vid_s in [vid_v, vid_n] {
+                    for (loc_m, &vid_m) in self.ngh_vid[vid_s].iter().enumerate() {
+                        // project gradient weight onto skewness vector
+                        let (w_x, w_y) = self.grad_wgt[vid_s][loc_m];
+                        let w_skew = 0.5 * (w_x * sx + w_y * sy) * face;
+                        coeff_m.push((vid_m,  w_skew * nx,  w_skew * ny));
+                        coeff_m.push((vid_s, -w_skew * nx, -w_skew * ny));
+                    }
+                }
+            }
+
+            // iterate through boundary half-edges
+            for (blc, &vid_n) in self.bnd_vid[vid_v].iter().enumerate() {
+                // get geometry
+                let half = self.bnd_half[vid_v][blc];
+                let (nx, ny) = self.bnd_norm[vid_v][blc];
+
+                // linear interpolation to the half-edge center
+                coeff_m.push((vid_v, 0.75 * half * nx, 0.75 * half * ny));
+                coeff_m.push((vid_n, 0.25 * half * nx, 0.25 * half * ny));
+            }
+
+            // merge repeated vertices
+            coeff_m.sort_by_key(|&(vid_m, _, _)| vid_m);
+            coeff_m.dedup_by(|cur, prev| {
+                if cur.0 != prev.0 { return false; }
+                prev.1 += cur.1;
+                prev.2 += cur.2;
+                true
+            });
+            self.grad_coeff[vid_v] = coeff_m;
         }
 
         Ok(())

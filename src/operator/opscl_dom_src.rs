@@ -16,8 +16,8 @@ pub struct OpSclDomSource {
 impl OpSclDomSource {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, src_id: usize) -> Result<OpSclDomSource, VFVChemError> {
         // adds the source term to scalar transport equations
-        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
-        //                                                                     ^^^
+        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        //                                                                      ^^^
 
         // input checking
         check_dom_scldom(vars, dom_id, unk_id)?;
@@ -37,7 +37,10 @@ impl OperatorBase for OpSclDomSource {
     fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
         // int_surf R dA
         // R_c * dA
-        
+        //
+        // apply centroid skewness correction
+        // R_c = R_v + grad(R_v) . skew
+
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
@@ -47,7 +50,7 @@ impl OperatorBase for OpSclDomSource {
         // do not iterate through nodes to skip boundaries
         for vid_v in 0..dom.num_pts() {
             // get geometry
-            let (skew_x, skew_y) = tri.cvol_skew[vid_v];
+            let (sx, sy) = tri.cvol_skew[vid_v];
             let area = tri.cvol_area[vid_v];
             
             // get vertex properties
@@ -55,7 +58,7 @@ impl OperatorBase for OpSclDomSource {
             let (src_x_v, src_y_v) = src_dom.grad[vid_v];
 
             // get source at centroid
-            let src_c = src_v + src_x_v * skew_x + src_y_v * skew_y;
+            let src_c = src_v + src_x_v * sx + src_y_v * sy;
             
             // load into matrix
             self.add_scl_b(vars, b_vec, self.unk_id, vid_v, -src_c * area)?;

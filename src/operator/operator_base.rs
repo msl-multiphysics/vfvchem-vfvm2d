@@ -168,3 +168,18 @@ pub fn check_itf_vecitf(vars: &Variables, itf_id: usize, vecitf_id: usize) -> Re
     if vecitf.itf_id != itf_id { return Err(VFVChemError::OperatorVectorInterfaceNotOnInterface { vecitf_id, itf_id }) }
     Ok(())
 }
+
+// domain
+pub fn check_dom_sclflw(vars: &Variables, dom_id: usize, sclflw_id: usize) -> Result<(), VFVChemError> {
+    let sclflw = &vars.sclflw[sclflw_id];
+    if sclflw.dom_id != dom_id { return Err(VFVChemError::OperatorScalarFlowNotOnDomain { sclflw_id, dom_id }) }
+    Ok(())
+}
+
+// boundary
+pub fn check_bnd_sclflw(vars: &Variables, bnd_id: usize, sclflw_id: usize) -> Result<(), VFVChemError> {
+    let sclflw = &vars.sclflw[sclflw_id];
+    let bnd = &vars.bnd[bnd_id];
+    if sclflw.dom_id != bnd.dom_id { return Err(VFVChemError::OperatorScalarFlowNotOnBoundary { sclflw_id, bnd_id }) }
+    Ok(())
+}

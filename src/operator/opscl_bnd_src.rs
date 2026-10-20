@@ -16,8 +16,8 @@ pub struct OpSclBndSource {
 impl OpSclBndSource {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, src_id: usize) -> Result<OpSclBndSource, VFVChemError> {
         // adds the source term to the control volumes of boundary nodes
-        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
-        //                                                                     ^^^
+        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        //                                                                      ^^^
 
         // input checking
         check_bnd_scldom(vars, bnd_id, unk_id)?;
@@ -37,6 +37,9 @@ impl OperatorBase for OpSclBndSource {
     fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
         // int_surf R dA
         // R_c * dA
+        //
+        // apply centroid skewness correction
+        // R_c = R_v + grad(R_v) . skew
         
         // get objects
         let bnd = &vars.bnd[self.bnd_id];
@@ -52,7 +55,7 @@ impl OperatorBase for OpSclBndSource {
             let vid_v = dom.num_pts() + nid_v;
 
             // get geometry
-            let (skew_x, skew_y) = tri.cvol_skew[vid_v];
+            let (sx, sy) = tri.cvol_skew[vid_v];
             let area = tri.cvol_area[vid_v];
 
             // get vertex properties
@@ -60,9 +63,9 @@ impl OperatorBase for OpSclBndSource {
             let (src_x_v, src_y_v) = src_dom.grad[vid_v];
 
             // get source at centroid
-            let src_c = src_v + src_x_v * skew_x + src_y_v * skew_y;
+            let src_c = src_v + src_x_v * sx + src_y_v * sy;
             
-            // assemble source term -> load into matrix
+            // load into matrix
             self.add_scl_b(vars, b_vec, self.unk_id, vid_v, -src_c * area)?;
         }
     

@@ -8,6 +8,7 @@ pub use super::pts::*;
 pub use super::read_obj::*;
 pub use super::scl_bnd::*;
 pub use super::scl_dom::*;
+pub use super::scl_flw::*;
 pub use super::scl_itf::*;
 pub use super::vars::*;
 pub use super::vec_bnd::*;
