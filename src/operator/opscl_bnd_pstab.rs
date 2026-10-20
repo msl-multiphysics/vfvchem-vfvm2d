@@ -69,10 +69,7 @@ impl OperatorBase for OpSclBndPressureStabilizer {
         let tri = &vars.tri[bnd.dom_id];
         let den_dom = &vars.scldom[self.den_id];
         let fce_dom = &vars.vecdom[self.fce_id];
-
-        // get Rhie-Chow and pressure gradient coefficients
-        let rc_vec = &vars.sclflw[self.flw_id].rc_coeff;
-        let grad_vec = &tri.grad_coeff;
+        let flow_dom = &vars.sclflw[self.flw_id];
 
         // iterate through nodes
         for idx_v in 0..bnd.num_nds() {
@@ -97,7 +94,7 @@ impl OperatorBase for OpSclBndPressureStabilizer {
             let (fce_x_x_v, fce_x_y_v, fce_y_x_v, fce_y_y_v) = fce_dom.grad[vid_v];
             let fce_x_c_v = fce_x_v + fce_x_x_v * cx_v + fce_x_y_v * cy_v;
             let fce_y_c_v = fce_y_v + fce_y_x_v * cx_v + fce_y_y_v * cy_v;
-            let rc_v = rc_vec[vid_v];
+            let rc_v = flow_dom.rc_coeff[vid_v];
 
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
@@ -116,7 +113,7 @@ impl OperatorBase for OpSclBndPressureStabilizer {
                 let (fce_x_x_n, fce_x_y_n, fce_y_x_n, fce_y_y_n) = fce_dom.grad[vid_n];
                 let fce_x_c_n = fce_x_n + fce_x_x_n * cx_n + fce_x_y_n * cy_n;
                 let fce_y_c_n = fce_y_n + fce_y_x_n * cx_n + fce_y_y_n * cy_n;
-                let rc_n = rc_vec[vid_n];
+                let rc_n = flow_dom.rc_coeff[vid_n];
 
                 // get face density
                 let den_m = 0.5 * (den_v + den_n);  // arithmetic mean
@@ -129,13 +126,13 @@ impl OperatorBase for OpSclBndPressureStabilizer {
 
                 // vertex gradient contribution
                 let coeff_v = den_f * 0.5 * rc_v / area_v * face;
-                for &(vid_m, c_x, c_y) in &grad_vec[vid_v] {
+                for &(vid_m, c_x, c_y) in &tri.grad_coeff[vid_v] {
                     self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_m, -coeff_v * (c_x * nx + c_y * ny))?;
                 }
 
                 // neighbor gradient contribution
                 let coeff_n = den_f * 0.5 * rc_n / area_n * face;
-                for &(vid_m, c_x, c_y) in &grad_vec[vid_n] {
+                for &(vid_m, c_x, c_y) in &tri.grad_coeff[vid_n] {
                     self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_m, -coeff_n * (c_x * nx + c_y * ny))?;
                 }
 

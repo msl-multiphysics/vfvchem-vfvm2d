@@ -1,7 +1,7 @@
 use vfvchem_vfvm2d::*;
 use std::fs::create_dir_all;
 
-const SPACE: f64 = 0.01;
+const SPACE: f64 = 0.02;
 
 // cargo run --release --example flow_lid
 fn main() -> Result<(), VFVChemError> {

@@ -66,9 +66,7 @@ impl OperatorBase for OpVecBndAdvection {
         let vel_dom = &vars.vecdom[self.vel_id];
         let den_dom = &vars.scldom[self.den_id];
         let visc_dom = &vars.scldom[self.visc_id];
-
-        // get face mass fluxes; see ScalarFlow
-        let flux_vec = &vars.sclflw[self.flw_id].flux;
+        let flow_dom = &vars.sclflw[self.flw_id];
 
         // iterate through nodes
         for idx_v in 0..bnd.num_nds() {
@@ -82,6 +80,7 @@ impl OperatorBase for OpVecBndAdvection {
             let dist_n = &tri.ngh_dist[vid_v];
             let face_n = &tri.face_len[vid_v];
             let skew_n = &tri.face_skew[vid_v];
+            let flux_n = &flow_dom.flux[vid_v];
             let list_b = &tri.bnd_vid[vid_v];
             let half_b = &tri.bnd_half[vid_v];
             let norm_b = &tri.bnd_norm[vid_v];
@@ -110,7 +109,7 @@ impl OperatorBase for OpVecBndAdvection {
 
                 // get power law term
                 let cond = visc_f * face / dist;
-                let flux = flux_vec[vid_v][loc];
+                let flux = flux_n[loc];
                 let peclet = if cond != 0.0 { flux / cond } else { 0.0 };
                 let pow_law = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 

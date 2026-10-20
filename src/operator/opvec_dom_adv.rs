@@ -62,9 +62,7 @@ impl OperatorBase for OpVecDomAdvection {
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
         let visc_dom = &vars.scldom[self.visc_id];
-
-        // get face mass fluxes; see ScalarFlow
-        let flux_vec = &vars.sclflw[self.flw_id].flux;
+        let flow_dom = &vars.sclflw[self.flw_id];
 
         // iterate through points
         // do not iterate through nodes to skip boundaries
@@ -74,11 +72,12 @@ impl OperatorBase for OpVecDomAdvection {
             let dist_n = &tri.ngh_dist[vid_v];
             let face_n = &tri.face_len[vid_v];
             let skew_n = &tri.face_skew[vid_v];
+            let flux_n = &flow_dom.flux[vid_v];
 
             // get vertex properties
             let visc_v = visc_dom.value[vid_v];
             let (visc_x_v, visc_y_v) = visc_dom.grad[vid_v];
-
+            
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
                 // get geometry
@@ -97,7 +96,7 @@ impl OperatorBase for OpVecDomAdvection {
 
                 // get power law term
                 let cond = visc_f * face / dist;
-                let flux = flux_vec[vid_v][loc];
+                let flux = flux_n[loc];
                 let peclet = if cond != 0.0 { flux / cond } else { 0.0 };
                 let pow_law = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 
