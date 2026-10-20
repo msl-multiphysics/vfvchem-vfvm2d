@@ -1,0 +1,90 @@
+use crate::base::prelude::*;
+use crate::operator::prelude::*;
+use faer::Col;
+use faer::sparse::Triplet;
+
+#[derive(Default)]
+pub struct OpSclDomDiffusion {
+    // domain
+    pub dom_id: usize,
+
+    // scalars
+    pub unk_id: usize,   // unknown scalar (c_i)
+    pub diff_id: usize,  // diffusion coefficient (D_ij)
+    pub drv_id: usize,   // driving scalar (c_j)
+}
+
+impl OpSclDomDiffusion {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<OpSclDomDiffusion, VFVChemError> {
+        // adds the diffusion term to scalar transport equations
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        //                                         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+        // input checking
+        check_dom_scldom(vars, dom_id, unk_id)?;
+        check_dom_scldom(vars, dom_id, diff_id)?;
+        check_dom_scldom(vars, dom_id, drv_id)?;
+
+        // create struct
+        let mut oper = OpSclDomDiffusion::default();
+        oper.dom_id = dom_id;
+        oper.unk_id = unk_id;
+        oper.diff_id = diff_id;
+        oper.drv_id = drv_id;
+
+        Ok(oper)
+    }
+}
+
+impl OperatorBase for OpSclDomDiffusion {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+        // int_surf -div( -D * grad(c) ) dA
+        // int_lin D * grad(c) . n dl
+        // sum_ngh D * dc/dn * dl
+        // sum_ngh D_f * (c_n - c_v) / dn * dl
+        
+        // get objects
+        let dom = &vars.dom[self.dom_id];
+        let tri = &vars.tri[self.dom_id];
+        let diff_dom = &vars.scldom[self.diff_id];
+
+        // iterate through points
+        // do not iterate through nodes to skip boundaries
+        for vid_v in 0..dom.num_pts() {
+            // get geometry
+            let list_n = &tri.ngh_vid[vid_v];
+            let dist_n = &tri.ngh_dist[vid_v];
+            let face_n = &tri.face_len[vid_v];
+            let skew_n = &tri.face_skew[vid_v];
+
+            // get vertex properties
+            let diff_v = diff_dom.value[vid_v];
+            let (diff_x_v, diff_y_v) = diff_dom.grad[vid_v];
+
+            // iterate through faces
+            for (loc, &vid_n) in list_n.iter().enumerate() {
+                // get geometry
+                let face = face_n[loc];
+                let dist = dist_n[loc];
+                let (skew_x, skew_y) = skew_n[loc];
+                
+                // get neighbor properties
+                let diff_n = diff_dom.value[vid_n];
+                let (diff_x_n, diff_y_n) = diff_dom.grad[vid_n];
+                
+                // get face diffusion coefficient
+                let diff_m = 2.0 * diff_v * diff_n / (diff_v + diff_n);  // harmonic mean
+                let diff_f = diff_m + 0.5 * (skew_x * (diff_x_v + diff_x_n) + skew_y * (diff_y_v + diff_y_n));  // skew correction
+                let diff_f = if diff_f > 0.0 { diff_f } else { diff_m };  // guard against negative diffusion
+
+                // load into matrix
+                let coeff = diff_f * face / dist;
+                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.drv_id, vid_n,  coeff)?;
+                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.drv_id, vid_v, -coeff)?;
+            }
+
+        }
+    
+        Ok(())
+    }
+}
