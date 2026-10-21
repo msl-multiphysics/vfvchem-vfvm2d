@@ -36,6 +36,32 @@ impl OpSclDomDivergence {
 
         Ok(oper)
     }
+
+    pub fn apply_time(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+        // int_surf -d(rho)/dt dA
+        // -(rho_v - rho_v_prev) * dA / dt
+
+        // get objects
+        let dom = &vars.dom[self.dom_id];
+        let tri = &vars.tri[self.dom_id];
+        let den_dom = &vars.scldom[self.den_id];
+
+        // iterate through points
+        // do not iterate through nodes to skip boundaries
+        for vid_v in 0..dom.num_pts() {
+            // get geometry
+            let area = tri.cvol_area[vid_v];
+
+            // get vertex properties
+            let den_v = den_dom.value[vid_v];
+            let den_v_prev = den_dom.value_prev[vid_v];
+
+            // load into vector
+            self.add_scl_b(vars, b_vec, self.pres_id, vid_v, (den_v - den_v_prev) * area / dt)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl OperatorBase for OpSclDomDivergence {

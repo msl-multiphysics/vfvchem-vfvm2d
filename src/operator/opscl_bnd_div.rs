@@ -36,6 +36,37 @@ impl OpSclBndDivergence {
 
         Ok(oper)
     }
+
+    pub fn apply_time(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+        // int_surf -d(rho)/dt dA
+        // -(rho_v - rho_v_prev) * dA / dt
+
+        // get objects
+        let bnd = &vars.bnd[self.bnd_id];
+        let dom = &vars.dom[bnd.dom_id];
+        let tri = &vars.tri[bnd.dom_id];
+        let den_dom = &vars.scldom[self.den_id];
+
+        // iterate through nodes
+        for idx_v in 0..bnd.num_nds() {
+            // get indices
+            let gnd_v = bnd.nds_gnd[idx_v];
+            let nid_v = dom.nds_nid[&gnd_v];
+            let vid_v = dom.num_pts() + nid_v;
+
+            // get geometry
+            let area = tri.cvol_area[vid_v];
+
+            // get vertex properties
+            let den_v = den_dom.value[vid_v];
+            let den_v_prev = den_dom.value_prev[vid_v];
+
+            // load into vector
+            self.add_scl_b(vars, b_vec, self.pres_id, vid_v, (den_v - den_v_prev) * area / dt)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl OperatorBase for OpSclBndDivergence {

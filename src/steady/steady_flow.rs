@@ -34,7 +34,7 @@ pub struct SteadyFlow {
     pub oper_itr: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
-    // pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
+    pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
 
@@ -116,6 +116,7 @@ impl SteadyBase for SteadyFlow {
         self.oper_itr.clear();
         self.oper_bnd_vel.clear();
         self.oper_bnd_pres.clear();
+        self.oper_itf_fcnt.clear();
         self.oper_pref.clear();
 
         // internal
@@ -171,28 +172,29 @@ impl SteadyBase for SteadyFlow {
             self.oper_bnd_pres.push((oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
         }
 
-        // // interface
-        // // rows of domain a set continuous velocity and pressure; rows of domain b balance momentum and mass over both halves
-        // for &itf_id in &self.fcnt_itf {
-        //     let dom_a_id = vars.itf[itf_id].dom_a_id;
-        //     let dom_b_id = vars.itf[itf_id].dom_b_id;
-        //     let (vel_a_id, vel_b_id) = (self.itr_vel[&dom_a_id], self.itr_vel[&dom_b_id]);
-        //     let (pres_a_id, pres_b_id) = (self.itr_pres[&dom_a_id], self.itr_pres[&dom_b_id]);
-        //     let (den_a_id, den_b_id) = (self.itr_den[&dom_a_id], self.itr_den[&dom_b_id]);
-        //     let (visc_a_id, visc_b_id) = (self.itr_visc[&dom_a_id], self.itr_visc[&dom_b_id]);
-        //     let (fce_a_id, fce_b_id) = (self.itr_fce[&dom_a_id], self.itr_fce[&dom_b_id]);
-        //     let oper_vcnt = OpVecItfContinuity::new(vars, itf_id, vel_a_id, vel_b_id)?;
-        //     let oper_pcnt = OpSclItfContinuity::new(vars, itf_id, pres_a_id, pres_b_id)?;
-        //     let oper_adv = OpVecItfAdvection::new(vars, itf_id, vel_a_id, pres_a_id, den_a_id, visc_a_id, vel_b_id, pres_b_id, den_b_id, visc_b_id)?;
-        //     let oper_grad = OpVecItfGradient::new(vars, itf_id, vel_a_id, pres_a_id, vel_b_id, pres_b_id)?;
-        //     let oper_diff = OpVecItfDiffusion::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
-        //     let oper_dtrn = OpVecItfTranspose::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
-        //     let oper_ddil = OpVecItfDilatatory::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
-        //     let oper_src = OpVecItfSource::new(vars, itf_id, vel_a_id, fce_a_id, vel_b_id, fce_b_id)?;
-        //     let oper_div = OpSclItfDivergence::new(vars, itf_id, vel_a_id, pres_a_id, den_a_id, vel_b_id, pres_b_id, den_b_id)?;
-        //     let oper_pres = OpSclItfPressureStabilizer::new(vars, itf_id, vel_a_id, pres_a_id, den_a_id, visc_a_id, vel_b_id, pres_b_id, den_b_id, visc_b_id)?;
-        //     self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
-        // }
+        // interface
+        // rows of domain a set continuous velocity and pressure; rows of domain b balance momentum and mass over both halves
+        for &itf_id in &self.fcnt_itf {
+            let dom_a_id = vars.itf[itf_id].dom_a_id;
+            let dom_b_id = vars.itf[itf_id].dom_b_id;
+            let (vel_a_id, vel_b_id) = (self.itr_vel[&dom_a_id], self.itr_vel[&dom_b_id]);
+            let (pres_a_id, pres_b_id) = (self.itr_pres[&dom_a_id], self.itr_pres[&dom_b_id]);
+            let (den_a_id, den_b_id) = (self.itr_den[&dom_a_id], self.itr_den[&dom_b_id]);
+            let (visc_a_id, visc_b_id) = (self.itr_visc[&dom_a_id], self.itr_visc[&dom_b_id]);
+            let (fce_a_id, fce_b_id) = (self.itr_fce[&dom_a_id], self.itr_fce[&dom_b_id]);
+            let (flw_a_id, flw_b_id) = (self.itr_flw[&dom_a_id], self.itr_flw[&dom_b_id]);
+            let oper_vcnt = OpVecItfContinuity::new(vars, itf_id, vel_a_id, vel_b_id)?;
+            let oper_pcnt = OpSclItfContinuity::new(vars, itf_id, pres_a_id, pres_b_id)?;
+            let oper_adv = OpVecItfAdvection::new(vars, itf_id, vel_a_id, den_a_id, visc_a_id, flw_a_id, vel_b_id, den_b_id, visc_b_id, flw_b_id)?;
+            let oper_grad = OpVecItfGradient::new(vars, itf_id, vel_a_id, pres_a_id, vel_b_id, pres_b_id)?;
+            let oper_diff = OpVecItfDiffusion::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
+            let oper_dtrn = OpVecItfTranspose::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
+            let oper_ddil = OpVecItfDilatatory::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
+            let oper_src = OpVecItfSource::new(vars, itf_id, vel_a_id, fce_a_id, vel_b_id, fce_b_id)?;
+            let oper_div = OpSclItfDivergence::new(vars, itf_id, vel_a_id, pres_a_id, den_a_id, vel_b_id, pres_b_id, den_b_id)?;
+            let oper_pres = OpSclItfPressureStabilizer::new(vars, itf_id, pres_a_id, den_a_id, fce_a_id, flw_a_id, pres_b_id, den_b_id, fce_b_id, flw_b_id)?;
+            self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
+        }
 
         // reference pressure
         for &dom_id in &self.pref_dom {
@@ -235,19 +237,19 @@ impl SteadyBase for SteadyFlow {
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
 
-        // // interface
-        // for (oper_vcnt, oper_pcnt, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itf_fcnt {
-        //     oper_vcnt.apply(vars, a_triplet, b_vec)?;
-        //     oper_pcnt.apply(vars, a_triplet, b_vec)?;
-        //     oper_adv.apply(vars, a_triplet, b_vec)?;
-        //     oper_grad.apply(vars, a_triplet, b_vec)?;
-        //     oper_diff.apply(vars, a_triplet, b_vec)?;
-        //     oper_dtrn.apply(vars, a_triplet, b_vec)?;
-        //     oper_ddil.apply(vars, a_triplet, b_vec)?;
-        //     oper_src.apply(vars, a_triplet, b_vec)?;
-        //     oper_div.apply(vars, a_triplet, b_vec)?;
-        //     oper_pres.apply(vars, a_triplet, b_vec)?;
-        // }
+        // interface
+        for (oper_vcnt, oper_pcnt, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itf_fcnt {
+            oper_vcnt.apply(vars, a_triplet, b_vec)?;
+            oper_pcnt.apply(vars, a_triplet, b_vec)?;
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_grad.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
+        }
 
         // reference pressure; replaces equations, so it is applied last
         for oper_pref in &self.oper_pref {

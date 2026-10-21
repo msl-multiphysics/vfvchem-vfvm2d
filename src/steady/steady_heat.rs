@@ -26,7 +26,7 @@ pub struct SteadyHeat {
     pub oper_itr: Vec<(OpSclDomDiffusion, OpSclDomSource)>,
     pub oper_bnd_temp: Vec<OpSclBndDirichlet>,
     pub oper_bnd_hflx: Vec<(OpSclBndDiffusion, OpSclBndSource, OpSclBndNeumann)>,
-    // pub oper_itf_hcnt: Vec<(OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
+    pub oper_itf_hcnt: Vec<(OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
 }
 
 impl SteadyHeat {
@@ -80,6 +80,7 @@ impl SteadyBase for SteadyHeat {
         self.oper_itr.clear();
         self.oper_bnd_temp.clear();
         self.oper_bnd_hflx.clear();
+        self.oper_itf_hcnt.clear();
 
         // internal
         for &dom_id in &self.itr_dom {
@@ -111,21 +112,21 @@ impl SteadyBase for SteadyHeat {
             self.oper_bnd_hflx.push((oper_diff, oper_src, oper_neu));
         }
 
-        // // interface
-        // for &itf_id in &self.hcnt_itf {
-        //     let dom_a_id = vars.itf[itf_id].dom_a_id;
-        //     let dom_b_id = vars.itf[itf_id].dom_b_id;
-        //     let dom_temp_a_id = self.itr_temp[&dom_a_id];
-        //     let dom_temp_b_id = self.itr_temp[&dom_b_id];
-        //     let dom_cond_a_id = self.itr_cond[&dom_a_id];
-        //     let dom_cond_b_id = self.itr_cond[&dom_b_id];
-        //     let dom_hsrc_a_id = self.itr_hsrc[&dom_a_id];
-        //     let dom_hsrc_b_id = self.itr_hsrc[&dom_b_id];
-        //     let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_temp_a_id, dom_temp_b_id)?;
-        //     let oper_diff = OpSclItfDiffusion::new(vars, itf_id, dom_temp_a_id, dom_cond_a_id, dom_temp_a_id, dom_temp_b_id, dom_cond_b_id, dom_temp_b_id)?;
-        //     let oper_src = OpSclItfSource::new(vars, itf_id, dom_temp_a_id, dom_hsrc_a_id, dom_temp_b_id, dom_hsrc_b_id)?;
-        //     self.oper_itf_hcnt.push((oper_cont, oper_diff, oper_src));
-        // }
+        // interface
+        for &itf_id in &self.hcnt_itf {
+            let dom_a_id = vars.itf[itf_id].dom_a_id;
+            let dom_b_id = vars.itf[itf_id].dom_b_id;
+            let dom_temp_a_id = self.itr_temp[&dom_a_id];
+            let dom_temp_b_id = self.itr_temp[&dom_b_id];
+            let dom_cond_a_id = self.itr_cond[&dom_a_id];
+            let dom_cond_b_id = self.itr_cond[&dom_b_id];
+            let dom_hsrc_a_id = self.itr_hsrc[&dom_a_id];
+            let dom_hsrc_b_id = self.itr_hsrc[&dom_b_id];
+            let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_temp_a_id, dom_temp_b_id)?;
+            let oper_diff = OpSclItfDiffusion::new(vars, itf_id, dom_temp_a_id, dom_cond_a_id, dom_temp_a_id, dom_temp_b_id, dom_cond_b_id, dom_temp_b_id)?;
+            let oper_src = OpSclItfSource::new(vars, itf_id, dom_temp_a_id, dom_hsrc_a_id, dom_temp_b_id, dom_hsrc_b_id)?;
+            self.oper_itf_hcnt.push((oper_cont, oper_diff, oper_src));
+        }
 
         Ok(())
     }
@@ -147,12 +148,12 @@ impl SteadyBase for SteadyHeat {
             oper_neu.apply(vars, a_triplet, b_vec)?;
         }
 
-        // // interface
-        // for (oper_cont, oper_diff, oper_src) in &self.oper_itf_hcnt {
-        //     oper_cont.apply(vars, a_triplet, b_vec)?;
-        //     oper_diff.apply(vars, a_triplet, b_vec)?;
-        //     oper_src.apply(vars, a_triplet, b_vec)?;
-        // }
+        // interface
+        for (oper_cont, oper_diff, oper_src) in &self.oper_itf_hcnt {
+            oper_cont.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+        }
 
         Ok(())
     }

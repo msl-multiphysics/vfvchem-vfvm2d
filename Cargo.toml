@@ -11,6 +11,26 @@ spade = "2"
 thiserror = "1"
 rand = "0.9"
 
+[[example]]
+name = "flow_lid"
+path = "examples/flow/flow_lid.rs"
+
+[[example]]
+name = "flow_step"
+path = "examples/flow/flow_step.rs"
+
+[[example]]
+name = "flow_tworeg"
+path = "examples/flow/flow_tworeg.rs"
+
+[[example]]
+name = "heat_transient"
+path = "examples/heat/heat_transient.rs"
+
+[[example]]
+name = "heat_tworeg"
+path = "examples/heat/heat_tworeg.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

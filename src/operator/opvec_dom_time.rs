@@ -1,0 +1,75 @@
+use crate::base::prelude::*;
+use crate::operator::prelude::*;
+use faer::Col;
+use faer::sparse::Triplet;
+
+#[derive(Default)]
+pub struct OpVecDomTime {
+    // domain
+    pub dom_id: usize,
+
+    // vectors
+    pub vel_id: usize,  // velocity (vel); unknown
+
+    // scalars
+    pub den_id: usize,  // density (rho)
+}
+
+impl OpVecDomTime {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize) -> Result<OpVecDomTime, VFVChemError> {
+        // adds the time derivative term to the Navier-Stokes equation
+        // d(rho * vel)/dt + div(rho * vel * vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
+        // ^^^^^^^^^^^^^^^
+
+        // input checking
+        check_dom_vecdom(vars, dom_id, vel_id)?;
+        check_dom_scldom(vars, dom_id, den_id)?;
+
+        // create struct
+        let mut oper = OpVecDomTime::default();
+        oper.dom_id = dom_id;
+        oper.vel_id = vel_id;
+        oper.den_id = den_id;
+
+        Ok(oper)
+    }
+
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+        // int_surf -d(rho * vel)/dt dA
+        // -(rho_v * vel_v - rho_v_prev * vel_v_prev) * dA / dt
+        //
+        // conservative form; lumped at the vertex
+
+        // get objects
+        let dom = &vars.dom[self.dom_id];
+        let tri = &vars.tri[self.dom_id];
+        let vel_dom = &vars.vecdom[self.vel_id];
+        let den_dom = &vars.scldom[self.den_id];
+
+        // iterate through points
+        // do not iterate through nodes to skip boundaries
+        for vid_v in 0..dom.num_pts() {
+            // get geometry
+            let area = tri.cvol_area[vid_v];
+
+            // get vertex properties
+            let den_v = den_dom.value[vid_v];
+            let den_v_prev = den_dom.value_prev[vid_v];
+            let (u_v_prev, v_v_prev) = vel_dom.value_prev[vid_v];
+
+            // load into matrix and vector
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, -den_v * area / dt)?;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, -den_v * area / dt)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, -den_v_prev * u_v_prev * area / dt)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, -den_v_prev * v_v_prev * area / dt)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl OperatorBase for OpVecDomTime {
+    fn apply(&self, _vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+        Err(VFVChemError::OperatorUseApplyTime {})
+    }
+}
