@@ -33,7 +33,7 @@ pub struct SteadyFlow {
     // operators
     pub oper_itr: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
-    pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
+    pub oper_bnd_pres: Vec<(OpVecBndAdvection, OpVecBndGradient, OpVecBndPressureTraction, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
@@ -153,7 +153,8 @@ impl SteadyBase for SteadyFlow {
             self.oper_bnd_vel.push((oper_dir, oper_div, oper_pres));
         }
         for &bnd_id in &self.pres_bnd {
-            // momentum over the internal faces of the node control volumes; the boundary half-edges are do-nothing
+            // momentum with the boundary pressure on the boundary half-edges; mu * grad(vel) . n is do-nothing on the boundary half-edges
+            // continuity over the whole node control volumes
             let dom_id = vars.bnd[bnd_id].dom_id;
             let dom_vel_id = self.itr_vel[&dom_id];
             let dom_pres_id = self.itr_pres[&dom_id];
@@ -162,14 +163,16 @@ impl SteadyBase for SteadyFlow {
             let dom_fce_id = self.itr_fce[&dom_id];
             let dom_flw_id = self.itr_flw[&dom_id];
             let bnd_pres_id = self.pres_pres[&bnd_id];
-            let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
             let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
             let oper_grad = OpVecBndGradient::new(vars, bnd_id, dom_vel_id, dom_pres_id)?;
+            let oper_ptrac = OpVecBndPressureTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
             let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
-            self.oper_bnd_pres.push((oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
+            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id)?;
+            let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
+            self.oper_bnd_pres.push((oper_adv, oper_grad, oper_ptrac, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // interface
@@ -227,14 +230,16 @@ impl SteadyBase for SteadyFlow {
             oper_div.apply(vars, a_triplet, b_vec)?;
             oper_pres.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src) in &self.oper_bnd_pres {
-            oper_dir.apply(vars, a_triplet, b_vec)?;
+        for (oper_adv, oper_grad, oper_ptrac, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_pres {
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_grad.apply(vars, a_triplet, b_vec)?;
+            oper_ptrac.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
         // interface

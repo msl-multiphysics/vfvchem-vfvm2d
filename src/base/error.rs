@@ -156,6 +156,15 @@ pub enum VFVChemError {
         max_iter: usize,
         res: f64,
     },
+    #[error("Mass: Number of components must be greater than zero. Got num_comp = {num_comp}.")]
+    MassNonPositiveNumComponents {
+        num_comp: usize,
+    },
+    #[error("Mass: Component index must be less than the number of components. Got comp = {comp} and num_comp = {num_comp}.")]
+    MassInvalidComponent {
+        comp: usize,
+        num_comp: usize,
+    },
 
 
     // linear solvers
