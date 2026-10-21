@@ -11,58 +11,6 @@ spade = "2"
 thiserror = "1"
 rand = "0.9"
 
-[[example]]
-name = "flow_lid"
-path = "examples/flow/flow_lid.rs"
-
-[[example]]
-name = "flow_step"
-path = "examples/flow/flow_step.rs"
-
-[[example]]
-name = "flow_tworeg"
-path = "examples/flow/flow_tworeg.rs"
-
-[[example]]
-name = "heat_transient"
-path = "examples/heat/heat_transient.rs"
-
-[[example]]
-name = "heat_tworeg"
-path = "examples/heat/heat_tworeg.rs"
-
-[[example]]
-name = "heatflow_cyl"
-path = "examples/heatflow/heatflow_cyl.rs"
-
-[[example]]
-name = "heatflow_heater"
-path = "examples/heatflow/heatflow_heater.rs"
-
-[[example]]
-name = "heatflow_step"
-path = "examples/heatflow/heatflow_step.rs"
-
-[[example]]
-name = "heatflow_step_uniform"
-path = "examples/heatflow/heatflow_step_uniform.rs"
-
-[[example]]
-name = "heatmassflow_step"
-path = "examples/heatmassflow/heatmassflow_step.rs"
-
-[[example]]
-name = "mass_square"
-path = "examples/mass/mass_square.rs"
-
-[[example]]
-name = "massflow_step"
-path = "examples/massflow/massflow_step.rs"
-
-[[example]]
-name = "massflow_step_transient"
-path = "examples/massflow/massflow_step_transient.rs"
-
 [profile.release]
 opt-level = 3
 lto = "fat"

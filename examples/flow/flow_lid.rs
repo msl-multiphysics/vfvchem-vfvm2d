@@ -23,7 +23,7 @@ fn main() -> Result<(), VFVChemError> {
     let pres = vars.add_scldom_unkn(dom, 0.0, "examples/output_flow_lid/pres.vtu")?;
 
     // constant domain values
-    let den = vars.add_scldom_cnst(dom, 1.0, "")?;
+    let den = vars.add_scldom_cnst(dom, 1000.0, "")?;
     let visc = vars.add_scldom_cnst(dom, 0.001, "")?;
     let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;
     
@@ -31,7 +31,7 @@ fn main() -> Result<(), VFVChemError> {
     let vel_l = vars.add_vecbnd_cnst(bnd_l, (0.0, 0.0), "")?;
     let vel_r = vars.add_vecbnd_cnst(bnd_r, (0.0, 0.0), "")?;
     let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "")?;
-    let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.4, 0.0), "")?;
+    let vel_t = vars.add_vecbnd_cnst(bnd_t, (4e-4, 0.0), "")?;
 
     // steady-state momentum transfer solver
     let mut phys = SteadyFlow::new()?;

@@ -27,10 +27,10 @@ fn main() -> Result<(), VFVChemError> {
     let pres_up = vars.add_scldom_unkn(dom_up, 0.0, "examples/output_flow_tworeg/pres_up.vtu")?;
 
     // constant domain values
-    let den_lo = vars.add_scldom_cnst(dom_lo, 1.0, "")?;
-    let den_up = vars.add_scldom_cnst(dom_up, 1.0, "")?;
-    let visc_lo = vars.add_scldom_cnst(dom_lo, 0.01, "")?;
-    let visc_up = vars.add_scldom_cnst(dom_up, 0.05, "")?;
+    let den_lo = vars.add_scldom_cnst(dom_lo, 1000.0, "")?;
+    let den_up = vars.add_scldom_cnst(dom_up, 1000.0, "")?;
+    let visc_lo = vars.add_scldom_cnst(dom_lo, 0.001, "")?;
+    let visc_up = vars.add_scldom_cnst(dom_up, 0.001, "")?;
     let fce_lo = vars.add_vecdom_cnst(dom_lo, (0.0, 0.0), "")?;
     let fce_up = vars.add_vecdom_cnst(dom_up, (0.0, 0.0), "")?;
 
@@ -38,7 +38,7 @@ fn main() -> Result<(), VFVChemError> {
     let vel_l = vars.add_vecbnd_cnst(bnd_l, (0.0, 0.0), "")?;
     let vel_r = vars.add_vecbnd_cnst(bnd_r, (0.0, 0.0), "")?;
     let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "")?;
-    let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.4, 0.0), "")?;
+    let vel_t = vars.add_vecbnd_cnst(bnd_t, (4e-4, 0.0), "")?;
 
     // steady-state momentum transfer solver
     let mut phys = SteadyFlow::new()?;

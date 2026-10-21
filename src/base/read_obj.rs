@@ -15,7 +15,8 @@ pub fn read_nds_obj(file_path: &str, h: f64, offset_ratio: f64) -> Result<Nodes,
     // nodes are spaced like Nodes::new_from_bounds and inset from vertices by dh
     // a segment shared by groups reuses the same node ids
     // domain normals point to the right of the traversal, out of a ccw domain
-    // each domain line is one closed loop; a later loop is a hole, traversed clockwise
+    // each domain line is one closed loop with the domain on its left
+    // ccw loops enclose regions and cw loops cut holes; a group may have any number of either
 
     // default struct
     let mut nds = Nodes::default();

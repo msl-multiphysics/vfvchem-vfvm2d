@@ -25,17 +25,21 @@ fn main() -> Result<(), VFVChemError> {
     let pres = vars.add_scldom_unkn(dom, 0.0, "examples/output_massflow_step/pres.vtu")?;
 
     // constant domain values
-    let diff_00 = vars.add_scldom_cnst(dom, 0.01, "")?;
-    let diff_11 = vars.add_scldom_cnst(dom, 0.01, "")?;
-    let msrc_0 = vars.add_scldom_cnst(dom, 0.0, "")?;
-    let msrc_1 = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let den = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let visc = vars.add_scldom_cnst(dom, 0.01, "")?;
+    let diff_00 = vars.add_scldom_cnst(dom, 1.0e-4, "")?;
+    let diff_11 = vars.add_scldom_cnst(dom, 2.0e-4, "")?;
+    let den = vars.add_scldom_cnst(dom, 1.2, "")?;
+    let visc = vars.add_scldom_cnst(dom, 1.8e-5, "")?;
     let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;
 
-    // parabolic inlet on y in [0.2, 0.4], maximum 1.5
+    // species 0 converts to species 1, first order in the reactant
+    let msrc_0_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| { -1.0 * unkn[0] });
+    let msrc_1_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| {  1.0 * unkn[0] });
+    let msrc_0 = vars.add_scldom_func(dom, msrc_0_func, vec![conc_0], "")?;
+    let msrc_1 = vars.add_scldom_func(dom, msrc_1_func, vec![conc_0], "")?;
+
+    // parabolic inlet on y in [0.2, 0.4], maximum 0.0225
     let vel_func: VecBndFunc = Box::new(|_t, (_x, y), _unkn| {
-        let u = 4.0 * 1.5 * (y - 0.2) * (0.4 - y) / (0.2 * 0.2);
+        let u = 4.0 * 0.0225 * (y - 0.2) * (0.4 - y) / (0.2 * 0.2);
         (u, 0.0)
     });
     let vel_i = vars.add_vecbnd_func(bnd_i, vel_func, vec![], "")?;
@@ -48,8 +52,8 @@ fn main() -> Result<(), VFVChemError> {
     let pres_o = vars.add_sclbnd_cnst(bnd_o, 0.0, "")?;
     let vel_w = vars.add_vecbnd_cnst(bnd_w, (0.0, 0.0), "")?;
 
-    // steady-state mass and momentum transfer solver
-    let mut phys = SteadyMassFlow::new(2)?;
+    // transient mass and momentum transfer solver
+    let mut phys = TransientMassFlow::new(2)?;
     phys.add_mass_dom(0, dom, conc_0, HashMap::from([(0, diff_00)]), msrc_0)?;
     phys.add_mass_dom(1, dom, conc_1, HashMap::from([(1, diff_11)]), msrc_1)?;
     phys.add_conc_bnd(0, bnd_i, conc_0_i)?;
@@ -65,7 +69,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // physics solver
     let mut lin = LinearLu::new(1)?;
-    phys.solve(&mut vars, &mut lin, 100, 1e-3, 0.5)?;
+    phys.solve(&mut vars, &mut lin, 1.0, 100, 1, 30, 1e-3, 0.5)?;
 
     Ok(())
 }

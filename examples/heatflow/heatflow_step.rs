@@ -23,16 +23,16 @@ fn main() -> Result<(), VFVChemError> {
     let pres = vars.add_scldom_unkn(dom, 0.0, "examples/output_heatflow_step/pres.vtu")?;
 
     // constant domain values
-    let vlcp = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let cond = vars.add_scldom_cnst(dom, 0.01, "")?;
-    let hsrc = vars.add_scldom_cnst(dom, 10.0, "")?;
-    let den = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let visc = vars.add_scldom_cnst(dom, 0.01, "")?;
+    let vlcp = vars.add_scldom_cnst(dom, 1000.0, "")?;
+    let cond = vars.add_scldom_cnst(dom, 0.026, "")?;
+    let hsrc = vars.add_scldom_cnst(dom, 0.0, "")?;
+    let den = vars.add_scldom_cnst(dom, 1.2, "")?;
+    let visc = vars.add_scldom_cnst(dom, 1.8e-5, "")?;
     let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;
 
-    // parabolic inlet on y in [0.2, 0.4], maximum 1.5
+    // parabolic inlet on y in [0.2, 0.4], maximum 0.0225
     let vel_func: VecBndFunc = Box::new(|_t, (_x, y), _unkn| {
-        let u = 4.0 * 1.5 * (y - 0.2) * (0.4 - y) / (0.2 * 0.2);
+        let u = 4.0 * 0.0225 * (y - 0.2) * (0.4 - y) / (0.2 * 0.2);
         (u, 0.0)
     });
     let vel_i = vars.add_vecbnd_func(bnd_i, vel_func, vec![], "")?;

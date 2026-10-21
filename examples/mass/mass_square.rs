@@ -25,18 +25,18 @@ fn main() -> Result<(), VFVChemError> {
 
     // constant domain values
     // component 0 diffuses down its own gradient and the gradient of component 1
-    let diff_00 = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let diff_01 = vars.add_scldom_cnst(dom, 0.5, "")?;
-    let diff_11 = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let msrc_0 = vars.add_scldom_cnst(dom, -500.0, "")?;
-    let msrc_1 = vars.add_scldom_cnst(dom, 200.0, "")?;
+    let diff_00 = vars.add_scldom_cnst(dom, 1.0e-4, "")?;
+    let diff_01 = vars.add_scldom_cnst(dom, 0.5e-4, "")?;
+    let diff_11 = vars.add_scldom_cnst(dom, 1.0e-4, "")?;
+    let msrc_0 = vars.add_scldom_cnst(dom, -0.2, "")?;
+    let msrc_1 = vars.add_scldom_cnst(dom,  0.1, "")?;
 
     // constant boundary values
-    let mflx_0_l = vars.add_sclbnd_cnst(bnd_l, 50.0, "")?;
-    let conc_0_r = vars.add_sclbnd_cnst(bnd_r, 300.0, "")?;
+    let mflx_0_l = vars.add_sclbnd_cnst(bnd_l, 0.5, "")?;
+    let conc_0_r = vars.add_sclbnd_cnst(bnd_r, 3e-4, "")?;
     let mflx_0_b = vars.add_sclbnd_cnst(bnd_b, 0.0, "")?;
-    let conc_0_t = vars.add_sclbnd_cnst(bnd_t, 400.0, "")?;
-    let conc_1_l = vars.add_sclbnd_cnst(bnd_l, 100.0, "")?;
+    let conc_0_t = vars.add_sclbnd_cnst(bnd_t, 4e-4, "")?;
+    let conc_1_l = vars.add_sclbnd_cnst(bnd_l, 1e-4, "")?;
     let conc_1_r = vars.add_sclbnd_cnst(bnd_r, 0.0, "")?;
     let mflx_1_b = vars.add_sclbnd_cnst(bnd_b, 0.0, "")?;
     let mflx_1_t = vars.add_sclbnd_cnst(bnd_t, 0.0, "")?;
@@ -56,7 +56,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // physics solver
     let mut lin = LinearLu::new(1)?;
-    phys.solve(&mut vars, &mut lin, 10, 1e-3, 1.0)?;
+    phys.solve(&mut vars, &mut lin, 50, 1e-3, 0.8)?;
 
     Ok(())
 }

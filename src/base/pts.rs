@@ -59,10 +59,11 @@ impl Points {
 
 fn _point_sample(nds: &Nodes, loop_gnd: &Vec<Vec<usize>>, max_try: usize, seed: u64) -> Vec<(f64, f64)> {
     // pseudocode:
-    // for one 2d group, find the polygon and bounding box
-    // use polygon to test if candidate point is inside
+    // for one 2d group, find the loops and bounding box
+    // use loop winding to test if candidate point is inside
     // use bounding box to create background grid
-    // use bridson poisson-disk sampling to find points
+    // seed every ccw loop, then use bridson poisson-disk sampling to find points
+    // any number of ccw regions and cw holes are allowed
 
     // step 1: get polygon and bounding box
 
@@ -119,35 +120,60 @@ fn _point_sample(nds: &Nodes, loop_gnd: &Vec<Vec<usize>>, max_try: usize, seed: 
     // corner nodes may be in the same cell
     let num_nds = pts_pos.len();
 
-    // step 3: insert starting point into grid
+    // step 3: insert one starting point per ccw loop
 
     // seed rng
     let mut rng = StdRng::seed_from_u64(seed);
 
-    // create random interior point
+    // growth only reaches 2h from existing points, so separate regions need their own starting point
+    // candidates are the loop centroid, then a distance h left of each edge midpoint
     let h2 = h * h;
-    for _ in 0..max_try {
-        // random point
-        let x0 = rng.random_range(x_min..x_max);
-        let y0 = rng.random_range(y_min..y_max);
-    
-        // check if point is (1) in the polygon and (2) far enough from other points
-        let is_poly = _point_in_poly(x0, y0, &loop_pos);
-        let is_far = _point_is_far(x0, y0, &pts_pos, &grid, x_min, y_min, nx, ny, h2, cell);
-        
-        // register initial point
-        if is_poly && is_far {
-            // get grid cell
-            let vid_c = pts_pos.len();
-            let i0 = ((x0 - x_min) / cell) as usize;
-            let j0 = ((y0 - y_min) / cell) as usize;
-            
-            // register point
-            grid[i0 + j0 * nx] = vid_c;
-            pts_pos.push((x0, y0));
-            pts_act.push(vid_c);
-            break;
-        } 
+    for nds_pos in &loop_pos {
+        // skip degenerate loops
+        let num = nds_pos.len();
+        if num < 3 { continue; }
+
+        // skip cw loops (holes) using the signed area
+        let mut area = 0.0;
+        for nid0 in 0..num {
+            let (x0, y0) = nds_pos[nid0];
+            let (x1, y1) = nds_pos[(nid0 + 1) % num];
+            area += 0.5 * (x0 * y1 - x1 * y0);
+        }
+        if area <= 0.0 { continue; }
+
+        // candidate starting points
+        let xg = nds_pos.iter().map(|&(x, _)| x).sum::<f64>() / (num as f64);
+        let yg = nds_pos.iter().map(|&(_, y)| y).sum::<f64>() / (num as f64);
+        let mut cand = vec![(xg, yg)];
+        for nid0 in 0..num {
+            let (x0, y0) = nds_pos[nid0];
+            let (x1, y1) = nds_pos[(nid0 + 1) % num];
+            let len = ((x1 - x0).powi(2) + (y1 - y0).powi(2)).sqrt();
+            if len == 0.0 { continue; }
+            cand.push((0.5 * (x0 + x1) - h * (y1 - y0) / len, 0.5 * (y0 + y1) + h * (x1 - x0) / len));
+        }
+
+        // register the first valid candidate
+        for (x0, y0) in cand {
+            // check if point is (1) in the domain and (2) far enough from other points
+            let is_poly = _point_in_poly(x0, y0, &loop_pos);
+            let is_far = _point_is_far(x0, y0, &pts_pos, &grid, x_min, y_min, nx, ny, h2, cell);
+
+            // register initial point
+            if is_poly && is_far {
+                // get grid cell
+                let vid_c = pts_pos.len();
+                let i0 = ((x0 - x_min) / cell) as usize;
+                let j0 = ((y0 - y_min) / cell) as usize;
+
+                // register point
+                grid[i0 + j0 * nx] = vid_c;
+                pts_pos.push((x0, y0));
+                pts_act.push(vid_c);
+                break;
+            }
+        }
     }
 
     // step 4: insert remaining points
@@ -201,37 +227,33 @@ fn _point_sample(nds: &Nodes, loop_gnd: &Vec<Vec<usize>>, max_try: usize, seed: 
 }
 
 fn _point_in_poly(xc: f64, yc: f64, loop_pos: &Vec<Vec<(f64, f64)>>) -> bool {
-    // even-odd ray cast over each closed loop
+    // winding number over each closed loop
+    // ccw loops add +1 and cw loops add -1, so the point is inside if the winding is positive
     
     // initialize
-    let mut is_inside = false;
+    let mut wind = 0;
     
     // iterate through loops
     for nds_pos in loop_pos {
         // skip degenerate loops
         if nds_pos.len() < 3 { continue; }
 
-        // iterate through each segment
-        let mut nid1 = nds_pos.len() - 1;
+        // iterate through each segment in traversal order
         for nid0 in 0..nds_pos.len() {
             // get endpoints of segment
             let (x0, y0) = nds_pos[nid0];
-            let (x1, y1) = nds_pos[nid1];
+            let (x1, y1) = nds_pos[(nid0 + 1) % nds_pos.len()];
 
-            // intersection tests
-            let is_samey = (y0 > yc) != (y1 > yc);  // test point within y-range of segment
-            let is_right = xc < (x1 - x0) * (yc - y0) / (y1 - y0) + x0;  // ray-segment intersection on the right of test point
-            let is_intersect = is_samey && is_right;
+            // side of test point; positive if on the left of the segment
+            let side = (x1 - x0) * (yc - y0) - (xc - x0) * (y1 - y0);
 
-            // change sign if intersected
-            if is_intersect { is_inside = !is_inside; }
-
-            // update for next segment
-            nid1 = nid0;
+            // upward crossing with point on the left, or downward crossing with point on the right
+            if y0 <= yc && y1 > yc && side > 0.0 { wind += 1; }
+            if y0 > yc && y1 <= yc && side < 0.0 { wind -= 1; }
         }
     }
 
-    is_inside
+    wind > 0
 }
 
 fn _point_is_far(xc: f64, yc: f64, pts_pos: &[(f64, f64)], grid: &[usize], x_min: f64, y_min: f64, nx: usize, ny: usize, h2: f64, cell: f64) -> bool{
