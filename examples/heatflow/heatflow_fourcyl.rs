@@ -71,5 +71,10 @@ fn main() -> Result<(), VFVChemError> {
     let mut lin = LinearLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-3, 0.5)?;
 
+    // temperature must stay uniform at the inlet value; the cylinders are not heated
+    let temp_err = vars.scldom[temp_c].value.iter().chain(vars.scldom[temp_h].value.iter()).fold(0.0_f64, |err, &t| err.max((t - 300.0).abs()));
+    println!("Maximum temperature deviation: {:.3e} K", temp_err);
+    assert!(temp_err < 1e-6, "temperature is not uniform");
+
     Ok(())
 }

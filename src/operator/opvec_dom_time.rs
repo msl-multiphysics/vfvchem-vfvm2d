@@ -18,7 +18,7 @@ pub struct OpVecDomTime {
 impl OpVecDomTime {
     pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize) -> Result<OpVecDomTime, VFVChemError> {
         // adds the time derivative term to the Navier-Stokes equation
-        // d(rho * vel)/dt + div(rho * vel * vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
+        // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         // ^^^^^^^^^^^^^^^
 
         // input checking
@@ -35,10 +35,8 @@ impl OpVecDomTime {
     }
 
     pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
-        // int_surf -d(rho * vel)/dt dA
-        // -(rho_v * vel_v - rho_v_prev * vel_v_prev) * dA / dt
-        //
-        // conservative form; lumped at the vertex
+        // int_surf -rho * d(vel)/dt dA
+        // -rho_v * (vel_v - vel_v_prev) * dA / dt
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -54,14 +52,13 @@ impl OpVecDomTime {
 
             // get vertex properties
             let den_v = den_dom.value[vid_v];
-            let den_v_prev = den_dom.value_prev[vid_v];
             let (u_v_prev, v_v_prev) = vel_dom.value_prev[vid_v];
 
             // load into matrix and vector
             self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, -den_v * area / dt)?;
             self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, -den_v * area / dt)?;
-            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, -den_v_prev * u_v_prev * area / dt)?;
-            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, -den_v_prev * v_v_prev * area / dt)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, -den_v * u_v_prev * area / dt)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, -den_v * v_v_prev * area / dt)?;
         }
 
         Ok(())

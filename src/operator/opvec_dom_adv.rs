@@ -22,8 +22,8 @@ pub struct OpVecDomAdvection {
 impl OpVecDomAdvection {
     pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, visc_id: usize, flw_id: usize) -> Result<OpVecDomAdvection, VFVChemError> {
         // adds the advection term to the Navier-Stokes equation
-        // d(rho * vel)/dt + div(rho * vel * vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
-        //                   ^^^^^^^^^^^^^^^^^^^^
+        // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
+        //                   ^^^^^^^^^^^^^^^^^^^^^
 
         // input checking
         check_dom_vecdom(vars, dom_id, vel_id)?;
@@ -45,18 +45,18 @@ impl OpVecDomAdvection {
 
 impl OperatorBase for OpVecDomAdvection {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
-        // int_surf -div(rho * vel * vel) dA
-        // int_lin -rho * vel * (vel . n) dl
-        // sum_ngh -rho * vel * (vel . n) dl
+        // int_surf -rho * vel . grad(vel) dA
+        // int_lin -rho * (vel - vel_v) * (vel . n) dl
+        // sum_ngh -rho * (vel - vel_v) * (vel . n) dl
         //
         // introduce mass flux
         // F = rho * vel * dl
         // sum_ngh -F * (vel . n)
-        // sum_ngh -F_f * vel_f
+        // sum_ngh -F_f * (vel_f - vel_v)
         //
         // apply power law scheme
         // A(|Pe|) = max(0, (1 - 0.1 * |Pe|)^5)
-        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * vel_n - (D_f * (A(|Pe_f|) - 1) + max(F_f, 0)) * vel_v
+        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (vel_n - vel_v)
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -101,12 +101,11 @@ impl OperatorBase for OpVecDomAdvection {
                 let pow_law = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 
                 // load into matrix
-                let coeff_n = cond * (pow_law - 1.0) + (-flux).max(0.0);
-                let coeff_v = cond * (pow_law - 1.0) + flux.max(0.0);
-                self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_n,  coeff_n)?;
-                self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, -coeff_v)?;
-                self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_n,  coeff_n)?;
-                self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, -coeff_v)?;
+                let coeff = cond * (pow_law - 1.0) + (-flux).max(0.0);
+                self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_n,  coeff)?;
+                self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, -coeff)?;
+                self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_n,  coeff)?;
+                self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, -coeff)?;
             }
 
         }

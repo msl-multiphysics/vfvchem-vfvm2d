@@ -11,6 +11,10 @@ spade = "2"
 thiserror = "1"
 rand = "0.9"
 
+[[example]]
+name = "heatflow_fourcyl"
+path = "examples/heatflow/heatflow_fourcyl.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

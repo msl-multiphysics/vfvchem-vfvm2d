@@ -21,8 +21,8 @@ pub struct OpSclDomAdvection {
 impl OpSclDomAdvection {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, wgt_id: usize, diff_id: usize, den_id: usize, flw_id: usize) -> Result<OpSclDomAdvection, VFVChemError> {
         // adds the advection term to scalar transport equations
-        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ii * grad(c_i) ) + R_i
-        //                   ^^^^^^^^^^^^^^^^^^^^
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ii * grad(c_i) ) + R_i
+        //                 ^^^^^^^^^^^^^^^^^^^^^
         // must be used together with OpSclDomDiffusion; the power law scheme corrects its central difference
 
         // input checking
@@ -47,17 +47,17 @@ impl OpSclDomAdvection {
 
 impl OperatorBase for OpSclDomAdvection {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
-        // int_surf -div(m * c * vel) dA
-        // int_lin -m * c * (vel . n) dl
-        // sum_ngh -m * c * (vel . n) dl
+        // int_surf -m * vel . grad(c) dA
+        // int_lin -m * (c - c_v) * (vel . n) dl
+        // sum_ngh -m * (c - c_v) * (vel . n) dl
         //
         // introduce weight flux from the mass flux
         // F = m * vel * dl = (m / rho) * rho * vel * dl
-        // sum_ngh -F_f * c_f
+        // sum_ngh -F_f * (c_f - c_v)
         //
         // apply power law scheme
         // A(|Pe|) = max(0, (1 - 0.1 * |Pe|)^5)
-        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * c_n - (D_f * (A(|Pe_f|) - 1) + max(F_f, 0)) * c_v
+        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (c_n - c_v)
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -114,10 +114,9 @@ impl OperatorBase for OpSclDomAdvection {
                 let pow_law = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 
                 // load into matrix
-                let coeff_n = cond * (pow_law - 1.0) + (-flux).max(0.0);
-                let coeff_v = cond * (pow_law - 1.0) + flux.max(0.0);
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_n,  coeff_n)?;
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, -coeff_v)?;
+                let coeff = cond * (pow_law - 1.0) + (-flux).max(0.0);
+                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_n,  coeff)?;
+                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, -coeff)?;
             }
 
         }

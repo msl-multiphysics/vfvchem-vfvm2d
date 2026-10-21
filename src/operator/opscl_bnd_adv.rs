@@ -15,7 +15,7 @@ pub struct OpSclBndAdvection {
     pub den_id: usize,   // density (rho); converts the mass flux
 
     // vectors
-    pub vel_id: usize,  // velocity (vel); for the boundary flux
+    pub vel_id: usize,  // velocity (vel)
 
     // flow
     pub flw_id: usize,  // flow data; for the Rhie-Chow mass flux
@@ -24,9 +24,10 @@ pub struct OpSclBndAdvection {
 impl OpSclBndAdvection {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, wgt_id: usize, diff_id: usize, vel_id: usize, den_id: usize, flw_id: usize) -> Result<OpSclBndAdvection, VFVChemError> {
         // adds the advection term to the control volumes of boundary nodes
-        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ii * grad(c_i) ) + R_i
-        //                   ^^^^^^^^^^^^^^^^^^^^
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ii * grad(c_i) ) + R_i
+        //                 ^^^^^^^^^^^^^^^^^^^^^
         // must be used together with OpSclBndDiffusion; the power law scheme corrects its central difference
+        // the boundary half-edges are upwinded from the node and contribute nothing
 
         // input checking
         check_bnd_scldom(vars, bnd_id, unk_id)?;
@@ -52,18 +53,20 @@ impl OpSclBndAdvection {
 
 impl OperatorBase for OpSclBndAdvection {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
-        // int_surf -div(m * c * vel) dA
-        // int_lin -m * c * (vel . n) dl
-        // sum_ngh -m * c * (vel . n) dl + sum_bnd -m * c * (vel . n) dl
+        // int_surf -m * vel . grad(c) dA
+        // int_lin -m * (c - c_v) * (vel . n) dl
+        // sum_ngh -m * (c - c_v) * (vel . n) dl + sum_bnd -m * (c - c_v) * (vel . n) dl
         //
         // introduce weight flux from the mass flux
         // F = m * vel * dl = (m / rho) * rho * vel * dl
-        // sum_ngh -F_f * c_f + sum_bnd -F_b * c_v
-        // F_b = (0.75 * m_v * vel_v + 0.25 * m_n * vel_n) . n * dl
+        // sum_ngh -F_f * (c_f - c_v) + sum_bnd -F_b * (c_v - c_v)
+        // sum_ngh -F_f * (c_f - c_v)
         //
         // apply power law scheme
         // A(|Pe|) = max(0, (1 - 0.1 * |Pe|)^5)
-        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * c_n - (D_f * (A(|Pe_f|) - 1) + max(F_f, 0)) * c_v
+        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (c_n - c_v)
+        //
+        // non-conservative form; uniform c is preserved even if continuity is not satisfied
 
         // get objects
         let bnd = &vars.bnd[self.bnd_id];
@@ -72,7 +75,6 @@ impl OperatorBase for OpSclBndAdvection {
         let wgt_dom = &vars.scldom[self.wgt_id];
         let diff_dom = &vars.scldom[self.diff_id];
         let den_dom = &vars.scldom[self.den_id];
-        let vel_dom = &vars.vecdom[self.vel_id];
         let flow_dom = &vars.sclflw[self.flw_id];
 
         // iterate through nodes
@@ -88,9 +90,6 @@ impl OperatorBase for OpSclBndAdvection {
             let face_n = &tri.face_len[vid_v];
             let skew_n = &tri.face_skew[vid_v];
             let flux_n = &flow_dom.flux[vid_v];
-            let list_b = &tri.bnd_vid[vid_v];
-            let half_b = &tri.bnd_half[vid_v];
-            let norm_b = &tri.bnd_norm[vid_v];
 
             // get vertex properties
             let wgt_v = wgt_dom.value[vid_v];
@@ -99,7 +98,6 @@ impl OperatorBase for OpSclBndAdvection {
             let (diff_x_v, diff_y_v) = diff_dom.grad[vid_v];
             let den_v = den_dom.value[vid_v];
             let (den_x_v, den_y_v) = den_dom.grad[vid_v];
-            let (u_v, v_v) = vel_dom.value[vid_v];
 
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
@@ -130,27 +128,9 @@ impl OperatorBase for OpSclBndAdvection {
                 let pow_law = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 
                 // load into matrix
-                let coeff_n = cond * (pow_law - 1.0) + (-flux).max(0.0);
-                let coeff_v = cond * (pow_law - 1.0) + flux.max(0.0);
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_n,  coeff_n)?;
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, -coeff_v)?;
-            }
-
-            // iterate through boundary half-edges
-            for (blc, &vid_n) in list_b.iter().enumerate() {
-                // get geometry
-                let half = half_b[blc];
-                let (nx, ny) = norm_b[blc];
-
-                // get neighbor properties
-                let wgt_n = wgt_dom.value[vid_n];
-                let (u_n, v_n) = vel_dom.value[vid_n];
-
-                // get boundary weight flux
-                let flux = (0.75 * wgt_v * (u_v * nx + v_v * ny) + 0.25 * wgt_n * (u_n * nx + v_n * ny)) * half;
-
-                // load into matrix
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, -flux)?;
+                let coeff = cond * (pow_law - 1.0) + (-flux).max(0.0);
+                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_n,  coeff)?;
+                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, -coeff)?;
             }
 
         }

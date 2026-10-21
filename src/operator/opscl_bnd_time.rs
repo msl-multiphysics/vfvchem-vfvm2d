@@ -16,8 +16,8 @@ pub struct OpSclBndTime {
 impl OpSclBndTime {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, wgt_id: usize) -> Result<OpSclBndTime, VFVChemError> {
         // adds the time derivative term to the control volumes of boundary nodes
-        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
-        // ^^^^^^^^^^^^^^^
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // ^^^^^^^^^^^^^
 
         // input checking
         check_bnd_scldom(vars, bnd_id, unk_id)?;
@@ -33,10 +33,8 @@ impl OpSclBndTime {
     }
 
     pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
-        // int_surf -d(m * c)/dt dA
-        // -(m_v * c_v - m_v_prev * c_v_prev) * dA / dt
-        //
-        // conservative form; lumped at the vertex
+        // int_surf -m * dc/dt dA
+        // -m_v * (c_v - c_v_prev) * dA / dt
 
         // get objects
         let bnd = &vars.bnd[self.bnd_id];
@@ -57,12 +55,11 @@ impl OpSclBndTime {
 
             // get vertex properties
             let wgt_v = wgt_dom.value[vid_v];
-            let wgt_v_prev = wgt_dom.value_prev[vid_v];
             let unk_v_prev = unk_dom.value_prev[vid_v];
 
             // load into matrix and vector
             self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, -wgt_v * area / dt)?;
-            self.add_scl_b(vars, b_vec, self.unk_id, vid_v, -wgt_v_prev * unk_v_prev * area / dt)?;
+            self.add_scl_b(vars, b_vec, self.unk_id, vid_v, -wgt_v * unk_v_prev * area / dt)?;
         }
 
         Ok(())
