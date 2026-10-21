@@ -1,18 +1,6 @@
 use crate::base::prelude::*;
 use std::collections::HashMap;
 
-// input: time
-// output: velocity, origin, angular velocity
-pub type BndVelFunc = Box<dyn Fn(f64) -> ((f64, f64), (f64, f64), f64) + Send + Sync>;
-
-#[derive(Default)]
-pub enum BndVelType {
-    #[default] Constant,
-    Function {
-        func: BndVelFunc,
-    }
-}
-
 #[derive(Default)]
 pub struct Boundary {
     // ids
@@ -25,12 +13,6 @@ pub struct Boundary {
     pub nds_nid: HashMap<usize, usize>,  // gnd -> idx; global to local
     pub nds_idx: HashMap<usize, usize>,  // gnd -> idx; only nodes on this boundary
     pub nds_norm: Vec<(f64, f64)>,  // idx -> (nx, ny)
-
-    // boundary movement
-    pub bndvel_type: BndVelType,
-    pub vel: (f64, f64),
-    pub org: (f64, f64),
-    pub angvel: f64,
 }
 
 impl Boundary {
@@ -54,19 +36,6 @@ impl Boundary {
         bnd.nds_norm = bnd.nds_gnd.iter().map(|&gnd| nds_norm[bnd.nds_nid[&gnd]]).collect();
 
         Ok(bnd)
-    }
-
-    pub fn set_bndvel_cnst(&mut self, vel: (f64, f64), org: (f64, f64), angvel: f64) -> Result<(), VFVChemError> {
-        self.bndvel_type = BndVelType::Constant;
-        self.vel = vel;
-        self.org = org;
-        self.angvel = angvel;
-        Ok(())
-    }
-
-    pub fn set_bndvel_func(&mut self, func: BndVelFunc) -> Result<(), VFVChemError> {
-        self.bndvel_type = BndVelType::Function { func };
-        Ok(())
     }
 
     #[inline]

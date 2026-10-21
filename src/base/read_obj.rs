@@ -198,7 +198,6 @@ fn _segment_gnd(nds: &mut Nodes, seg_gnd: &mut HashMap<(usize, usize), Vec<usize
     pos.push((x1 - dh * tx, y1 - dh * ty));
 
     let g0 = nds.nds_pos.len();
-    nds.nds_vel.extend(vec![(0.0, 0.0); pos.len()]);
     nds.nds_pos.extend(pos);
     let gnd: Vec<usize> = (g0..nds.nds_pos.len()).collect();
     let ordered = if a <= b { gnd.clone() } else { gnd.iter().rev().copied().collect() };

@@ -67,18 +67,6 @@ impl Variables {
         Ok(itf_id)
     }
 
-    pub fn set_bndvel_cnst(&mut self, bnd_id: usize, vel: (f64, f64), org: (f64, f64), angvel: f64) -> Result<(), VFVChemError> {
-        let bnd = &mut self.bnd[bnd_id];
-        bnd.set_bndvel_cnst(vel, org, angvel)?;
-        Ok(())
-    }
-
-    pub fn set_bndvel_func(&mut self, bnd_id: usize, func: BndVelFunc) -> Result<(), VFVChemError> {
-        let bnd = &mut self.bnd[bnd_id];
-        bnd.set_bndvel_func(func)?;
-        Ok(())
-    }
-
     // scalar
     pub fn add_scldom_cnst(&mut self, dom_id: usize, value: f64, file_path: &str) -> Result<usize, VFVChemError> {
         let scldom_id = self.scldom.len();

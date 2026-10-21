@@ -15,7 +15,6 @@ pub struct Points {
     // points
     // points are located inside boundaries
     pub pts_pos: Vec<(f64, f64)>,  // gpt (global point id) -> (x, y)
-    pub pts_vel: Vec<(f64, f64)>,  // gpt -> (u, v)
 
     // 2d groups
     // uses the same grp2d_id in nodes
@@ -42,7 +41,6 @@ impl Points {
             for pos in pts_pos.iter() {
                 let gpt = pts.pts_pos.len();
                 pts.pts_pos.push(*pos);
-                pts.pts_vel.push((0.0, 0.0));
                 pts_id.push(gpt);
             }
             pts.grp2d_gpt.insert(grp2d_id.clone(), pts_id);

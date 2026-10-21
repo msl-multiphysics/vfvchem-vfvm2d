@@ -11,7 +11,6 @@ pub struct Nodes {
     // nodes
     // nodes are on boundaries and interfaces
     pub nds_pos: Vec<(f64, f64)>,  // gnd (global node id) -> (x, y)
-    pub nds_vel: Vec<(f64, f64)>,  // gnd -> (u, v)
     
     // 1d groups
     // defines boundaries and interfaces
@@ -83,7 +82,6 @@ impl Nodes {
         nds.nds_pos.extend(nds_r);
         nds.nds_pos.extend(nds_t);
         nds.nds_pos.extend(nds_l);
-        nds.nds_vel = vec![(0.0, 0.0); 2*num_x + 2*num_y + 4];
 
         // nodes in 1d groups
         nds.grp1d_gnd.insert("bnd_b".to_string(), (0..num_x + 1).collect());                                // bottom

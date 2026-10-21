@@ -1,18 +1,6 @@
 use crate::base::prelude::*;
 use std::collections::HashMap;
 
-// input: time
-// output: velocity, origin, angular velocity
-pub type ItfVelFunc = Box<dyn Fn(f64) -> ((f64, f64), (f64, f64), f64) + Send + Sync>;
-
-#[derive(Default)]
-pub enum ItfVelType {
-    #[default] Constant,
-    Function {
-        func: ItfVelFunc,
-    }
-}
-
 #[derive(Default)]
 pub struct Interface {
     // ids
@@ -25,12 +13,6 @@ pub struct Interface {
     pub nds_gnd: Vec<usize>,  // idx (index) -> gnd; local to global
     pub nds_nid: HashMap<usize, usize>,  // gnd -> idx; global to local
     pub nds_norm_ab: Vec<(f64, f64)>,  // idx -> (nx, ny) from dom a to b
-
-    // interface movement
-    pub itfvel_type: ItfVelType,
-    pub vel: (f64, f64),
-    pub org: (f64, f64),
-    pub angvel: f64,
 }
 
 impl Interface {
@@ -59,19 +41,6 @@ impl Interface {
         itf.nds_norm_ab = itf.nds_gnd.iter().map(|&gnd| nds_norm_ab[itf.nds_nid[&gnd]]).collect();
 
         Ok(itf)
-    }
-
-    pub fn set_itfvel_cnst(&mut self, vel: (f64, f64), org: (f64, f64), angvel: f64) -> Result<(), VFVChemError> {
-        self.itfvel_type = ItfVelType::Constant;
-        self.vel = vel;
-        self.org = org;
-        self.angvel = angvel;
-        Ok(())
-    }
-
-    pub fn set_itfvel_func(&mut self, func: ItfVelFunc) -> Result<(), VFVChemError> {
-        self.itfvel_type = ItfVelType::Function { func };
-        Ok(())
     }
 
     #[inline]
