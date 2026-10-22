@@ -9,7 +9,7 @@ fn main() -> Result<(), VFVChemError> {
     create_dir_all("examples/output_heatflow_heater").unwrap();
 
     // create variables
-    let mut vars = Variables::new_obj("examples/obj/obj_heater.obj", SPACE, 100, 42)?;
+    let mut vars = Variables::new_obj("examples/obj/obj_heater.obj", SPACE, SPACE, SPACE, 100, 42)?;
 
     // geometry
     let dom_c = vars.add_dom("dom_c")?;

@@ -9,7 +9,7 @@ fn main() -> Result<(), VFVChemError> {
     create_dir_all("examples/output_heatflow_fourcyl").unwrap();
 
     // create variables
-    let mut vars = Variables::new_obj("examples/obj/obj_fourcyl.obj", SPACE, 100, 42)?;
+    let mut vars = Variables::new_obj("examples/obj/obj_fourcyl.obj", SPACE, SPACE, SPACE, 100, 42)?;
 
     // geometry
     // the heated cylinders share one domain, one interface, and one no-slip boundary

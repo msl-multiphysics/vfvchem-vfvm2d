@@ -12,6 +12,19 @@ pub enum VFVChemError {
     PointsNonPositiveAttempts {
         max_try: usize,
     },
+    #[error("Points: Minimum spacing `h_min` must be positive and finite. Got h_min = {h_min}.")]
+    PointsInvalidMinSpacing {
+        h_min: f64,
+    },
+    #[error("Points: Maximum spacing `h_max` must be finite and at least h_min. Got h_min = {h_min} and h_max = {h_max}.")]
+    PointsInvalidMaxSpacing {
+        h_min: f64,
+        h_max: f64,
+    },
+    #[error("Points: Refinement layer thickness `ref_len` must be positive and finite. Got ref_len = {ref_len}.")]
+    PointsInvalidRefinementLength {
+        ref_len: f64,
+    },
     #[error("Nodes: x_max must be greater than x_min. Got x_min = {x_min} and x_max = {x_max}.")]
     NodesInvalidBoundsX {
         x_min: f64,

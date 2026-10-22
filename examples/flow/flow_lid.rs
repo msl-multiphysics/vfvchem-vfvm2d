@@ -1,7 +1,9 @@
 use vfvchem_vfvm2d::*;
 use std::fs::create_dir_all;
 
-const SPACE: f64 = 0.02;
+const H_MIN: f64 = 0.01;
+const H_MAX: f64 = 0.03;
+const REF_LEN: f64 = 0.1;
 
 // cargo run --release --example flow_lid
 fn main() -> Result<(), VFVChemError> {
@@ -9,7 +11,8 @@ fn main() -> Result<(), VFVChemError> {
     create_dir_all("examples/output_flow_lid").unwrap();
 
     // create variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, SPACE, 50, 42)?;
+    // points are refined near the walls, where the velocity gradients are largest
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, H_MIN, H_MAX, REF_LEN, 50, 42)?;
 
     // geometry
     let dom = vars.add_dom("dom")?;

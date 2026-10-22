@@ -25,6 +25,7 @@ pub struct Nodes {
 
 impl Nodes {
     pub fn new_from_obj(file_path: &str, h: f64) -> Result<Nodes, VFVChemError> {
+        if !(h > 0.0) { return Err(VFVChemError::NodesNonPositiveSpacing { h }) }
         let nds = read_nds_obj(file_path, h, OFFSET_RATIO)?;
         Ok(nds)
     }

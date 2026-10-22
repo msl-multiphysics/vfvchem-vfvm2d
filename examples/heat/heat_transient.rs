@@ -9,7 +9,7 @@ fn main() -> Result<(), VFVChemError> {
     create_dir_all("examples/output_heat_transient").unwrap();
 
     // create variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, SPACE, 100, 42)?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, SPACE, SPACE, SPACE, 100, 42)?;
 
     // geometry
     let dom = vars.add_dom("dom")?;

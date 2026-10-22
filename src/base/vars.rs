@@ -26,17 +26,19 @@ pub struct Variables {
 
 impl Variables {
     // geometry
-    pub fn new_obj(file_path: &str, h: f64, max_try: usize, seed: u64) -> Result<Variables, VFVChemError> {
+    // boundary nodes are spaced by h_min
+    // point spacing grows linearly from h_min at the boundary to h_max at a distance ref_len
+    pub fn new_obj(file_path: &str, h_min: f64, h_max: f64, ref_len: f64, max_try: usize, seed: u64) -> Result<Variables, VFVChemError> {
         let mut vars = Variables::default();
-        vars.nds = Nodes::new_from_obj(file_path, h)?;
-        vars.pts = Points::new(&vars.nds, max_try, seed)?;
+        vars.nds = Nodes::new_from_obj(file_path, h_min)?;
+        vars.pts = Points::new(&vars.nds, h_min, h_max, ref_len, max_try, seed)?;
         Ok(vars)
     }
 
-    pub fn new_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, h: f64, max_try: usize, seed: u64) -> Result<Variables, VFVChemError> {
+    pub fn new_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, h_min: f64, h_max: f64, ref_len: f64, max_try: usize, seed: u64) -> Result<Variables, VFVChemError> {
         let mut vars = Variables::default();
-        vars.nds = Nodes::new_from_bounds(x_min, y_min, x_max, y_max, h)?;
-        vars.pts = Points::new(&vars.nds, max_try, seed)?;
+        vars.nds = Nodes::new_from_bounds(x_min, y_min, x_max, y_max, h_min)?;
+        vars.pts = Points::new(&vars.nds, h_min, h_max, ref_len, max_try, seed)?;
         Ok(vars)
     }
 

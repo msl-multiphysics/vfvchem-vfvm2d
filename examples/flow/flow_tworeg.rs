@@ -9,7 +9,7 @@ fn main() -> Result<(), VFVChemError> {
     create_dir_all("examples/output_flow_tworeg").unwrap();
 
     // create variables
-    let mut vars = Variables::new_obj("examples/obj/obj_tworeg.obj", SPACE, 100, 42)?;
+    let mut vars = Variables::new_obj("examples/obj/obj_tworeg.obj", SPACE, SPACE, SPACE, 100, 42)?;
 
     // geometry
     let dom_lo = vars.add_dom("dom_lo")?;
