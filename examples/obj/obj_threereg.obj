@@ -1,0 +1,33 @@
+# vertices
+v 0.0 0.25 0.0
+v 0.0 0.0 0.0
+v 0.75 0.0 0.0
+v 1.0 0.0 0.0
+v 1.0 0.75 0.0
+v 1.0 1.0 0.0
+v 0.25 1.0 0.0
+v 0.0 1.0 0.0
+v 0.75 0.25 0.0
+v 0.25 0.75 0.0
+
+# 1d groups
+g bnd_bl
+l 1 2 3
+g bnd_mb
+l 3 4 5
+g bnd_tr
+l 5 6 7
+g bnd_mt
+l 7 8 1
+g itf_bl
+l 3 9 1
+g itf_tr
+l 7 10 5
+
+# 2d groups
+g dom_m
+l 3 4 5 10 7 8 1 9 3
+g dom_bl
+l 3 9 1 2 3
+g dom_tr
+l 7 10 5 6 7
