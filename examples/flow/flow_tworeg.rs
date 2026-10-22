@@ -11,7 +11,7 @@ use std::fs::create_dir_all;
 ///       +-------------+
 ///       |  dom_up   / |
 ///       |         /   |
-/// bnd_l |     itf     | bnd_r
+/// bnd_l |    itf_d    | bnd_r
 ///       |   /         |
 ///       | /   dom_lo  |
 ///       +-------------+
@@ -28,7 +28,7 @@ use std::fs::create_dir_all;
 /// bnd_t - top boundary of dom_up (1.0 m)
 ///
 /// Interfaces:
-/// itf - diagonal between dom_lo and dom_up
+/// itf_d - diagonal between dom_lo and dom_up
 ///
 /// Properties:
 /// dom_lo - density (rho = 1000.0 kg m-3)
@@ -46,7 +46,7 @@ use std::fs::create_dir_all;
 /// Zero reference pressure at node 0 of dom_lo
 ///
 /// Interface conditions:
-/// itf - velocity and pressure continuity
+/// itf_d - velocity and pressure continuity
 ///
 fn main() -> Result<(), VFVChemError> {
     // output directory
@@ -70,7 +70,7 @@ fn main() -> Result<(), VFVChemError> {
     let bnd_r = vars.add_bnd(dom_lo, "bnd_r")?;  // right
     let bnd_t = vars.add_bnd(dom_up, "bnd_t")?;  // top
     let bnd_l = vars.add_bnd(dom_up, "bnd_l")?;  // left
-    let itf = vars.add_itf(dom_lo, dom_up, "itf")?;  // diagonal
+    let itf_d = vars.add_itf(dom_lo, dom_up, "itf_d")?;  // diagonal
 
     // unknown domain values
     // arguments: domain, initial_value, output_file
@@ -111,7 +111,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_vel_bnd(bnd_r, vel_r)?;  // arguments: boundary, v
     phys.add_vel_bnd(bnd_b, vel_b)?;  // arguments: boundary, v
     phys.add_vel_bnd(bnd_t, vel_t)?;  // arguments: boundary, v
-    phys.add_fcnt_itf(itf)?;  // arguments: interface
+    phys.add_fcnt_itf(itf_d)?;  // arguments: interface
     phys.set_pres_ref(dom_lo, 0, 0.0)?;  // arguments: domain, node_index, p
 
     // physics solver

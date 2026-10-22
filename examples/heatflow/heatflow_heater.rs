@@ -73,7 +73,7 @@ fn main() -> Result<(), VFVChemError> {
     // h_min - point spacing at the boundary; h_max - point spacing far from the boundary
     // ref_len - distance from the boundary over which the spacing grows from h_min to h_max
     // max_try - attempts to place a point before giving up; seed - random seed for point sampling
-    let mut vars = Variables::new_obj("examples/obj/obj_heater.obj", 0.05, 0.05, 0.05, 100, 42)?;
+    let mut vars = Variables::new_obj("examples/obj/obj_heater.obj", 0.01, 0.02, 0.1, 100, 42)?;
 
     // geometry
     // domains, boundaries, and interfaces are selected by their group names in the obj file

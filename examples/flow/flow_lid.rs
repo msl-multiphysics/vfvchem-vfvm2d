@@ -47,7 +47,7 @@ fn main() -> Result<(), VFVChemError> {
     // ref_len - distance from the boundary over which the spacing grows from h_min to h_max
     // max_try - attempts to place a point before giving up; seed - random seed for point sampling
     // points are refined near the walls, where the velocity gradients are largest
-    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.01, 0.03, 0.1, 50, 42)?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.01, 0.02, 0.1, 50, 42)?;
 
     // geometry
     // if using new_bounds, the domain is "dom"

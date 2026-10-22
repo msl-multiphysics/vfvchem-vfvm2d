@@ -11,7 +11,7 @@ use std::fs::create_dir_all;
 ///       +-------------+
 ///       |  dom_up   / |
 ///       |         /   |
-/// bnd_l |     itf     | bnd_r
+/// bnd_l |    itf_d    | bnd_r
 ///       |   /         |
 ///       | /   dom_lo  |
 ///       +-------------+
@@ -28,7 +28,7 @@ use std::fs::create_dir_all;
 /// bnd_t - top boundary of dom_up (1.0 m)
 ///
 /// Interfaces:
-/// itf - diagonal between dom_lo and dom_up
+/// itf_d - diagonal between dom_lo and dom_up
 ///
 /// Properties:
 /// dom_lo - thermal conductivity (k = 1.0 W m-1 K-1)
@@ -43,7 +43,7 @@ use std::fs::create_dir_all;
 /// bnd_t - temperature (T = 400 K)
 ///
 /// Interface conditions:
-/// itf - temperature and flux continuity
+/// itf_d - temperature and flux continuity
 ///
 fn main() -> Result<(), VFVChemError> {
     // output directory
@@ -67,7 +67,7 @@ fn main() -> Result<(), VFVChemError> {
     let bnd_r = vars.add_bnd(dom_lo, "bnd_r")?;  // right
     let bnd_t = vars.add_bnd(dom_up, "bnd_t")?;  // top
     let bnd_l = vars.add_bnd(dom_up, "bnd_l")?;  // left
-    let itf = vars.add_itf(dom_lo, dom_up, "itf")?;  // diagonal
+    let itf_d = vars.add_itf(dom_lo, dom_up, "itf_d")?;  // diagonal
 
     // unknown domain values
     // arguments: domain, initial_value, output_file
@@ -103,7 +103,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_temp_bnd(bnd_r, temp_r)?;  // arguments: boundary, T
     phys.add_hflx_bnd(bnd_b, hflx_b)?;  // arguments: boundary, q
     phys.add_temp_bnd(bnd_t, temp_t)?;  // arguments: boundary, T
-    phys.add_hcnt_itf(itf)?;  // arguments: interface
+    phys.add_hcnt_itf(itf_d)?;  // arguments: interface
 
     // physics solver
     // LinearLu::new - sparse LU linear solver; arguments: num_thread

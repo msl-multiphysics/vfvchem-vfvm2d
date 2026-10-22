@@ -9,7 +9,7 @@ use std::fs::create_dir_all;
 /// Inlet above the step, outlet at the right end, and walls elsewhere.
 ///
 /// Domains:
-/// dom - channel
+/// dom_f - channel
 ///
 /// Boundaries:
 /// bnd_i - inlet (x = 0.0 m; 0.2 m < y < 0.4 m)
@@ -17,13 +17,13 @@ use std::fs::create_dir_all;
 /// bnd_w - walls
 ///
 /// Properties:
-/// dom - density (rho = 1.2 kg m-3)
-/// dom - viscosity (mu = 1.8e-5 Pa s)
-/// dom - body force (f = <0.0, 0.0> N m-3)
+/// dom_f - density (rho = 1.2 kg m-3)
+/// dom_f - viscosity (mu = 1.8e-5 Pa s)
+/// dom_f - body force (f = <0.0, 0.0> N m-3)
 ///
 /// Initial conditions:
-/// dom - velocity (v = <0.015, 0.0> m s-1)
-/// dom - pressure (p = 0.0 Pa)
+/// dom_f - velocity (v = <0.015, 0.0> m s-1)
+/// dom_f - pressure (p = 0.0 Pa)
 ///
 /// Boundary conditions:
 /// [non-constant properties in SI units]
@@ -42,15 +42,15 @@ fn main() -> Result<(), VFVChemError> {
     // h_min - point spacing at the boundary; h_max - point spacing far from the boundary
     // ref_len - distance from the boundary over which the spacing grows from h_min to h_max
     // max_try - attempts to place a point before giving up; seed - random seed for point sampling
-    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.02, 0.02, 0.02, 100, 42)?;
+    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.01, 0.02, 0.1, 100, 42)?;
 
     // geometry
     // domains, boundaries, and interfaces are selected by their group names in the obj file
     // add_bnd - arguments: domain, group_name
-    let dom = vars.add_dom("dom")?;
-    let bnd_i = vars.add_bnd(dom, "bnd_i")?;  // inlet
-    let bnd_o = vars.add_bnd(dom, "bnd_o")?;  // outlet
-    let bnd_w = vars.add_bnd(dom, "bnd_w")?;  // walls
+    let dom_f = vars.add_dom("dom_f")?;  // channel
+    let bnd_i = vars.add_bnd(dom_f, "bnd_i")?;  // inlet
+    let bnd_o = vars.add_bnd(dom_f, "bnd_o")?;  // outlet
+    let bnd_w = vars.add_bnd(dom_f, "bnd_w")?;  // walls
 
     // unknown domain values
     // arguments: domain, initial_value, output_file
@@ -58,14 +58,14 @@ fn main() -> Result<(), VFVChemError> {
     // vector values are given as (x, y) tuples
     // output_file - can be .csv or .vtu; if empty string, no file is written
     // output index is automatically appended to end of output file name (e.g., vel_0000.vtu)
-    let vel = vars.add_vecdom_unkn(dom, (0.015, 0.0), "examples/output_flow_step/vel.vtu")?;
-    let pres = vars.add_scldom_unkn(dom, 0.0, "examples/output_flow_step/pres.vtu")?;
+    let vel = vars.add_vecdom_unkn(dom_f, (0.015, 0.0), "examples/output_flow_step/vel.vtu")?;
+    let pres = vars.add_scldom_unkn(dom_f, 0.0, "examples/output_flow_step/pres.vtu")?;
 
     // constant domain values
     // arguments: domain, value, output_file
-    let den = vars.add_scldom_cnst(dom, 1.2, "")?;  // density
-    let visc = vars.add_scldom_cnst(dom, 1.8e-5, "")?;  // viscosity
-    let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;  // body force (den * g; not acceleration g)
+    let den = vars.add_scldom_cnst(dom_f, 1.2, "")?;  // density
+    let visc = vars.add_scldom_cnst(dom_f, 1.8e-5, "")?;  // viscosity
+    let fce = vars.add_vecdom_cnst(dom_f, (0.0, 0.0), "")?;  // body force (den * g; not acceleration g)
 
     // non-constant boundary values
     // arguments: boundary, value_func, unknown_ids, output_file
@@ -88,7 +88,7 @@ fn main() -> Result<(), VFVChemError> {
     // add_vel_bnd - register boundary with velocity
     // add_pres_bnd - register boundary with pressure
     let mut phys = TransientFlow::new()?;
-    phys.add_flow_dom(dom, vel, pres, den, visc, fce)?;  // arguments: domain, v, p, rho, mu, f
+    phys.add_flow_dom(dom_f, vel, pres, den, visc, fce)?;  // arguments: domain, v, p, rho, mu, f
     phys.add_vel_bnd(bnd_i, vel_i)?;  // arguments: boundary, v
     phys.add_pres_bnd(bnd_o, pres_o)?;  // arguments: boundary, p
     phys.add_vel_bnd(bnd_w, vel_w)?;  // arguments: boundary, v
