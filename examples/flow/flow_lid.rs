@@ -1,20 +1,57 @@
 use vfvchem_vfvm2d::*;
 use std::fs::create_dir_all;
 
-const H_MIN: f64 = 0.01;
-const H_MAX: f64 = 0.03;
-const REF_LEN: f64 = 0.1;
-
-// cargo run --release --example flow_lid
+/// Steady-state Navier-Stokes equation with lid-driven cavity flow.
+/// Run with: `cargo run --release --example flow_lid`
+///
+/// Geometry:
+/// Square domain with smaller point spacing near the walls.
+///
+///          bnd_t
+///       +---------+
+///       |         |
+/// bnd_l |   dom   | bnd_r
+///       |         |
+///       +---------+
+///          bnd_b
+///
+/// Domains:
+/// dom - main domain (1.0 m x 1.0 m)
+///
+/// Boundaries:
+/// bnd_l - left boundary (1.0 m)
+/// bnd_r - right boundary (1.0 m)
+/// bnd_b - bottom boundary (1.0 m)
+/// bnd_t - top boundary (1.0 m)
+///
+/// Properties:
+/// dom - density (rho = 1000.0 kg m-3)
+/// dom - viscosity (mu = 0.001 Pa s)
+/// dom - body force (f = <0.0, 0.0> N m-3)
+///
+/// Boundary conditions:
+/// bnd_l - no-slip (v = <0.0, 0.0> m s-1)
+/// bnd_r - no-slip (v = <0.0, 0.0> m s-1)
+/// bnd_b - no-slip (v = <0.0, 0.0> m s-1)
+/// bnd_t - velocity (v = <4.0e-4, 0.0> m s-1)
+/// Zero reference pressure at node 0 of dom
+///
 fn main() -> Result<(), VFVChemError> {
     // output directory
     create_dir_all("examples/output_flow_lid").unwrap();
 
-    // create variables
+    // nodes, points, and variables
+    // new_bounds - create boundary nodes and internal points inside a bounding box
+    // arguments: x_min, y_min, x_max, y_max, h_min, h_max, ref_len, max_try, seed
+    // h_min - point spacing at the boundary; h_max - point spacing far from the boundary
+    // ref_len - distance from the boundary over which the spacing grows from h_min to h_max
+    // max_try - attempts to place a point before giving up; seed - random seed for point sampling
     // points are refined near the walls, where the velocity gradients are largest
-    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, H_MIN, H_MAX, REF_LEN, 50, 42)?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.01, 0.03, 0.1, 50, 42)?;
 
     // geometry
+    // if using new_bounds, the domain is "dom"
+    // the left, right, bottom, and top boundaries are "bnd_l", "bnd_r", "bnd_b", and "bnd_t"
     let dom = vars.add_dom("dom")?;
     let bnd_l = vars.add_bnd(dom, "bnd_l")?;
     let bnd_r = vars.add_bnd(dom, "bnd_r")?;
@@ -22,30 +59,44 @@ fn main() -> Result<(), VFVChemError> {
     let bnd_t = vars.add_bnd(dom, "bnd_t")?;
 
     // unknown domain values
+    // arguments: domain, initial_value, output_file
+    // initial_value - initial guess for steady-state problems; initial value for transient problems
+    // vector values are given as (x, y) tuples
+    // output_file - can be .csv or .vtu; if empty string, no file is written
+    // output index is automatically appended to end of output file name (e.g., vel_0000.vtu)
     let vel = vars.add_vecdom_unkn(dom, (0.0, 0.0), "examples/output_flow_lid/vel.vtu")?;
     let pres = vars.add_scldom_unkn(dom, 0.0, "examples/output_flow_lid/pres.vtu")?;
 
     // constant domain values
-    let den = vars.add_scldom_cnst(dom, 1000.0, "")?;
-    let visc = vars.add_scldom_cnst(dom, 0.001, "")?;
-    let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;
-    
+    // arguments: domain, value, output_file
+    let den = vars.add_scldom_cnst(dom, 1000.0, "")?;  // density
+    let visc = vars.add_scldom_cnst(dom, 0.001, "")?;  // viscosity
+    let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;  // body force (den * g; not acceleration g)
+
     // constant boundary values
-    let vel_l = vars.add_vecbnd_cnst(bnd_l, (0.0, 0.0), "")?;
-    let vel_r = vars.add_vecbnd_cnst(bnd_r, (0.0, 0.0), "")?;
-    let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "")?;
-    let vel_t = vars.add_vecbnd_cnst(bnd_t, (4e-4, 0.0), "")?;
+    // arguments: boundary, value, output_file
+    let vel_l = vars.add_vecbnd_cnst(bnd_l, (0.0, 0.0), "")?;  // velocity
+    let vel_r = vars.add_vecbnd_cnst(bnd_r, (0.0, 0.0), "")?;  // velocity
+    let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "")?;  // velocity
+    let vel_t = vars.add_vecbnd_cnst(bnd_t, (4e-4, 0.0), "")?;  // velocity
 
     // steady-state momentum transfer solver
+    // add_flow_dom - register domain with momentum transfer
+    // add_vel_bnd - register boundary with velocity
+    // set_pres_ref - set reference pressure at a node; needed if no boundary sets the pressure
     let mut phys = SteadyFlow::new()?;
-    phys.add_flow_dom(dom, vel, pres, den, visc, fce)?;
-    phys.add_vel_bnd(bnd_l, vel_l)?;
-    phys.add_vel_bnd(bnd_r, vel_r)?;
-    phys.add_vel_bnd(bnd_b, vel_b)?;
-    phys.add_vel_bnd(bnd_t, vel_t)?;
-    phys.set_pres_ref(dom, 0, 0.0)?;
+    phys.add_flow_dom(dom, vel, pres, den, visc, fce)?;  // arguments: domain, v, p, rho, mu, f
+    phys.add_vel_bnd(bnd_l, vel_l)?;  // arguments: boundary, v
+    phys.add_vel_bnd(bnd_r, vel_r)?;  // arguments: boundary, v
+    phys.add_vel_bnd(bnd_b, vel_b)?;  // arguments: boundary, v
+    phys.add_vel_bnd(bnd_t, vel_t)?;  // arguments: boundary, v
+    phys.set_pres_ref(dom, 0, 0.0)?;  // arguments: domain, node_index, p
 
     // physics solver
+    // LinearLu::new - sparse LU linear solver; arguments: num_thread
+    // arguments: vars, linear_solver, max_iter, tol, damping_factor
+    // damping_factor - between 0.0 and 1.0; lower for stability and higher for speed (if linear or nearly linear)
+    // for highly non-linear problems, using a lower damping factor (e.g., 0.8-0.9) may be faster
     let mut lin = LinearLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 50, 1e-3, 0.8)?;
 
