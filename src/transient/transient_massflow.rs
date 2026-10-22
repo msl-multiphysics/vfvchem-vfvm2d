@@ -67,6 +67,11 @@ pub struct TransientMassFlow {
 
 impl TransientMassFlow {
     pub fn new(num_comp: usize) -> Result<TransientMassFlow, VFVChemError> {
+        // mass transfer is solved in non-conservative form
+        // dc_i/dt + vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // c_i is per unit volume, so the c_i * div(vel) term is neglected rather than canceled by continuity
+        // uniform c_i is preserved even if discrete continuity is not satisfied
+
         // input checking
         if num_comp == 0 { return Err(VFVChemError::MassNonPositiveNumComponents { num_comp }) }
 

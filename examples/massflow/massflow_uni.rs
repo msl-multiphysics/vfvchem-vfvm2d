@@ -58,7 +58,7 @@ fn main() -> Result<(), VFVChemError> {
     let mut lin = LinearLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 0.1, 10, 1, 30, 1e-3, 0.5)?;
 
-    // concentration should stay uniform if the conservative advection is compatible with continuity
+    // concentration should stay uniform since the non-conservative advection does not depend on continuity
     let (conc_min, conc_max, conc_err) = vars.scldom[conc].value.iter().fold(
         (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64),
         |(min, max, err), &c| (min.min(c), max.max(c), err.max((c - 1.0).abs())),
