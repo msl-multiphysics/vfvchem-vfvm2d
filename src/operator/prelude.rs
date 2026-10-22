@@ -51,7 +51,6 @@ pub use super::opvec_bnd_diff::*;
 pub use super::opvec_bnd_dir::*;
 pub use super::opvec_bnd_dtrn::*;
 pub use super::opvec_bnd_grad::*;
-pub use super::opvec_bnd_ptrac::*;
 pub use super::opvec_bnd_src::*;
 pub use super::opvec_bnd_time::*;
 

@@ -52,7 +52,6 @@ pub mod opvec_bnd_diff;
 pub mod opvec_bnd_dir;
 pub mod opvec_bnd_dtrn;
 pub mod opvec_bnd_grad;
-pub mod opvec_bnd_ptrac;
 pub mod opvec_bnd_src;
 pub mod opvec_bnd_time;
 
