@@ -20,13 +20,14 @@ fn heat(pulse: Option<(f64, f64)>) -> Result<Heat, VFVChemError> {
         Some((t0, w)) => Box::new(move |t, _p, _u| if t > t0 && t <= t0 + w + 1e-12 { 100.0 } else { 0.0 }),
         None => Box::new(|_t, _p, _u| 10.0),
     };
+    let hprd = vars.add_scldom_cnst(dom, 0.0, "")?;
     let hsrc = vars.add_scldom_func(dom, hsrc_func, vec![], "")?;
     let temp_w = vars.add_sclbnd_cnst(bnd_l, 0.0, "")?;
     let temp_e = vars.add_sclbnd_cnst(bnd_r, 0.0, "")?;
     let hflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0, "")?;
     let hflx_t = vars.add_sclbnd_cnst(bnd_t, 0.0, "")?;
     let mut phys = TransientHeat::new()?;
-    phys.add_heat_dom(dom, temp, vlcp, cond, hsrc)?;
+    phys.add_heat_dom(dom, temp, vlcp, cond, hprd, hsrc)?;
     phys.add_temp_bnd(bnd_l, temp_w)?;
     phys.add_temp_bnd(bnd_r, temp_e)?;
     phys.add_hflx_bnd(bnd_b, hflx_b)?;

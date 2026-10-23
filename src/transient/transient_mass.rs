@@ -12,6 +12,7 @@ pub struct TransientMass {
     pub num_comp: usize,                                       // number of components
     pub itr_conc: Vec<HashMap<usize, usize>>,                  // concentration
     pub itr_diff: Vec<HashMap<usize, HashMap<usize, usize>>>,  // diffusion coefficient; component j -> D_ij
+    pub itr_mprd: Vec<HashMap<usize, usize>>,                  // mass production coefficient
     pub itr_msrc: Vec<HashMap<usize, usize>>,                  // mass source
 
     // boundary data
@@ -24,10 +25,10 @@ pub struct TransientMass {
     pub mcnt_itf: Vec<Vec<usize>>,              // interface with continuity IC
 
     // operators
-    pub oper_itr_mass: Vec<(OpSclDomTimeUnity, Vec<OpSclDomDiffusion>, OpSclDomSource)>,
+    pub oper_itr_mass: Vec<(OpSclDomTimeUnity, Vec<OpSclDomDiffusion>, OpSclDomProduction, OpSclDomSource)>,
     pub oper_bnd_conc: Vec<OpSclBndDirichlet>,
-    pub oper_bnd_mflx: Vec<(OpSclBndTimeUnity, Vec<OpSclBndDiffusion>, OpSclBndSource, OpSclBndNeumann)>,
-    pub oper_itf_mcnt: Vec<(OpSclItfTimeUnity, OpSclItfContinuity, Vec<OpSclItfDiffusion>, OpSclItfSource)>,
+    pub oper_bnd_mflx: Vec<(OpSclBndTimeUnity, Vec<OpSclBndDiffusion>, OpSclBndProduction, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_itf_mcnt: Vec<(OpSclItfTimeUnity, OpSclItfContinuity, Vec<OpSclItfDiffusion>, OpSclItfProduction, OpSclItfSource)>,
 }
 
 impl TransientMass {
@@ -40,6 +41,7 @@ impl TransientMass {
         phys.num_comp = num_comp;
         phys.itr_conc = vec![HashMap::new(); num_comp];
         phys.itr_diff = vec![HashMap::new(); num_comp];
+        phys.itr_mprd = vec![HashMap::new(); num_comp];
         phys.itr_msrc = vec![HashMap::new(); num_comp];
         phys.conc_bnd = vec![Vec::new(); num_comp];
         phys.conc_conc = vec![HashMap::new(); num_comp];
@@ -49,12 +51,13 @@ impl TransientMass {
         Ok(phys)
     }
 
-    pub fn add_mass_dom(&mut self, comp_id: usize, dom_id: usize, conc_id: usize, diff_ids: HashMap<usize, usize>, msrc_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_mass_dom(&mut self, comp_id: usize, dom_id: usize, conc_id: usize, diff_ids: HashMap<usize, usize>, mprd_id: usize, msrc_id: usize) -> Result<(), VFVChemError> {
         for &comp in diff_ids.keys().chain([&comp_id]) {
             if comp >= self.num_comp { return Err(VFVChemError::MassInvalidComponent { comp, num_comp: self.num_comp }) }
         }
         self.itr_conc[comp_id].insert(dom_id, conc_id);
         self.itr_diff[comp_id].insert(dom_id, diff_ids);
+        self.itr_mprd[comp_id].insert(dom_id, mprd_id);
         self.itr_msrc[comp_id].insert(dom_id, msrc_id);
         Ok(())
     }
@@ -105,6 +108,7 @@ impl TransientBase for TransientMass {
         for comp_i in 0..self.num_comp {
             // internal
             for (&dom_id, &conc_id) in &self.itr_conc[comp_i] {
+                let mprd_id = self.itr_mprd[comp_i][&dom_id];
                 let msrc_id = self.itr_msrc[comp_i][&dom_id];
                 let oper_time = OpSclDomTimeUnity::new(vars, dom_id, conc_id)?;
                 let mut oper_diff = Vec::new();
@@ -112,8 +116,9 @@ impl TransientBase for TransientMass {
                     let conc_j_id = self.itr_conc[comp_j][&dom_id];
                     oper_diff.push(OpSclDomDiffusion::new(vars, dom_id, conc_id, diff_id, conc_j_id)?);
                 }
+                let oper_prd = OpSclDomProduction::new(vars, dom_id, conc_id, mprd_id)?;
                 let oper_src = OpSclDomSource::new(vars, dom_id, conc_id, msrc_id)?;
-                self.oper_itr_mass.push((oper_time, oper_diff, oper_src));
+                self.oper_itr_mass.push((oper_time, oper_diff, oper_prd, oper_src));
             }
 
             // boundary
@@ -127,6 +132,7 @@ impl TransientBase for TransientMass {
             for &bnd_id in &self.mflx_bnd[comp_i] {
                 let dom_id = vars.bnd[bnd_id].dom_id;
                 let dom_conc_id = self.itr_conc[comp_i][&dom_id];
+                let dom_mprd_id = self.itr_mprd[comp_i][&dom_id];
                 let dom_msrc_id = self.itr_msrc[comp_i][&dom_id];
                 let bnd_mflx_id = self.mflx_mflx[comp_i][&bnd_id];
                 let oper_time = OpSclBndTimeUnity::new(vars, bnd_id, dom_conc_id)?;
@@ -135,9 +141,10 @@ impl TransientBase for TransientMass {
                     let dom_conc_j_id = self.itr_conc[comp_j][&dom_id];
                     oper_diff.push(OpSclBndDiffusion::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_conc_j_id)?);
                 }
+                let oper_prd = OpSclBndProduction::new(vars, bnd_id, dom_conc_id, dom_mprd_id)?;
                 let oper_src = OpSclBndSource::new(vars, bnd_id, dom_conc_id, dom_msrc_id)?;
                 let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_conc_id, bnd_mflx_id)?;
-                self.oper_bnd_mflx.push((oper_time, oper_diff, oper_src, oper_neu));
+                self.oper_bnd_mflx.push((oper_time, oper_diff, oper_prd, oper_src, oper_neu));
             }
 
             // interface
@@ -146,6 +153,8 @@ impl TransientBase for TransientMass {
                 let dom_b_id = vars.itf[itf_id].dom_b_id;
                 let dom_conc_a_id = self.itr_conc[comp_i][&dom_a_id];
                 let dom_conc_b_id = self.itr_conc[comp_i][&dom_b_id];
+                let dom_mprd_a_id = self.itr_mprd[comp_i][&dom_a_id];
+                let dom_mprd_b_id = self.itr_mprd[comp_i][&dom_b_id];
                 let dom_msrc_a_id = self.itr_msrc[comp_i][&dom_a_id];
                 let dom_msrc_b_id = self.itr_msrc[comp_i][&dom_b_id];
                 let oper_time = OpSclItfTimeUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
@@ -157,8 +166,9 @@ impl TransientBase for TransientMass {
                     let dom_conc_j_b_id = self.itr_conc[comp_j][&dom_b_id];
                     oper_diff.push(OpSclItfDiffusion::new(vars, itf_id, dom_conc_a_id, dom_diff_a_id, dom_conc_j_a_id, dom_conc_b_id, dom_diff_b_id, dom_conc_j_b_id)?);
                 }
+                let oper_prd = OpSclItfProduction::new(vars, itf_id, dom_conc_a_id, dom_mprd_a_id, dom_conc_b_id, dom_mprd_b_id)?;
                 let oper_src = OpSclItfSource::new(vars, itf_id, dom_conc_a_id, dom_msrc_a_id, dom_conc_b_id, dom_msrc_b_id)?;
-                self.oper_itf_mcnt.push((oper_time, oper_cont, oper_diff, oper_src));
+                self.oper_itf_mcnt.push((oper_time, oper_cont, oper_diff, oper_prd, oper_src));
             }
         }
 
@@ -167,9 +177,10 @@ impl TransientBase for TransientMass {
 
     fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
         // internal
-        for (oper_time, oper_diff, oper_src) in &self.oper_itr_mass {
+        for (oper_time, oper_diff, oper_prd, oper_src) in &self.oper_itr_mass {
             oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
+            oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
 
@@ -177,18 +188,20 @@ impl TransientBase for TransientMass {
         for oper_dir in &self.oper_bnd_conc {
             oper_dir.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_time, oper_diff, oper_src, oper_neu) in &self.oper_bnd_mflx {
+        for (oper_time, oper_diff, oper_prd, oper_src, oper_neu) in &self.oper_bnd_mflx {
             oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
+            oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_neu.apply(vars, a_triplet, b_vec)?;
         }
 
         // interface
-        for (oper_time, oper_cont, oper_diff, oper_src) in &self.oper_itf_mcnt {
+        for (oper_time, oper_cont, oper_diff, oper_prd, oper_src) in &self.oper_itf_mcnt {
             oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_cont.apply(vars, a_triplet, b_vec)?;
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
+            oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
 

@@ -11,6 +11,7 @@ pub struct SteadyHeat {
     pub itr_dom: Vec<usize>,              // domain
     pub itr_temp: HashMap<usize, usize>,  // temperature
     pub itr_cond: HashMap<usize, usize>,  // thermal conductivity
+    pub itr_hprd: HashMap<usize, usize>,  // heat production coefficient
     pub itr_hsrc: HashMap<usize, usize>,  // heat source
 
     // boundary data
@@ -23,10 +24,10 @@ pub struct SteadyHeat {
     pub hcnt_itf: Vec<usize>,              // interface with continuity IC
 
     // operators
-    pub oper_itr: Vec<(OpSclDomDiffusion, OpSclDomSource)>,
+    pub oper_itr: Vec<(OpSclDomDiffusion, OpSclDomProduction, OpSclDomSource)>,
     pub oper_bnd_temp: Vec<OpSclBndDirichlet>,
-    pub oper_bnd_hflx: Vec<(OpSclBndDiffusion, OpSclBndSource, OpSclBndNeumann)>,
-    pub oper_itf_hcnt: Vec<(OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
+    pub oper_bnd_hflx: Vec<(OpSclBndDiffusion, OpSclBndProduction, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_itf_hcnt: Vec<(OpSclItfContinuity, OpSclItfDiffusion, OpSclItfProduction, OpSclItfSource)>,
 }
 
 impl SteadyHeat {
@@ -35,10 +36,11 @@ impl SteadyHeat {
         Ok(phys)
     }
 
-    pub fn add_heat_dom(&mut self, dom_id: usize, temp_id: usize, cond_id: usize, hsrc_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_heat_dom(&mut self, dom_id: usize, temp_id: usize, cond_id: usize, hprd_id: usize, hsrc_id: usize) -> Result<(), VFVChemError> {
         self.itr_dom.push(dom_id);
         self.itr_temp.insert(dom_id, temp_id);
         self.itr_cond.insert(dom_id, cond_id);
+        self.itr_hprd.insert(dom_id, hprd_id);
         self.itr_hsrc.insert(dom_id, hsrc_id);
         Ok(())
     }
@@ -86,10 +88,12 @@ impl SteadyBase for SteadyHeat {
         for &dom_id in &self.itr_dom {
             let temp_id = self.itr_temp[&dom_id];
             let cond_id = self.itr_cond[&dom_id];
+            let hprd_id = self.itr_hprd[&dom_id];
             let hsrc_id = self.itr_hsrc[&dom_id];
             let oper_diff = OpSclDomDiffusion::new(vars, dom_id, temp_id, cond_id, temp_id)?;
+            let oper_prd = OpSclDomProduction::new(vars, dom_id, temp_id, hprd_id)?;
             let oper_src = OpSclDomSource::new(vars, dom_id, temp_id, hsrc_id)?;
-            self.oper_itr.push((oper_diff, oper_src));
+            self.oper_itr.push((oper_diff, oper_prd, oper_src));
         }
 
         // boundary
@@ -104,12 +108,14 @@ impl SteadyBase for SteadyHeat {
             let dom_id = vars.bnd[bnd_id].dom_id;
             let dom_temp_id = self.itr_temp[&dom_id];
             let dom_cond_id = self.itr_cond[&dom_id];
+            let dom_hprd_id = self.itr_hprd[&dom_id];
             let dom_hsrc_id = self.itr_hsrc[&dom_id];
             let bnd_hflx_id = self.hflx_hflx[&bnd_id];
             let oper_diff = OpSclBndDiffusion::new(vars, bnd_id, dom_temp_id, dom_cond_id, dom_temp_id)?;
+            let oper_prd = OpSclBndProduction::new(vars, bnd_id, dom_temp_id, dom_hprd_id)?;
             let oper_src = OpSclBndSource::new(vars, bnd_id, dom_temp_id, dom_hsrc_id)?;
             let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_temp_id, bnd_hflx_id)?;
-            self.oper_bnd_hflx.push((oper_diff, oper_src, oper_neu));
+            self.oper_bnd_hflx.push((oper_diff, oper_prd, oper_src, oper_neu));
         }
 
         // interface
@@ -120,12 +126,15 @@ impl SteadyBase for SteadyHeat {
             let dom_temp_b_id = self.itr_temp[&dom_b_id];
             let dom_cond_a_id = self.itr_cond[&dom_a_id];
             let dom_cond_b_id = self.itr_cond[&dom_b_id];
+            let dom_hprd_a_id = self.itr_hprd[&dom_a_id];
+            let dom_hprd_b_id = self.itr_hprd[&dom_b_id];
             let dom_hsrc_a_id = self.itr_hsrc[&dom_a_id];
             let dom_hsrc_b_id = self.itr_hsrc[&dom_b_id];
             let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_temp_a_id, dom_temp_b_id)?;
             let oper_diff = OpSclItfDiffusion::new(vars, itf_id, dom_temp_a_id, dom_cond_a_id, dom_temp_a_id, dom_temp_b_id, dom_cond_b_id, dom_temp_b_id)?;
+            let oper_prd = OpSclItfProduction::new(vars, itf_id, dom_temp_a_id, dom_hprd_a_id, dom_temp_b_id, dom_hprd_b_id)?;
             let oper_src = OpSclItfSource::new(vars, itf_id, dom_temp_a_id, dom_hsrc_a_id, dom_temp_b_id, dom_hsrc_b_id)?;
-            self.oper_itf_hcnt.push((oper_cont, oper_diff, oper_src));
+            self.oper_itf_hcnt.push((oper_cont, oper_diff, oper_prd, oper_src));
         }
 
         Ok(())
@@ -133,8 +142,9 @@ impl SteadyBase for SteadyHeat {
 
     fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
         // internal
-        for (oper_diff, oper_src) in &self.oper_itr {
+        for (oper_diff, oper_prd, oper_src) in &self.oper_itr {
             oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
 
@@ -142,16 +152,18 @@ impl SteadyBase for SteadyHeat {
         for oper_dir in &self.oper_bnd_temp {
             oper_dir.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_diff, oper_src, oper_neu) in &self.oper_bnd_hflx {
+        for (oper_diff, oper_prd, oper_src, oper_neu) in &self.oper_bnd_hflx {
             oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_neu.apply(vars, a_triplet, b_vec)?;
         }
 
         // interface
-        for (oper_cont, oper_diff, oper_src) in &self.oper_itf_hcnt {
+        for (oper_cont, oper_diff, oper_prd, oper_src) in &self.oper_itf_hcnt {
             oper_cont.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
 

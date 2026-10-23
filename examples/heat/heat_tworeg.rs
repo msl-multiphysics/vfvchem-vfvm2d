@@ -32,8 +32,10 @@ use std::fs::create_dir_all;
 ///
 /// Properties:
 /// dom_lo - thermal conductivity (k = 1.0 W m-1 K-1)
+/// dom_lo - heat production coefficient (s = 0.0 W m-3 K-1)
 /// dom_lo - heat source (Q = -500.0 W m-3)
 /// dom_up - thermal conductivity (k = 1.0 W m-1 K-1)
+/// dom_up - heat production coefficient (s = 0.0 W m-3 K-1)
 /// dom_up - heat source (Q = -500.0 W m-3)
 ///
 /// Boundary conditions:
@@ -79,8 +81,12 @@ fn main() -> Result<(), VFVChemError> {
 
     // constant domain values
     // arguments: domain, value, output_file
+    // heat production is multiplied by the temperature; heat source adds the source directly
+    // use heat source by default; use heat production (or both) if heat source does not converge
     let cond_lo = vars.add_scldom_cnst(dom_lo, 1.0, "")?;  // thermal conductivity
     let cond_up = vars.add_scldom_cnst(dom_up, 1.0, "")?;  // thermal conductivity
+    let hprd_lo = vars.add_scldom_cnst(dom_lo, 0.0, "")?;  // heat production coefficient (s; positive if source; negative if sink)
+    let hprd_up = vars.add_scldom_cnst(dom_up, 0.0, "")?;  // heat production coefficient (s; positive if source; negative if sink)
     let hsrc_lo = vars.add_scldom_cnst(dom_lo, -500.0, "")?;  // heat source (Q; positive if source; negative if sink)
     let hsrc_up = vars.add_scldom_cnst(dom_up, -500.0, "")?;  // heat source (Q; positive if source; negative if sink)
 
@@ -97,8 +103,8 @@ fn main() -> Result<(), VFVChemError> {
     // add_temp_bnd - register boundary with temperature
     // add_hcnt_itf - register interface with temperature and flux continuity
     let mut phys = SteadyHeat::new()?;
-    phys.add_heat_dom(dom_lo, temp_lo, cond_lo, hsrc_lo)?;  // arguments: domain, T, k, Q
-    phys.add_heat_dom(dom_up, temp_up, cond_up, hsrc_up)?;  // arguments: domain, T, k, Q
+    phys.add_heat_dom(dom_lo, temp_lo, cond_lo, hprd_lo, hsrc_lo)?;  // arguments: domain, T, k, s, Q
+    phys.add_heat_dom(dom_up, temp_up, cond_up, hprd_up, hsrc_up)?;  // arguments: domain, T, k, s, Q
     phys.add_hflx_bnd(bnd_l, hflx_l)?;  // arguments: boundary, q
     phys.add_temp_bnd(bnd_r, temp_r)?;  // arguments: boundary, T
     phys.add_hflx_bnd(bnd_b, hflx_b)?;  // arguments: boundary, q

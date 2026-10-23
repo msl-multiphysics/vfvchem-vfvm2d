@@ -78,6 +78,7 @@ combined control volumes of interface nodes.
 - opscl_bnd_dir       : enforces a scalar Dirichlet boundary condition
 - opscl_bnd_div       : adds velocity divergence to the control volumes of boundary nodes
 - opscl_bnd_neu       : applies a prescribed scalar outward flux
+- opscl_bnd_prod      : adds a production term (s * c) to the control volumes of boundary nodes
 - opscl_bnd_pstab     : adds the Rhie-Chow correction to the control volumes of boundary nodes
 - opscl_bnd_src       : adds a source to the control volumes of boundary nodes
 - opscl_bnd_time      : adds a weighted time derivative to the control volumes of boundary nodes
@@ -87,6 +88,7 @@ combined control volumes of interface nodes.
 - opscl_dom_diff      : adds diffusion to a scalar transport equation
 - opscl_dom_div       : adds velocity divergence to the continuity equation
 - opscl_dom_pref      : sets the pressure at one reference node
+- opscl_dom_prod      : adds a production term (s * c) to a scalar transport equation
 - opscl_dom_pstab     : adds the Rhie-Chow correction to the continuity equation
 - opscl_dom_src       : adds a source to a scalar transport equation
 - opscl_dom_time      : adds a weighted time derivative to a scalar transport equation
@@ -96,6 +98,7 @@ combined control volumes of interface nodes.
 - opscl_itf_cont      : enforces scalar continuity between two domains
 - opscl_itf_diff      : adds diffusion to the combined control volumes of interface nodes
 - opscl_itf_div       : adds velocity divergence to the combined control volumes of interface nodes
+- opscl_itf_prod      : adds a production term (s * c) to the combined control volumes of interface nodes
 - opscl_itf_pstab     : adds the Rhie-Chow correction to the combined control volumes of interface nodes
 - opscl_itf_src       : adds a source to the combined control volumes of interface nodes
 - opscl_itf_time      : adds a weighted time derivative to the combined control volumes of interface nodes

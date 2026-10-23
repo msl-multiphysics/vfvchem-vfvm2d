@@ -26,8 +26,10 @@ use std::fs::create_dir_all;
 /// Properties:
 /// dom_c - volumetric heat capacity (rho*cp = 1000.0 J m-3 K-1)
 /// dom_c - thermal conductivity (k = 0.026 W m-1 K-1)
+/// dom_c - heat production coefficient (s = 0.0 W m-3 K-1)
 /// dom_c - heat source (Q = 0.0 W m-3)
 /// dom_h - thermal conductivity (k = 50.0 W m-1 K-1)
+/// dom_h - heat production coefficient (s = 0.0 W m-3 K-1)
 /// dom_h - heat source (Q = 1.0e6 W m-3)
 ///
 /// Boundary conditions:
@@ -93,12 +95,16 @@ fn main() -> Result<(), VFVChemError> {
 
     // constant domain values
     // arguments: domain, value, output_file
+    // heat production is multiplied by the temperature; heat source adds the source directly
+    // use heat source by default; use heat production (or both) if heat source does not converge
     // fluid in the channel, heated solid cylinders
     let vlcp_c = vars.add_scldom_cnst(dom_c, 1000.0, "")?;  // volumetric heat capacity (rho * cp)
     let cond_c = vars.add_scldom_cnst(dom_c, 0.026, "")?;  // thermal conductivity
+    let hprd_c = vars.add_scldom_cnst(dom_c, 0.0, "")?;  // heat production coefficient (s; positive if source; negative if sink)
     let hsrc_c = vars.add_scldom_cnst(dom_c, 0.0, "")?;  // heat source (Q; positive if source; negative if sink)
     let vlcp_h = vars.add_scldom_cnst(dom_h, 550.0, "")?;  // unused for steady conduction-only solid
     let cond_h = vars.add_scldom_cnst(dom_h, 50.0, "")?;  // thermal conductivity
+    let hprd_h = vars.add_scldom_cnst(dom_h, 0.0, "")?;  // heat production coefficient (s; positive if source; negative if sink)
     let hsrc_h = vars.add_scldom_cnst(dom_h, 1.0e6, "")?;  // heat source (Q; positive if source; negative if sink)
     let den = vars.add_scldom_cnst(dom_c, 1.2, "")?;  // density
     let visc = vars.add_scldom_cnst(dom_c, 1.8e-5, "")?;  // viscosity
@@ -134,8 +140,8 @@ fn main() -> Result<(), VFVChemError> {
     // add_vel_bnd - register boundary with velocity
     // add_pres_bnd - register boundary with pressure
     let mut phys = SteadyHeatFlow::new()?;
-    phys.add_heat_dom(dom_c, temp_c, vlcp_c, cond_c, hsrc_c)?;  // arguments: domain, T, rho*cp, k, Q
-    phys.add_heat_dom(dom_h, temp_h, vlcp_h, cond_h, hsrc_h)?;  // arguments: domain, T, rho*cp, k, Q
+    phys.add_heat_dom(dom_c, temp_c, vlcp_c, cond_c, hprd_c, hsrc_c)?;  // arguments: domain, T, rho*cp, k, s, Q
+    phys.add_heat_dom(dom_h, temp_h, vlcp_h, cond_h, hprd_h, hsrc_h)?;  // arguments: domain, T, rho*cp, k, s, Q
     phys.add_temp_bnd(bnd_i, temp_i)?;  // arguments: boundary, T
     phys.add_hout_bnd(bnd_o)?;  // arguments: boundary
     phys.add_hflx_bnd(bnd_w, hflx_w)?;  // arguments: boundary, q

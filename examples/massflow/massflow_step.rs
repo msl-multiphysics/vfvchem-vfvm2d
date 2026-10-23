@@ -25,6 +25,9 @@ use std::fs::create_dir_all;
 /// dom_f - diffusion coefficients (rho*D; kg m-1 s-1)
 /// [D_00 D_01] = [1.2e-4 0.0]
 /// [D_10 D_11]   [0.0    2.4e-4]
+/// dom_f - production coefficients (s-1; positive if production)
+/// [s_0] = [0.0]
+/// [s_1]   [0.0]
 /// dom_f - reaction rates (mol m-3 s-1; positive if production)
 /// [R_0] = [-1.2 * c_0]
 /// [R_1]   [+1.2 * c_0]
@@ -96,8 +99,12 @@ fn main() -> Result<(), VFVChemError> {
     // arguments: domain, value, output_file
     // no need to declare zero diffusion coefficients
     // diffusion coefficients include the density on domains with flow
+    // mass production is multiplied by the concentration; mass source adds the source directly
+    // use mass source by default; use mass production (or both) if mass source does not converge
     let diff_00 = vars.add_scldom_cnst(dom_f, 1.2e-4, "")?;  // rho * D_00
     let diff_11 = vars.add_scldom_cnst(dom_f, 2.4e-4, "")?;  // rho * D_11
+    let mprd_0 = vars.add_scldom_cnst(dom_f, 0.0, "")?;  // mass production coefficient (s_0; positive if source; negative if sink)
+    let mprd_1 = vars.add_scldom_cnst(dom_f, 0.0, "")?;  // mass production coefficient (s_1; positive if source; negative if sink)
     let den = vars.add_scldom_cnst(dom_f, 1.2, "")?;  // density
     let visc = vars.add_scldom_cnst(dom_f, 1.8e-5, "")?;  // viscosity
     let fce = vars.add_vecdom_cnst(dom_f, (0.0, 0.0), "")?;  // body force (den * g; not acceleration g)
@@ -143,8 +150,8 @@ fn main() -> Result<(), VFVChemError> {
     // diffusion coefficients must be collected in a hashmap with driving concentration index as key
     // on domains with flow, c is per unit mass and D includes the density (rho * D)
     let mut phys = TransientMassFlow::new(2)?;
-    phys.add_mass_dom(0, dom_f, conc_0, HashMap::from([(0, diff_00)]), msrc_0)?;  // arguments: component, domain, c, rho*D, R
-    phys.add_mass_dom(1, dom_f, conc_1, HashMap::from([(1, diff_11)]), msrc_1)?;  // arguments: component, domain, c, rho*D, R
+    phys.add_mass_dom(0, dom_f, conc_0, HashMap::from([(0, diff_00)]), mprd_0, msrc_0)?;  // arguments: component, domain, c, rho*D, s, R
+    phys.add_mass_dom(1, dom_f, conc_1, HashMap::from([(1, diff_11)]), mprd_1, msrc_1)?;  // arguments: component, domain, c, rho*D, s, R
     phys.add_conc_bnd(0, bnd_i, conc_0_i)?;  // arguments: component, boundary, c
     phys.add_conc_bnd(1, bnd_i, conc_1_i)?;  // arguments: component, boundary, c
     phys.add_mout_bnd(0, bnd_o)?;  // arguments: component, boundary

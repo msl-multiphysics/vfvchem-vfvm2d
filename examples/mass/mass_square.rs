@@ -29,6 +29,9 @@ use std::fs::create_dir_all;
 /// dom - diffusion coefficients (m2 s-1)
 /// [D_00 D_01] = [1.0e-4 0.5e-4]
 /// [D_10 D_11]   [0.0    1.0e-4]
+/// dom - production coefficients (s-1; positive if production)
+/// [s_0] = [0.0]
+/// [s_1]   [0.0]
 /// dom - reaction rates (mol m-3 s-1; positive if production)
 /// [R_0] = [-0.2]
 /// [R_1]   [+0.1]
@@ -80,9 +83,13 @@ fn main() -> Result<(), VFVChemError> {
     // arguments: domain, value, output_file
     // no need to declare zero diffusion coefficients
     // component 0 diffuses down its own gradient and the gradient of component 1
+    // mass production is multiplied by the concentration; mass source adds the source directly
+    // use mass source by default; use mass production (or both) if mass source does not converge
     let diff_00 = vars.add_scldom_cnst(dom, 1.0e-4, "")?;  // D_00
     let diff_01 = vars.add_scldom_cnst(dom, 0.5e-4, "")?;  // D_01
     let diff_11 = vars.add_scldom_cnst(dom, 1.0e-4, "")?;  // D_11
+    let mprd_0 = vars.add_scldom_cnst(dom, 0.0, "")?;  // mass production coefficient (s_0; positive if source; negative if sink)
+    let mprd_1 = vars.add_scldom_cnst(dom, 0.0, "")?;  // mass production coefficient (s_1; positive if source; negative if sink)
     let msrc_0 = vars.add_scldom_cnst(dom, -0.2, "")?;  // mass source (R_0; positive if source; negative if sink)
     let msrc_1 = vars.add_scldom_cnst(dom,  0.1, "")?;  // mass source (R_1; positive if source; negative if sink)
 
@@ -104,8 +111,8 @@ fn main() -> Result<(), VFVChemError> {
     // add_mflx_bnd - register boundary with molar flux
     // diffusion coefficients must be collected in a hashmap with driving concentration index as key
     let mut phys = SteadyMass::new(2)?;
-    phys.add_mass_dom(0, dom, conc_0, HashMap::from([(0, diff_00), (1, diff_01)]), msrc_0)?;  // arguments: component, domain, c, D, R
-    phys.add_mass_dom(1, dom, conc_1, HashMap::from([(1, diff_11)]), msrc_1)?;  // arguments: component, domain, c, D, R
+    phys.add_mass_dom(0, dom, conc_0, HashMap::from([(0, diff_00), (1, diff_01)]), mprd_0, msrc_0)?;  // arguments: component, domain, c, D, s, R
+    phys.add_mass_dom(1, dom, conc_1, HashMap::from([(1, diff_11)]), mprd_1, msrc_1)?;  // arguments: component, domain, c, D, s, R
     phys.add_mflx_bnd(0, bnd_l, mflx_0_l)?;  // arguments: component, boundary, N
     phys.add_conc_bnd(0, bnd_r, conc_0_r)?;  // arguments: component, boundary, c
     phys.add_mflx_bnd(0, bnd_b, mflx_0_b)?;  // arguments: component, boundary, N

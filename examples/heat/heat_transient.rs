@@ -27,6 +27,7 @@ use std::fs::create_dir_all;
 /// Properties:
 /// dom - volumetric heat capacity (rho*cp = 10.0 J m-3 K-1)
 /// dom - thermal conductivity (k = 1.0 W m-1 K-1)
+/// dom - heat production coefficient (s = 0.0 W m-3 K-1)
 /// dom - heat source (Q = -500.0 W m-3)
 ///
 /// Initial conditions:
@@ -68,8 +69,11 @@ fn main() -> Result<(), VFVChemError> {
 
     // constant domain values
     // arguments: domain, value, output_file
+    // heat production is multiplied by the temperature; heat source adds the source directly
+    // use heat source by default; use heat production (or both) if heat source does not converge
     let vlcp = vars.add_scldom_cnst(dom, 10.0, "")?;  // volumetric heat capacity (rho * cp)
     let cond = vars.add_scldom_cnst(dom, 1.0, "")?;  // thermal conductivity
+    let hprd = vars.add_scldom_cnst(dom, 0.0, "")?;  // heat production coefficient (s; positive if source; negative if sink)
     let hsrc = vars.add_scldom_cnst(dom, -500.0, "")?;  // heat source (Q; positive if source; negative if sink)
 
     // constant boundary values
@@ -84,7 +88,7 @@ fn main() -> Result<(), VFVChemError> {
     // add_hflx_bnd - register boundary with heat flux
     // add_temp_bnd - register boundary with temperature
     let mut phys = TransientHeat::new()?;
-    phys.add_heat_dom(dom, temp, vlcp, cond, hsrc)?;  // arguments: domain, T, rho*cp, k, Q
+    phys.add_heat_dom(dom, temp, vlcp, cond, hprd, hsrc)?;  // arguments: domain, T, rho*cp, k, s, Q
     phys.add_hflx_bnd(bnd_l, hflx_l)?;  // arguments: boundary, q
     phys.add_temp_bnd(bnd_r, temp_r)?;  // arguments: boundary, T
     phys.add_hflx_bnd(bnd_b, hflx_b)?;  // arguments: boundary, q
