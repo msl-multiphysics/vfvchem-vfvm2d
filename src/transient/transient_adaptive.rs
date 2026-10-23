@@ -19,9 +19,13 @@ use std::time::Instant;
 // Taylor expansion gives y_BE - y_p = dt * (2 dt + dt_prev) / 2 * y'' and the BE local error is dt^2 / 2 * y'', so
 //   LTE ~ dt / (2 dt + dt_prev) * |y_BE - y_p|
 // (on the first step, the constant predictor y_p = y_n is used with factor 1/2: a safe overestimate).
-// The error norm is the maximum over unknown fields (each scalar or vector component block) of
-//   max_i |LTE_i| / (atol + rtol * max_i max(|y_n,i|, |y_BE,i|))
-// so fields of different magnitude (T, c, u, p) are each measured relative to their own size.
+// The error norm is the maximum over unknown fields (scalar, vector, pressure) of
+//   max_i |LTE_i| / (atol + rtol * s_f)
+// with s_f the field reference scale (see scaling.rs): max |y| for scalars, max |u| for vectors (shared by both
+// components), and max(range of p, rho U^2, user reference) for pressure, so fields of different magnitude
+// (T, c, u, p) are each measured relative to their own size and a constant pressure offset does not matter
+// (pressure round-off PRES_ROUNDOFF * max|p| is added to atol for pressure).
+// With vars.scale_off, the previous norm (per scalar or vector component block, s = max_i max(|y_n,i|, |y_BE,i|)) is used.
 //
 // Controller: PI (Gustafsson / Hairer), local order k = 2:
 //   fac = safety * err^(-0.7 / k) * err_prev^(0.4 / k), clamped to [fac_min, fac_max], then dt in [dt_min, dt_max]
@@ -49,7 +53,7 @@ pub struct AdaptiveOptions {
     pub tol: f64,         // Picard
     pub damp: f64,        // Picard
     pub fixed: bool,      // if true, dt = dt_init throughout (still hitting the output times); no error control
-    pub err_exclude: Vec<usize>,  // scalar (scldom) ids left out of the error norm, e.g., pressure (algebraic)
+    pub scl_exclude: Vec<usize>,  // scalar (scldom) ids left out of the error norm, e.g., pressure (algebraic)
     pub verbose: bool,    // print the Picard residuals
     pub folder_path: String,  // folder for adaptive_times.csv and adaptive_stats.csv
 }
@@ -61,7 +65,7 @@ impl AdaptiveOptions {
             t_end, dt_init, dt_min: 1e-12 * t_end, dt_max: t_end, rtol: 1e-3, atol: 1e-12,
             safety: 0.9, fac_min: 0.2, fac_max: 2.0, fac_fail: 0.25, max_reject: 30,
             out_times: (0..=10).map(|i| t_end * (i as f64) / 10.0).collect(),
-            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false, err_exclude: Vec::new(), verbose: false,
+            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false, scl_exclude: Vec::new(), verbose: false,
             folder_path: folder_path.to_string(),
         };
         Ok(opt)
@@ -114,7 +118,9 @@ pub trait TransientAdaptive: TransientBase {
         Self::_update_tri(vars)?;
         let mat_size = self.initial_start(vars)?;
         self.initial_operator(vars)?;
-        let blocks = _field_blocks(vars, &opt.err_exclude);
+        let blocks = _field_blocks(vars, &opt.scl_exclude);
+        let fields = field_norms(vars, &[]);  // unknown fields for the scaled Picard residual
+        let fields_err = field_norms(vars, &opt.scl_exclude);  // unknown fields for the error norm
 
         // write initial condition at t = 0; it is the previous state of the first step
         let mut x_n: Col<f64> = Col::zeros(mat_size);  // last accepted state
@@ -186,7 +192,7 @@ pub trait TransientAdaptive: TransientBase {
                 Self::_update_flow(vars);
                 self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
                 a_mat = lin.build_matrix(&a_triplet)?;
-                res = (&x_damp - &x_iter).norm_l2() / (x_iter.norm_l2() + 1e-10);
+                res = scaled_residual(vars, &fields, &x_iter, &x_damp).0;
                 num_picard += 1;
                 if opt.verbose { println!("Time: {t_new:.6e}; dt: {dt_step:.3e}; Iteration: {iter}; Residual: {res:.4e}"); }
                 x_iter = x_damp;
@@ -209,7 +215,23 @@ pub trait TransientAdaptive: TransientBase {
             }
 
             // error estimate
-            let err = if opt.fixed { 0.0 } else {
+            let err = if opt.fixed { 0.0 } else if !vars.scale_off {
+                // max over fields of max_i |LTE_i| / (atol + rtol * s_f), s_f the field scale (see scaling.rs)
+                let mut e: f64 = 0.0;
+                for field in &fields_err {
+                    let ncomp = if let FieldKind::Vector = field.kind { 2 } else { 1 };
+                    let mut emax: f64 = 0.0;
+                    for i in field.start..field.start + ncomp * field.len {
+                        let (yp, fac) = match &x_nm1 {
+                            Some((xm, dtm)) => (x_n[i] + dt_step / dtm * (x_n[i] - xm[i]), dt_step / (2.0 * dt_step + dtm)),
+                            None => (x_n[i], 0.5),
+                        };
+                        emax = emax.max(fac * (x_iter[i] - yp).abs());
+                    }
+                    e = e.max(emax / (opt.atol + pres_roundoff(field, &x_n, &x_iter) + opt.rtol * field_scale(vars, field, &x_n, &x_iter)));
+                }
+                e
+            } else {
                 let mut e: f64 = 0.0;
                 for &(s, len) in &blocks {
                     let mut emax: f64 = 0.0;

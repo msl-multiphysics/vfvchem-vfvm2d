@@ -43,6 +43,7 @@ pub trait TransientBase {
         // initialize operators
         let mat_size = self.initial_start(vars)?;
         self.initial_operator(vars)?;
+        let fields = field_norms(vars, &[]);  // unknown fields for the scaled residual
 
         // initialize matrices
         let mut a_triplet: Vec<Triplet<usize, usize, f64>> = Vec::new();
@@ -108,8 +109,8 @@ pub trait TransientBase {
                 let time_i2 = Instant::now();
                 time_asm += time_i2 - time_i1;
 
-                // compute tolerance: |x_new - x_old| / |x_old|
-                res = (&x_damp_vec - &x_iter_vec).norm_l2() / (x_iter_vec.norm_l2() + 1e-10);
+                // compute tolerance: max over fields of rms(x_new - x_old) / scale (see scaling.rs)
+                res = scaled_residual(vars, &fields, &x_iter_vec, &x_damp_vec).0;
                 println!("Timestep: {ts}; Iteration: {iter}; Residual: {res:.4e}");
 
                 // update iteration vector

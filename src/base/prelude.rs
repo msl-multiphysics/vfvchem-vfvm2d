@@ -6,6 +6,7 @@ pub use super::geom_tri::*;
 pub use super::nds::*;
 pub use super::pts::*;
 pub use super::read_obj::*;
+pub use super::scaling::*;
 pub use super::scl_bnd::*;
 pub use super::scl_dom::*;
 pub use super::scl_flw::*;

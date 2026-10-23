@@ -49,7 +49,7 @@ Every transient solver can be run with adaptive time steps through `solve_adapti
     let mut opt = AdaptiveOptions::new(dt_init, t_end, "examples/output_name")?;
     opt.rtol = 1e-3;                   // relative error tolerance (default 1e-3)
     opt.out_times = vec![1.0, 2.5];    // optional; default is 11 evenly spaced times from 0 to t_end
-    opt.err_exclude = vec![pres];      // leave pressure out of the error estimate on flow problems
+    opt.scl_exclude = vec![pres];      // leave pressure out of the error estimate on flow problems
     phys.solve_adaptive(&mut vars, &mut lin, &opt)?;
 
 Other fields of AdaptiveOptions set dt_min, dt_max, atol, the step controller, and the Picard iteration (max_iter, tol, damp).
@@ -58,9 +58,21 @@ Two files are written to the folder given to AdaptiveOptions::new:
 - adaptive_times.csv : output file index and the corresponding time (e.g., temp_0003.vtu is the row with file_index 3)
 - adaptive_stats.csv : time, dt, and error estimate of every accepted step, with the number of accepted steps,
                        rejected steps, and Picard iterations repeated on each row
-Pressure has no time derivative, so it should be excluded from the error estimate with err_exclude; it is still solved.
+Pressure has no time derivative, so it should be excluded from the error estimate with scl_exclude; it is still solved.
 Time-dependent functions are evaluated at the end of each step. If a source or boundary condition changes suddenly
 (e.g., a heat pulse from t0 to t1), add t0 and t1 to out_times; otherwise a change that falls inside one step is missed.
+
+Convergence Scaling
+-------------------
+The Picard tolerance (tol) and the adaptive error tolerance (rtol) are measured per unknown field against a reference scale,
+and the largest field is used. The reference scale is max|T| or max|c| for scalars, max|u| for velocity, and for pressure
+the larger of the range of p and rho*U^2, so a constant pressure offset (e.g., absolute pressure) does not matter.
+The reference scales can be given lower bounds, e.g., a reference pressure difference at very low flow rates:
+
+    vars.set_scldom_scale(pres, 10.0)?;    // reference scale of a scalar (for pressure: pressure difference)
+    vars.set_vecdom_scale(vel, 0.02)?;     // reference scale of a vector (velocity magnitude)
+
+Setting `vars.scale_off = true` restores the unscaled measures (|x_new - x_old| / |x_old| for the Picard iteration).
 
 Project Structure
 -----------------

@@ -35,6 +35,7 @@ Base
 - nds      : stores nodes on boundaries and interfaces
 - pts      : stores points inside domains; placed via Poisson-disk sampling
 - read_obj : imports boundary, interface, and domain polylines from an obj file
+- scaling  : per-field reference scales for the Picard residual and the adaptive error norm
 - scl_bnd  : stores a scalar field defined on a boundary
 - scl_dom  : stores a scalar field defined on a domain
 - scl_flw  : stores the Rhie-Chow face mass flux shared by the momentum and continuity equations

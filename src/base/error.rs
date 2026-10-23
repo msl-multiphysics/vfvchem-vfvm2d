@@ -154,6 +154,10 @@ pub enum VFVChemError {
     SolverNonPositiveTolerance {
         tol: f64,
     },
+    #[error("Variables: Reference scale must be greater than zero. Got scale = {scale}.")]
+    VariablesNonPositiveScale {
+        scale: f64,
+    },
     #[error("Solver: Damping must be in (0, 1]. Got damp = {damp}.")]
     SolverInvalidDamping {
         damp: f64,

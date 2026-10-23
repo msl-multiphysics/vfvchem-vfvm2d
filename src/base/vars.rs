@@ -1,4 +1,5 @@
 use crate::base::prelude::*;
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct Variables {
@@ -22,6 +23,12 @@ pub struct Variables {
     pub vecdom: Vec<VectorDomain>,
     pub vecbnd: Vec<VectorBoundary>,
     pub vecitf: Vec<VectorInterface>,
+
+    // convergence scaling
+    // reference scales of unknown fields used in the Picard residual and the adaptive error norm (see scaling.rs)
+    pub scale_scldom: HashMap<usize, f64>,  // scldom id -> reference scale (for pressure: reference pressure difference)
+    pub scale_vecdom: HashMap<usize, f64>,  // vecdom id -> reference scale (velocity magnitude)
+    pub scale_off: bool,                    // if true, the unscaled residual |x_new - x_old| / |x_old| is used
 }
 
 impl Variables {
@@ -189,6 +196,20 @@ impl Variables {
         let vecitf = VectorInterface::new_func(vecitf_id, itf, &self.scldom, func, unkn_a_id, unkn_b_id, file_path)?;
         self.vecitf.push(vecitf);
         Ok(vecitf_id)
+    }
+
+
+    // convergence scaling
+    pub fn set_scldom_scale(&mut self, scldom_id: usize, scale: f64) -> Result<(), VFVChemError> {
+        if scale.is_nan() || scale <= 0.0 { return Err(VFVChemError::VariablesNonPositiveScale { scale }); }
+        self.scale_scldom.insert(scldom_id, scale);
+        Ok(())
+    }
+
+    pub fn set_vecdom_scale(&mut self, vecdom_id: usize, scale: f64) -> Result<(), VFVChemError> {
+        if scale.is_nan() || scale <= 0.0 { return Err(VFVChemError::VariablesNonPositiveScale { scale }); }
+        self.scale_vecdom.insert(vecdom_id, scale);
+        Ok(())
     }
 
 }

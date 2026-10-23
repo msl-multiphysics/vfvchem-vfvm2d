@@ -7,6 +7,7 @@ pub mod nds;
 pub mod prelude;
 pub mod pts;
 pub mod read_obj;
+pub mod scaling;
 pub mod scl_bnd;
 pub mod scl_dom;
 pub mod scl_flw;
