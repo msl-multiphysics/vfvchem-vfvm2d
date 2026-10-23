@@ -118,6 +118,8 @@ pub trait TransientAdaptive: TransientBase {
 
         // write initial condition at t = 0; it is the previous state of the first step
         let mut x_n: Col<f64> = Col::zeros(mat_size);  // last accepted state
+        Self::_update_func(vars, 0.0);
+        self.initial_dirichlet(vars);  // load Dirichlet boundary values at t = 0 into the initial unknowns
         Self::_unkn_to_solu(vars, &mut x_n);
         Self::_update_func(vars, 0.0);
         Self::_update_grad(vars);

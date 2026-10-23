@@ -9,6 +9,7 @@ pub trait SteadyBase {
     fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError>;  // set start indices, create derived data, and compute matrix sizes
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError>;  // initializes operators
     fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError>;  // assemble global matrix
+    fn initial_dirichlet(&self, vars: &mut Variables);  // load Dirichlet boundary values into unknowns
 
     // solver function
     fn solve(
@@ -45,6 +46,10 @@ pub trait SteadyBase {
         let mut b_vec: Col<f64> = Col::zeros(mat_size);
         let mut x_udmp_vec: Col<f64>;  // undamped result
         let mut x_iter_vec: Col<f64> = Col::zeros(mat_size);  // result between iterations
+
+        // load Dirichlet boundary values into the initial unknowns
+        Self::_update_func(vars, 0.0);
+        self.initial_dirichlet(vars);
 
         // load initial unknown value to solution vector
         Self::_unkn_to_solu(vars, &mut x_iter_vec);

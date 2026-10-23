@@ -157,4 +157,11 @@ impl SteadyBase for SteadyHeat {
 
         Ok(())
     }
+
+    fn initial_dirichlet(&self, vars: &mut Variables) {
+        // boundary
+        for oper_dir in &self.oper_bnd_temp {
+            oper_dir.apply_initial(vars);
+        }
+    }
 }

@@ -30,6 +30,26 @@ impl OpVecBndDirichlet {
         
         Ok(oper)
     }
+
+    pub fn apply_initial(&self, vars: &mut Variables) {
+        // loads the boundary value into the unknown
+        // vel = vel_set
+
+        // get objects
+        let bnd = &vars.bnd[self.bnd_id];
+        let dom = &vars.dom[bnd.dom_id];
+
+        // iterate through nodes
+        for idx_v in 0..bnd.num_nds() {
+            // get indices
+            let gnd_v = bnd.nds_gnd[idx_v];
+            let nid_v = dom.nds_nid[&gnd_v];
+            let vid_v = dom.num_pts() + nid_v;
+
+            // load into unknown
+            vars.vecdom[self.vel_id].value[vid_v] = vars.vecbnd[self.val_id].value[idx_v];
+        }
+    }
 }
 
 impl OperatorBase for OpVecBndDirichlet {

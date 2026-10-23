@@ -188,4 +188,11 @@ impl SteadyBase for SteadyMass {
 
         Ok(())
     }
+
+    fn initial_dirichlet(&self, vars: &mut Variables) {
+        // boundary
+        for oper_dir in &self.oper_bnd_conc {
+            oper_dir.apply_initial(vars);
+        }
+    }
 }
