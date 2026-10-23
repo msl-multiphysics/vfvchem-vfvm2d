@@ -6,7 +6,7 @@ use faer::sparse::Triplet;
 use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 // Adaptive time stepping for every transient solver (blanket implementation over TransientBase).
 //
@@ -54,7 +54,6 @@ pub struct AdaptiveOptions {
     pub damp: f64,        // Picard
     pub fixed: bool,      // if true, dt = dt_init throughout (still hitting the output times); no error control
     pub scl_exclude: Vec<usize>,  // scalar (scldom) ids left out of the error norm, e.g., pressure (algebraic)
-    pub verbose: bool,    // print the Picard residuals
     pub folder_path: String,  // folder for adaptive_times.csv and adaptive_stats.csv
 }
 
@@ -65,7 +64,7 @@ impl AdaptiveOptions {
             t_end, dt_init, dt_min: 1e-12 * t_end, dt_max: t_end, rtol: 1e-3, atol: 1e-12,
             safety: 0.9, fac_min: 0.2, fac_max: 2.0, fac_fail: 0.25, max_reject: 30,
             out_times: (0..=10).map(|i| t_end * (i as f64) / 10.0).collect(),
-            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false, scl_exclude: Vec::new(), verbose: false,
+            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false, scl_exclude: Vec::new(),
             folder_path: folder_path.to_string(),
         };
         Ok(opt)
@@ -95,6 +94,12 @@ pub trait TransientAdaptive: TransientBase {
         let time_start = Instant::now();
         println!("Starting adaptive transient solver.");
 
+        // initialize time measurement
+        let mut time_dual = Duration::ZERO;
+        let mut time_asm = Duration::ZERO;
+        let mut time_lin = Duration::ZERO;
+        let mut time_wrt = Duration::ZERO;
+
         // output times; sorted, without duplicates, and ending at t_end
         let t_eps = 1e-12 * opt.t_end;
         let mut outs: Vec<f64> = opt.out_times.iter().cloned().filter(|&t| t > t_eps && t <= opt.t_end).collect();
@@ -115,7 +120,10 @@ pub trait TransientAdaptive: TransientBase {
         writeln!(times_w, "file_index,time").map_err(|e| _adaptive_err(&times_path, e))?;
 
         // initialize dual control volumes and operators
+        let time_0 = Instant::now();
         Self::_update_tri(vars)?;
+        let time_1 = Instant::now();
+        time_dual += time_1 - time_0;
         let mat_size = self.initial_start(vars)?;
         self.initial_operator(vars)?;
         let blocks = _field_blocks(vars, &opt.scl_exclude);
@@ -130,9 +138,12 @@ pub trait TransientAdaptive: TransientBase {
         Self::_update_func(vars, 0.0);
         Self::_update_grad(vars);
         Self::_update_prev(vars);
+        let time_w0 = Instant::now();
         Self::_write(vars, 0)?;
         writeln!(times_w, "0,{:.9e}", 0.0).map_err(|e| _adaptive_err(&times_path, e))?;
         times_w.flush().map_err(|e| _adaptive_err(&times_path, e))?;
+        let time_w1 = Instant::now();
+        time_wrt += time_w1 - time_w0;
 
         // statistics
         let mut num_accept = 0;
@@ -152,6 +163,9 @@ pub trait TransientAdaptive: TransientBase {
         let mut no_grow = false;
         let mut a_triplet: Vec<Triplet<usize, usize, f64>> = Vec::new();
         while t < opt.t_end - t_eps {
+            // index of the step being attempted; retries after a rejection keep the same index
+            let ts = num_accept;
+
             // land exactly on the next output time; avoid a tiny remainder step
             let t_out = outs[out_idx];
             let mut dt_step = dt;
@@ -165,6 +179,7 @@ pub trait TransientAdaptive: TransientBase {
             let t_new = if hits { t_out } else { t + dt_step };
 
             // initial assembly of A and b at the end of this step
+            let time_t0 = Instant::now();
             let mut x_iter = x_n.clone();
             a_triplet.clear();
             let mut b_vec: Col<f64> = Col::zeros(mat_size);
@@ -174,14 +189,20 @@ pub trait TransientAdaptive: TransientBase {
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
             lin.update_sparse(&a_triplet, mat_size)?;
             let mut a_mat = lin.build_matrix(&a_triplet)?;
+            let time_t1 = Instant::now();
+            time_asm += time_t1 - time_t0;
 
             // iterate to convergence; a failed linear solve or a non-finite residual rejects the step
             let mut is_conv = false;
             let mut res = f64::NAN;
             for iter in 0..opt.max_iter {
-                let x_udmp = match lin.solve_matrix(&a_mat, &b_vec, &x_iter, mat_size) {
+                let time_i0 = Instant::now();
+                let x_solve = lin.solve_matrix(&a_mat, &b_vec, &x_iter, mat_size);
+                let time_i1 = Instant::now();
+                time_lin += time_i1 - time_i0;
+                let x_udmp = match x_solve {
                     Ok(x) => x,
-                    Err(e) => { if opt.verbose { println!("Linear solve failed: {e}"); } break; }
+                    Err(e) => { println!("Timestep: {ts}; Linear solve failed: {e}"); break; }
                 };
                 let x_damp = (1.0 - opt.damp) * &x_iter + opt.damp * &x_udmp;
                 a_triplet.clear();
@@ -192,9 +213,11 @@ pub trait TransientAdaptive: TransientBase {
                 Self::_update_flow(vars);
                 self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
                 a_mat = lin.build_matrix(&a_triplet)?;
+                let time_i2 = Instant::now();
+                time_asm += time_i2 - time_i1;
                 res = scaled_residual(vars, &fields, &x_iter, &x_damp).0;
                 num_picard += 1;
-                if opt.verbose { println!("Time: {t_new:.6e}; dt: {dt_step:.3e}; Iteration: {iter}; Residual: {res:.4e}"); }
+                println!("Timestep: {ts}; Time: {t_new:.4e}; dt: {dt_step:.4e}; Iteration: {iter}; Residual: {res:.4e}");
                 x_iter = x_damp;
                 if !res.is_finite() { break; }
                 if res < opt.tol { is_conv = true; break; }
@@ -210,7 +233,7 @@ pub trait TransientAdaptive: TransientBase {
                 Self::_solu_to_unkn(vars, &x_n);
                 dt = (dt_step * opt.fac_fail).max(opt.dt_min);
                 no_grow = true;
-                println!("Time: {t:.6e}; Picard did not converge with dt = {dt_step:.3e}; retry with dt = {dt:.3e}");
+                println!("Timestep: {ts}; Picard did not converge; retry with dt = {dt:.4e}");
                 continue;
             }
 
@@ -257,6 +280,7 @@ pub trait TransientAdaptive: TransientBase {
                 Self::_solu_to_unkn(vars, &x_n);
                 dt = (dt_step * (opt.safety * err.powf(-0.5)).max(opt.fac_min)).max(opt.dt_min);
                 no_grow = true;
+                println!("Timestep: {ts}; Error: {err:.4e}; rejected; retry with dt = {dt:.4e}");
                 continue;
             }
 
@@ -264,6 +288,7 @@ pub trait TransientAdaptive: TransientBase {
             hook(vars, t_new, dt_step);
             Self::_update_prev(vars);
             num_accept += 1;
+            println!("Timestep: {ts}; Time: {t_new:.4e}; dt: {dt_step:.4e}; Error: {err:.4e}; accepted");
             steps.push((t_new, dt_step, err));
             x_nm1 = Some((x_n, dt_step));
             x_n = x_iter;
@@ -273,9 +298,12 @@ pub trait TransientAdaptive: TransientBase {
             // write the state at an output time as the next snapshot
             if hits {
                 n_write += 1;
+                let time_w2 = Instant::now();
                 Self::_write(vars, n_write)?;
                 writeln!(times_w, "{n_write},{t:.9e}").map_err(|e| _adaptive_err(&times_path, e))?;
                 times_w.flush().map_err(|e| _adaptive_err(&times_path, e))?;
+                let time_w3 = Instant::now();
+                time_wrt += time_w3 - time_w2;
                 out_idx += 1;
                 if out_idx >= outs.len() { break; }
             }
@@ -292,6 +320,7 @@ pub trait TransientAdaptive: TransientBase {
         }
 
         // write statistics; summary counts are repeated on every accepted step
+        let time_w4 = Instant::now();
         let stats_path = Path::new(&opt.folder_path).join("adaptive_stats.csv").display().to_string();
         let stats_file = File::create(&stats_path).map_err(|e| _adaptive_err(&stats_path, e))?;
         let mut stats_w = BufWriter::new(stats_file);
@@ -300,14 +329,22 @@ pub trait TransientAdaptive: TransientBase {
             writeln!(stats_w, "{num_accept},{num_reject_err},{num_reject_picard},{num_picard},{t_step:.9e},{dt_step:.9e},{err:.9e}").map_err(|e| _adaptive_err(&stats_path, e))?;
         }
         stats_w.flush().map_err(|e| _adaptive_err(&stats_path, e))?;
+        let time_w5 = Instant::now();
+        time_wrt += time_w5 - time_w4;
 
-        // output summary
+        // output time measurement and statistics
+        let time_end = Instant::now();
+        let time_total = time_end - time_start;
         println!("Adaptive solution completed!");
-        println!("Total: {:.6} s", time_start.elapsed().as_secs_f64());
-        println!("  Accepted Steps     : {num_accept}");
-        println!("  Rejected (Error)   : {num_reject_err}");
-        println!("  Rejected (Picard)  : {num_reject_picard}");
-        println!("  Picard Iterations  : {num_picard}");
+        println!("Total: {:.6} s", time_total.as_secs_f64());
+        println!("  Dual Mesh         : {:.6} s", time_dual.as_secs_f64());
+        println!("  Matrix Assembly   : {:.6} s", time_asm.as_secs_f64());
+        println!("  Matrix Solve      : {:.6} s", time_lin.as_secs_f64());
+        println!("  File Output       : {:.6} s", time_wrt.as_secs_f64());
+        println!("  Accepted Steps    : {num_accept}");
+        println!("  Rejected (Error)  : {num_reject_err}");
+        println!("  Rejected (Picard) : {num_reject_picard}");
+        println!("  Picard Iterations : {num_picard}");
 
         Ok(())
     }

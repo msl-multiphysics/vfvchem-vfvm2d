@@ -28,14 +28,17 @@ Heat Transfer
 - quickstart.rs     : introduction to VFVChem code
 - heat_transient.rs : transient heat transfer simulation
 - heat_tworeg.rs    : importing `.obj` geometries; multiple domains joined by an interface
+- heat_analytic.rs  : steady-state conduction in a uniformly heated slab
 
 Mass Transfer
-- mass_square.rs : steady-state multicomponent diffusion with cross-diffusion
+- mass_square.rs   : steady-state multicomponent diffusion with cross-diffusion
+- mass_analytic.rs : steady-state diffusion with a first-order reaction using a production coefficient
 
 Momentum Transfer
-- flow_lid.rs    : lid-driven cavity flow
-- flow_step.rs   : transient flow past a backward-facing step
-- flow_tworeg.rs : lid-driven cavity flow through two domains joined by an interface
+- flow_lid.rs      : lid-driven cavity flow
+- flow_step.rs     : transient flow past a backward-facing step
+- flow_tworeg.rs   : lid-driven cavity flow through two domains joined by an interface
+- flow_analytic.rs : plane Poiseuille flow in a channel
 
 Heat and Momentum Transfer
 - heatflow_fourcyl.rs : flow through a channel with four heated cylinders
@@ -47,3 +50,9 @@ Mass and Momentum Transfer
 
 Heat, Mass, and Momentum Transfer
 - heatmassflow_step.rs : transient flow past a backward-facing step with an exothermic reaction
+
+Features
+- feat_prod.rs  : production coefficient versus mass source for a fast first-order reaction
+- feat_scale.rs : convergence scaling options for flow at absolute pressure
+- feat_itf.rs   : heat and mass transfer through regions with different properties joined by an interface
+- feat_adt.rs   : adaptive time stepping

@@ -20,8 +20,16 @@ name = "heat_tworeg"
 path = "examples/heat/heat_tworeg.rs"
 
 [[example]]
+name = "heat_analytic"
+path = "examples/heat/heat_analytic.rs"
+
+[[example]]
 name = "mass_square"
 path = "examples/mass/mass_square.rs"
+
+[[example]]
+name = "mass_analytic"
+path = "examples/mass/mass_analytic.rs"
 
 [[example]]
 name = "flow_lid"
@@ -36,12 +44,12 @@ name = "flow_tworeg"
 path = "examples/flow/flow_tworeg.rs"
 
 [[example]]
-name = "heatflow_step"
-path = "examples/heatflow/heatflow_step.rs"
+name = "flow_analytic"
+path = "examples/flow/flow_analytic.rs"
 
 [[example]]
-name = "heatflow_uni"
-path = "examples/heatflow/heatflow_uni.rs"
+name = "heatflow_step"
+path = "examples/heatflow/heatflow_step.rs"
 
 [[example]]
 name = "heatflow_heater"
@@ -56,12 +64,24 @@ name = "massflow_step"
 path = "examples/massflow/massflow_step.rs"
 
 [[example]]
-name = "massflow_uni"
-path = "examples/massflow/massflow_uni.rs"
-
-[[example]]
 name = "heatmassflow_step"
 path = "examples/heatmassflow/heatmassflow_step.rs"
+
+[[example]]
+name = "feat_prod"
+path = "examples/features/feat_prod.rs"
+
+[[example]]
+name = "feat_scale"
+path = "examples/features/feat_scale.rs"
+
+[[example]]
+name = "feat_itf"
+path = "examples/features/feat_itf.rs"
+
+[[example]]
+name = "feat_adt"
+path = "examples/features/feat_adt.rs"
 
 [profile.release]
 opt-level = 3
