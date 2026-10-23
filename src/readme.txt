@@ -14,7 +14,7 @@ It supports steady-state and transient simulations with non-constant properties 
 
 Nodes are placed along boundaries and interfaces, and points are placed inside domains via Poisson-disk sampling.
 Each domain is triangulated with a constrained Delaunay triangulation, and a control volume is built around every vertex.
-Currently, only backward Euler time stepping with constant time steps is implemented.
+Currently, only backward Euler time stepping is implemented, with constant or adaptive time steps.
 Advective transport is discretized via the power law scheme.
 Pressure-velocity coupling in the Navier-Stokes equation is handled via Rhie-Chow interpolation.
 
@@ -143,6 +143,7 @@ Steady
 Transient
 ---------
 - transient_base         : implements the common time-stepping and nonlinear solution loops
+- transient_adaptive     : implements adaptive time stepping for every transient solver
 - transient_flow         : solves transient momentum transfer
 - transient_heat         : solves transient heat transfer
 - transient_heatflow     : solves coupled transient heat and momentum transfer

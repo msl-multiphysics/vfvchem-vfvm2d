@@ -19,6 +19,7 @@ Note: The project is under active development. The public API and numerical mode
 Features
 --------
 - Steady or transient simulations of heat, mass, or momentum transport and couplings thereof
+- Fixed or adaptive time stepping for transient simulations
 - Non-constant inputs, such as temperature and concentration-dependent properties and reactions
 - Multicomponent mass transfer with cross-diffusion
 - Multiple domains, boundaries, and interfaces, which can be imported from `.obj` geometry files (e.g., from VFVChem geom2d)
@@ -40,6 +41,26 @@ Quick Start
 Clone or download the project, change to the vfvchem_vfvm2d directory, and run `cargo run --release --example quickstart`.
 This example solves a steady heat transfer problem on a square domain and writes the temperature field to `examples/output_quickstart/temp_0000.vtu`.
 Other examples can be found in the `examples` folder. An overview of the examples is provided in `examples/readme.txt`.
+
+Adaptive Time Stepping
+----------------------
+Every transient solver can be run with adaptive time steps through `solve_adaptive` instead of `solve`:
+
+    let mut opt = AdaptiveOptions::new(dt_init, t_end, "examples/output_name")?;
+    opt.rtol = 1e-3;                   // relative error tolerance (default 1e-3)
+    opt.out_times = vec![1.0, 2.5];    // optional; default is 11 evenly spaced times from 0 to t_end
+    opt.err_exclude = vec![pres];      // leave pressure out of the error estimate on flow problems
+    phys.solve_adaptive(&mut vars, &mut lin, &opt)?;
+
+Other fields of AdaptiveOptions set dt_min, dt_max, atol, the step controller, and the Picard iteration (max_iter, tol, damp).
+Output files are written exactly at t = 0, at each time in out_times, and at t_end; steps are shortened to land on them.
+Two files are written to the folder given to AdaptiveOptions::new:
+- adaptive_times.csv : output file index and the corresponding time (e.g., temp_0003.vtu is the row with file_index 3)
+- adaptive_stats.csv : time, dt, and error estimate of every accepted step, with the number of accepted steps,
+                       rejected steps, and Picard iterations repeated on each row
+Pressure has no time derivative, so it should be excluded from the error estimate with err_exclude; it is still solved.
+Time-dependent functions are evaluated at the end of each step. If a source or boundary condition changes suddenly
+(e.g., a heat pulse from t0 to t1), add t0 and t1 to out_times; otherwise a change that falls inside one step is missed.
 
 Project Structure
 -----------------

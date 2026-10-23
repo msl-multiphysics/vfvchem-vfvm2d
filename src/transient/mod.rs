@@ -1,6 +1,7 @@
 // base class
 pub mod prelude;
 pub mod transient_base;
+pub mod transient_adaptive;
 
 // solvers
 pub mod transient_flow;
