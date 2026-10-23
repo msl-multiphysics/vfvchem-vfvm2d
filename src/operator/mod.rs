@@ -11,6 +11,7 @@ pub mod opscl_dom_pref;
 pub mod opscl_dom_pstab;
 pub mod opscl_dom_src;
 pub mod opscl_dom_time;
+pub mod opscl_dom_timeprev;
 pub mod opscl_dom_timeunity;
 
 // scalar boundary operators
@@ -23,6 +24,7 @@ pub mod opscl_bnd_neu;
 pub mod opscl_bnd_pstab;
 pub mod opscl_bnd_src;
 pub mod opscl_bnd_time;
+pub mod opscl_bnd_timeprev;
 pub mod opscl_bnd_timeunity;
 
 // scalar interface operators
@@ -34,6 +36,7 @@ pub mod opscl_itf_div;
 pub mod opscl_itf_pstab;
 pub mod opscl_itf_src;
 pub mod opscl_itf_time;
+pub mod opscl_itf_timeprev;
 pub mod opscl_itf_timeunity;
 
 // vector domain operators
@@ -52,6 +55,7 @@ pub mod opvec_bnd_diff;
 pub mod opvec_bnd_dir;
 pub mod opvec_bnd_dtrn;
 pub mod opvec_bnd_grad;
+pub mod opvec_bnd_trac;
 pub mod opvec_bnd_src;
 pub mod opvec_bnd_time;
 

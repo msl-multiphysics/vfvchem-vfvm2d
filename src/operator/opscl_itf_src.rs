@@ -20,7 +20,7 @@ pub struct OpSclItfSource {
 impl OpSclItfSource {
     pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, src_a_id: usize, unk_b_id: usize, src_b_id: usize) -> Result<OpSclItfSource, VFVChemError> {
         // adds the source term to the combined control volumes of interface nodes
-        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -G_ij * grad(c_j) ) + R_i
         //                                                                      ^^^
         // each domain contributes its half of the control volume; loads into the rows of domain b
 

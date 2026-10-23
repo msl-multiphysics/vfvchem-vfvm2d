@@ -13,8 +13,7 @@ pub struct OpSclItfAdvectionUnity {
 
     // scalars - flowing side
     pub unk_id: usize,           // unknown scalar (c_i); unknown
-    pub diff_id: Option<usize>,  // self-diffusivity (D_ii); for the Peclet number
-    pub den_id: usize,           // density (rho); converts the mass flux
+    pub diff_id: Option<usize>,  // diffusion coefficient (G_ii); for the Peclet number
 
     // vectors - flowing side
     pub vel_id: usize,  // velocity (vel)
@@ -24,14 +23,14 @@ pub struct OpSclItfAdvectionUnity {
 }
 
 impl OpSclItfAdvectionUnity {
-    pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, unk_b_id: usize, diff_id: Option<usize>, vel_id: usize, den_id: usize, flw_id: usize) -> Result<OpSclItfAdvectionUnity, VFVChemError> {
-        // adds the advection term with unit weight to the combined control volumes of interface nodes
-        // dc_i/dt + vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
-        //           ^^^^^^^^^^^^^^^
+    pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, unk_b_id: usize, diff_id: Option<usize>, vel_id: usize, flw_id: usize) -> Result<OpSclItfAdvectionUnity, VFVChemError> {
+        // adds the advection term in terms of the mass flux to the combined control volumes of interface nodes
+        // rho * dc_i/dt + rho * vel . grad(c_i) = -div( -G_ij * grad(c_j) ) + R_i
+        //                 ^^^^^^^^^^^^^^^^^^^^^
         // covers the half of the control volume on the side of the flow data; loads into the rows of domain b
         // use once for each side with flow; a side without flow has no advection
         // must be used together with OpSclItfDiffusion; the power law scheme corrects its central difference
-        // a missing self-diffusivity sets D_f to zero and falls back to pure upwinding
+        // a missing diffusion coefficient sets G_f to zero and falls back to pure upwinding
         // the boundary half-edges are upwinded from the node and contribute nothing
 
         // input checking
@@ -43,7 +42,6 @@ impl OpSclItfAdvectionUnity {
         if let Some(diff_id) = diff_id {
             check_dom_scldom(vars, dom_id, diff_id)?;
         }
-        check_dom_scldom(vars, dom_id, den_id)?;
         check_dom_vecdom(vars, dom_id, vel_id)?;
 
         // create struct
@@ -52,7 +50,6 @@ impl OpSclItfAdvectionUnity {
         oper.unk_b_id = unk_b_id;
         oper.unk_id = unk_id;
         oper.diff_id = diff_id;
-        oper.den_id = den_id;
         oper.vel_id = vel_id;
         oper.flw_id = flw_id;
 
@@ -62,20 +59,21 @@ impl OpSclItfAdvectionUnity {
 
 impl OperatorBase for OpSclItfAdvectionUnity {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
-        // int_surf -vel . grad(c) dA
-        // int_lin -(c - c_v) * (vel . n) dl
-        // sum_ngh -(c - c_v) * (vel . n) dl + sum_bnd -(c - c_v) * (vel . n) dl
+        // int_surf -rho * vel . grad(c) dA
+        // int_lin -rho * (c - c_v) * (vel . n) dl
+        // sum_ngh -rho * (c - c_v) * (vel . n) dl + sum_bnd -rho * (c - c_v) * (vel . n) dl
         //
-        // introduce volume flux from the mass flux
-        // F = vel * dl = (1 / rho) * rho * vel * dl
+        // introduce the mass flux
+        // F = rho * vel * dl
         // sum_ngh -F_f * (c_f - c_v) + sum_bnd -F_b * (c_v - c_v)
         // sum_ngh -F_f * (c_f - c_v)
         //
         // apply power law scheme
         // A(|Pe|) = max(0, (1 - 0.1 * |Pe|)^5)
-        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (c_n - c_v)
+        // sum_ngh (G_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (c_n - c_v)
         //
-        // non-conservative form; uniform c is preserved even if continuity is not satisfied
+        // conservative form minus c_v times the discrete continuity residual of the same F_f
+        // uniform c is preserved even if continuity is not satisfied; c is conserved once it is
 
         // get objects
         let itf = &vars.itf[self.itf_id];
@@ -84,7 +82,6 @@ impl OperatorBase for OpSclItfAdvectionUnity {
         let dom_b = &vars.dom[vars.scldom[self.unk_b_id].dom_id];
         let tri = &vars.tri[dom_id];
         let diff_dom = self.diff_id.map(|diff_id| &vars.scldom[diff_id]);
-        let den_dom = &vars.scldom[self.den_id];
         let flow_dom = &vars.sclflw[self.flw_id];
 
         // iterate through nodes
@@ -101,23 +98,12 @@ impl OperatorBase for OpSclItfAdvectionUnity {
             let skew_n = &tri.face_skew[vid_v];
             let flux_n = &flow_dom.flux[vid_v];
 
-            // get vertex properties
-            let den_v = den_dom.value[vid_v];
-            let (den_x_v, den_y_v) = den_dom.grad[vid_v];
-
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
                 // get geometry
                 let face = face_n[loc];
                 let dist = dist_n[loc];
                 let (sx, sy) = skew_n[loc];
-
-                // get neighbor properties
-                let den_n = den_dom.value[vid_n];
-                let (den_x_n, den_y_n) = den_dom.grad[vid_n];
-
-                // get face density
-                let den_f = 0.5 * (den_v + den_n) + 0.5 * (sx * (den_x_v + den_x_n) + sy * (den_y_v + den_y_n));  // skew-corrected arithmetic mean
 
                 // get face diffusion coefficient; zero if absent
                 let diff_f = match diff_dom {
@@ -135,7 +121,7 @@ impl OperatorBase for OpSclItfAdvectionUnity {
 
                 // get power law term
                 let cond = diff_f * face / dist;
-                let flux = if den_f != 0.0 { flux_n[loc] / den_f } else { 0.0 };
+                let flux = flux_n[loc];
                 let peclet = if cond != 0.0 { flux / cond } else { 0.0 };
                 let pow_law = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 

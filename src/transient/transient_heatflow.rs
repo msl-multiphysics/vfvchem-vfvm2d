@@ -38,6 +38,8 @@ pub struct TransientHeatFlow {
     pub vel_vel: HashMap<usize, usize>,   // velocity
     pub pres_bnd: Vec<usize>,             // boundary with pressure BC
     pub pres_pres: HashMap<usize, usize>, // pressure
+    pub trac_bnd: Vec<usize>,             // boundary with traction BC
+    pub trac_pres: HashMap<usize, usize>, // pressure
 
     // flow interface data
     pub fcnt_itf: Vec<usize>,             // interface with continuity IC
@@ -48,25 +50,29 @@ pub struct TransientHeatFlow {
     pub pref_pres: HashMap<usize, f64>,   // reference pressure
 
     // heat operators
-    pub oper_itr_heat: Vec<(OpSclDomTime, OpSclDomDiffusion, OpSclDomSource)>,
+    pub oper_itr_heat: Vec<(OpSclDomTimePrevious, OpSclDomDiffusion, OpSclDomSource)>,
     pub oper_itr_hadv: Vec<OpSclDomAdvection>,
     pub oper_bnd_temp: Vec<OpSclBndDirichlet>,
-    pub oper_bnd_hflx: Vec<(OpSclBndTime, OpSclBndDiffusion, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_bnd_hflx: Vec<(OpSclBndTimePrevious, OpSclBndDiffusion, OpSclBndSource, OpSclBndNeumann)>,
     pub oper_bnd_hadv: Vec<OpSclBndAdvection>,
-    pub oper_bnd_hout: Vec<(OpSclBndTime, OpSclBndDiffusion, OpSclBndAdvection, OpSclBndSource)>,
-    pub oper_itf_hcnt: Vec<(OpSclItfTime, OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
+    pub oper_bnd_hout: Vec<(OpSclBndTimePrevious, OpSclBndDiffusion, OpSclBndAdvection, OpSclBndSource)>,
+    pub oper_itf_hcnt: Vec<(OpSclItfTimePrevious, OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
     pub oper_itf_hadv: Vec<OpSclItfAdvection>,
 
     // flow operators
     pub oper_itr_flow: Vec<(OpVecDomTime, OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndTime, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
+    pub oper_bnd_trac: Vec<(OpVecBndTraction, OpVecBndTime, OpVecBndAdvection, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfTime, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
 
 impl TransientHeatFlow {
     pub fn new() -> Result<TransientHeatFlow, VFVChemError> {
+        // the time derivative is weighted by the previous rho * cp to match the transient continuity term
+        // heat is conserved once discrete continuity is satisfied if cp is constant
+
         let phys = TransientHeatFlow::default();
         Ok(phys)
     }
@@ -121,6 +127,12 @@ impl TransientHeatFlow {
     pub fn add_pres_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
         self.pres_bnd.push(bnd_id);
         self.pres_pres.insert(bnd_id, pres_id);
+        Ok(())
+    }
+
+    pub fn add_trac_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
+        self.trac_bnd.push(bnd_id);
+        self.trac_pres.insert(bnd_id, pres_id);
         Ok(())
     }
 
@@ -186,6 +198,7 @@ impl TransientBase for TransientHeatFlow {
         self.oper_itr_flow.clear();
         self.oper_bnd_vel.clear();
         self.oper_bnd_pres.clear();
+        self.oper_bnd_trac.clear();
         self.oper_itf_fcnt.clear();
         self.oper_pref.clear();
 
@@ -195,7 +208,7 @@ impl TransientBase for TransientHeatFlow {
             let vlcp_id = self.itr_vlcp[&dom_id];
             let cond_id = self.itr_cond[&dom_id];
             let hsrc_id = self.itr_hsrc[&dom_id];
-            let oper_time = OpSclDomTime::new(vars, dom_id, temp_id, vlcp_id)?;
+            let oper_time = OpSclDomTimePrevious::new(vars, dom_id, temp_id, vlcp_id)?;
             let oper_diff = OpSclDomDiffusion::new(vars, dom_id, temp_id, cond_id, temp_id)?;
             let oper_src = OpSclDomSource::new(vars, dom_id, temp_id, hsrc_id)?;
             self.oper_itr_heat.push((oper_time, oper_diff, oper_src));
@@ -223,7 +236,7 @@ impl TransientBase for TransientHeatFlow {
             let dom_cond_id = self.itr_cond[&dom_id];
             let dom_hsrc_id = self.itr_hsrc[&dom_id];
             let bnd_hflx_id = self.hflx_hflx[&bnd_id];
-            let oper_time = OpSclBndTime::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
+            let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
             let oper_diff = OpSclBndDiffusion::new(vars, bnd_id, dom_temp_id, dom_cond_id, dom_temp_id)?;
             let oper_src = OpSclBndSource::new(vars, bnd_id, dom_temp_id, dom_hsrc_id)?;
             let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_temp_id, bnd_hflx_id)?;
@@ -247,7 +260,7 @@ impl TransientBase for TransientHeatFlow {
             let dom_vel_id = self.itr_vel[&dom_id];
             let dom_den_id = self.itr_den[&dom_id];
             let dom_flw_id = self.itr_flw[&dom_id];
-            let oper_time = OpSclBndTime::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
+            let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
             let oper_diff = OpSclBndDiffusion::new(vars, bnd_id, dom_temp_id, dom_cond_id, dom_temp_id)?;
             let oper_adv = OpSclBndAdvection::new(vars, bnd_id, dom_temp_id, dom_vlcp_id, dom_cond_id, dom_vel_id, dom_den_id, dom_flw_id)?;
             let oper_src = OpSclBndSource::new(vars, bnd_id, dom_temp_id, dom_hsrc_id)?;
@@ -266,7 +279,7 @@ impl TransientBase for TransientHeatFlow {
             let dom_cond_b_id = self.itr_cond[&dom_b_id];
             let dom_hsrc_a_id = self.itr_hsrc[&dom_a_id];
             let dom_hsrc_b_id = self.itr_hsrc[&dom_b_id];
-            let oper_time = OpSclItfTime::new(vars, itf_id, dom_temp_a_id, dom_vlcp_a_id, dom_temp_b_id, dom_vlcp_b_id)?;
+            let oper_time = OpSclItfTimePrevious::new(vars, itf_id, dom_temp_a_id, dom_vlcp_a_id, dom_temp_b_id, dom_vlcp_b_id)?;
             let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_temp_a_id, dom_temp_b_id)?;
             let oper_diff = OpSclItfDiffusion::new(vars, itf_id, dom_temp_a_id, dom_cond_a_id, dom_temp_a_id, dom_temp_b_id, dom_cond_b_id, dom_temp_b_id)?;
             let oper_src = OpSclItfSource::new(vars, itf_id, dom_temp_a_id, dom_hsrc_a_id, dom_temp_b_id, dom_hsrc_b_id)?;
@@ -340,6 +353,28 @@ impl TransientBase for TransientHeatFlow {
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             self.oper_bnd_pres.push((oper_dir, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
         }
+        for &bnd_id in &self.trac_bnd {
+            // momentum over the whole node control volumes; the boundary pressure sets the traction on the boundary half-edges
+            // continuity is kept, so pressure stays unknown on the boundary
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_vel_id = self.itr_vel[&dom_id];
+            let dom_pres_id = self.itr_pres[&dom_id];
+            let dom_den_id = self.itr_den[&dom_id];
+            let dom_visc_id = self.itr_visc[&dom_id];
+            let dom_fce_id = self.itr_fce[&dom_id];
+            let dom_flw_id = self.itr_flw[&dom_id];
+            let bnd_pres_id = self.trac_pres[&bnd_id];
+            let oper_trac = OpVecBndTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
+            let oper_time = OpVecBndTime::new(vars, bnd_id, dom_vel_id, dom_den_id)?;
+            let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
+            let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
+            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id)?;
+            let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
+            self.oper_bnd_trac.push((oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
+        }
 
         // flow interface
         // rows of domain a set continuous velocity and pressure; rows of domain b balance momentum and mass over both halves
@@ -409,6 +444,18 @@ impl TransientBase for TransientHeatFlow {
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for (oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_trac {
+            oper_trac.apply(vars, a_triplet, b_vec)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
         // flow interface

@@ -55,6 +55,8 @@ pub struct SteadyHeatMassFlow {
     pub vel_vel: HashMap<usize, usize>,   // velocity
     pub pres_bnd: Vec<usize>,             // boundary with pressure BC
     pub pres_pres: HashMap<usize, usize>, // pressure
+    pub trac_bnd: Vec<usize>,             // boundary with traction BC
+    pub trac_pres: HashMap<usize, usize>, // pressure
 
     // flow interface data
     pub fcnt_itf: Vec<usize>,             // interface with continuity IC
@@ -88,16 +90,18 @@ pub struct SteadyHeatMassFlow {
     pub oper_itr_flow: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
+    pub oper_bnd_trac: Vec<(OpVecBndTraction, OpVecBndAdvection, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
 
 impl SteadyHeatMassFlow {
     pub fn new(num_comp: usize) -> Result<SteadyHeatMassFlow, VFVChemError> {
-        // mass transfer is solved in non-conservative form
-        // vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
-        // c_i is per unit volume, so the c_i * div(vel) term is neglected rather than canceled by continuity
-        // uniform c_i is preserved even if discrete continuity is not satisfied
+        // mass transfer is solved in conservative form minus c_i times continuity
+        // rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // on domains with flow, c_i is per unit mass and D_ij includes the density (rho * D_ij)
+        // uniform c_i is preserved even if discrete continuity is not satisfied; c_i is conserved once it is
+        // on domains without flow, c_i is per unit volume
 
         // input checking
         if num_comp == 0 { return Err(VFVChemError::MassNonPositiveNumComponents { num_comp }) }
@@ -206,6 +210,12 @@ impl SteadyHeatMassFlow {
         Ok(())
     }
 
+    pub fn add_trac_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
+        self.trac_bnd.push(bnd_id);
+        self.trac_pres.insert(bnd_id, pres_id);
+        Ok(())
+    }
+
     pub fn add_fcnt_itf(&mut self, itf_id: usize) -> Result<(), VFVChemError> {
         self.fcnt_itf.push(itf_id);
         Ok(())
@@ -281,6 +291,7 @@ impl SteadyBase for SteadyHeatMassFlow {
         self.oper_itr_flow.clear();
         self.oper_bnd_vel.clear();
         self.oper_bnd_pres.clear();
+        self.oper_bnd_trac.clear();
         self.oper_itf_fcnt.clear();
         self.oper_pref.clear();
 
@@ -389,8 +400,7 @@ impl SteadyBase for SteadyHeatMassFlow {
                 // advection only on domains with flow; the Peclet number uses the self-diffusivity
                 if let Some(&flw_id) = self.itr_flw.get(&dom_id) {
                     let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                    let den_id = self.itr_den[&dom_id];
-                    let oper_adv = OpSclDomAdvectionUnity::new(vars, dom_id, conc_id, diff_id, den_id, flw_id)?;
+                    let oper_adv = OpSclDomAdvectionUnity::new(vars, dom_id, conc_id, diff_id, flw_id)?;
                     self.oper_itr_madv.push(oper_adv);
                 }
             }
@@ -421,8 +431,7 @@ impl SteadyBase for SteadyHeatMassFlow {
                 if let Some(&dom_flw_id) = self.itr_flw.get(&dom_id) {
                     let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
                     let dom_vel_id = self.itr_vel[&dom_id];
-                    let dom_den_id = self.itr_den[&dom_id];
-                    let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_den_id, dom_flw_id)?;
+                    let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
                     self.oper_bnd_madv.push(oper_adv);
                 }
             }
@@ -432,7 +441,6 @@ impl SteadyBase for SteadyHeatMassFlow {
                 let dom_conc_id = self.itr_conc[comp_i][&dom_id];
                 let dom_msrc_id = self.itr_msrc[comp_i][&dom_id];
                 let dom_vel_id = self.itr_vel[&dom_id];
-                let dom_den_id = self.itr_den[&dom_id];
                 let dom_flw_id = self.itr_flw[&dom_id];
                 let mut oper_diff = Vec::new();
                 for (&comp_j, &dom_diff_id) in &self.itr_diff[comp_i][&dom_id] {
@@ -440,7 +448,7 @@ impl SteadyBase for SteadyHeatMassFlow {
                     oper_diff.push(OpSclBndDiffusion::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_conc_j_id)?);
                 }
                 let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_den_id, dom_flw_id)?;
+                let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
                 let oper_src = OpSclBndSource::new(vars, bnd_id, dom_conc_id, dom_msrc_id)?;
                 self.oper_bnd_mout.push((oper_diff, oper_adv, oper_src));
             }
@@ -449,6 +457,10 @@ impl SteadyBase for SteadyHeatMassFlow {
             for &itf_id in &self.mcnt_itf[comp_i] {
                 let dom_a_id = vars.itf[itf_id].dom_a_id;
                 let dom_b_id = vars.itf[itf_id].dom_b_id;
+
+                // c is per unit mass with flow and per unit volume without, so both sides must match
+                if self.itr_flw.contains_key(&dom_a_id) != self.itr_flw.contains_key(&dom_b_id) { return Err(VFVChemError::MassInterfaceMixedFlow { itf_id }) }
+
                 let dom_conc_a_id = self.itr_conc[comp_i][&dom_a_id];
                 let dom_conc_b_id = self.itr_conc[comp_i][&dom_b_id];
                 let dom_msrc_a_id = self.itr_msrc[comp_i][&dom_a_id];
@@ -469,8 +481,7 @@ impl SteadyBase for SteadyHeatMassFlow {
                     if let Some(&flw_id) = self.itr_flw.get(&dom_id) {
                         let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
                         let vel_id = self.itr_vel[&dom_id];
-                        let den_id = self.itr_den[&dom_id];
-                        let oper_adv = OpSclItfAdvectionUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id, diff_id, vel_id, den_id, flw_id)?;
+                        let oper_adv = OpSclItfAdvectionUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id, diff_id, vel_id, flw_id)?;
                         self.oper_itf_madv.push(oper_adv);
                     }
                 }
@@ -529,6 +540,27 @@ impl SteadyBase for SteadyHeatMassFlow {
             let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             self.oper_bnd_pres.push((oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
+        }
+        for &bnd_id in &self.trac_bnd {
+            // momentum over the whole node control volumes; the boundary pressure sets the traction on the boundary half-edges
+            // continuity is kept, so pressure stays unknown on the boundary
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_vel_id = self.itr_vel[&dom_id];
+            let dom_pres_id = self.itr_pres[&dom_id];
+            let dom_den_id = self.itr_den[&dom_id];
+            let dom_visc_id = self.itr_visc[&dom_id];
+            let dom_fce_id = self.itr_fce[&dom_id];
+            let dom_flw_id = self.itr_flw[&dom_id];
+            let bnd_pres_id = self.trac_pres[&bnd_id];
+            let oper_trac = OpVecBndTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
+            let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
+            let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
+            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id)?;
+            let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
+            self.oper_bnd_trac.push((oper_trac, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // flow interface
@@ -594,6 +626,16 @@ impl SteadyBase for SteadyHeatMassFlow {
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for (oper_trac, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_trac {
+            oper_trac.apply(vars, a_triplet, b_vec)?;
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
         // flow interface

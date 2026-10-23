@@ -55,6 +55,8 @@ pub struct TransientHeatMassFlow {
     pub vel_vel: HashMap<usize, usize>,   // velocity
     pub pres_bnd: Vec<usize>,             // boundary with pressure BC
     pub pres_pres: HashMap<usize, usize>, // pressure
+    pub trac_bnd: Vec<usize>,             // boundary with traction BC
+    pub trac_pres: HashMap<usize, usize>, // pressure
 
     // flow interface data
     pub fcnt_itf: Vec<usize>,             // interface with continuity IC
@@ -65,39 +67,49 @@ pub struct TransientHeatMassFlow {
     pub pref_pres: HashMap<usize, f64>,   // reference pressure
 
     // heat operators
-    pub oper_itr_heat: Vec<(OpSclDomTime, OpSclDomDiffusion, OpSclDomSource)>,
+    pub oper_itr_heat: Vec<(OpSclDomTimePrevious, OpSclDomDiffusion, OpSclDomSource)>,
     pub oper_itr_hadv: Vec<OpSclDomAdvection>,
     pub oper_bnd_temp: Vec<OpSclBndDirichlet>,
-    pub oper_bnd_hflx: Vec<(OpSclBndTime, OpSclBndDiffusion, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_bnd_hflx: Vec<(OpSclBndTimePrevious, OpSclBndDiffusion, OpSclBndSource, OpSclBndNeumann)>,
     pub oper_bnd_hadv: Vec<OpSclBndAdvection>,
-    pub oper_bnd_hout: Vec<(OpSclBndTime, OpSclBndDiffusion, OpSclBndAdvection, OpSclBndSource)>,
-    pub oper_itf_hcnt: Vec<(OpSclItfTime, OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
+    pub oper_bnd_hout: Vec<(OpSclBndTimePrevious, OpSclBndDiffusion, OpSclBndAdvection, OpSclBndSource)>,
+    pub oper_itf_hcnt: Vec<(OpSclItfTimePrevious, OpSclItfContinuity, OpSclItfDiffusion, OpSclItfSource)>,
     pub oper_itf_hadv: Vec<OpSclItfAdvection>,
 
     // mass operators
-    pub oper_itr_mass: Vec<(OpSclDomTimeUnity, Vec<OpSclDomDiffusion>, OpSclDomSource)>,
+    pub oper_itr_mass: Vec<(Vec<OpSclDomDiffusion>, OpSclDomSource)>,
+    pub oper_itr_mtim: Vec<OpSclDomTimeUnity>,
+    pub oper_itr_mtpr: Vec<OpSclDomTimePrevious>,
     pub oper_itr_madv: Vec<OpSclDomAdvectionUnity>,
     pub oper_bnd_conc: Vec<OpSclBndDirichlet>,
-    pub oper_bnd_mflx: Vec<(OpSclBndTimeUnity, Vec<OpSclBndDiffusion>, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_bnd_mflx: Vec<(Vec<OpSclBndDiffusion>, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_bnd_mtim: Vec<OpSclBndTimeUnity>,
+    pub oper_bnd_mtpr: Vec<OpSclBndTimePrevious>,
     pub oper_bnd_madv: Vec<OpSclBndAdvectionUnity>,
-    pub oper_bnd_mout: Vec<(OpSclBndTimeUnity, Vec<OpSclBndDiffusion>, OpSclBndAdvectionUnity, OpSclBndSource)>,
-    pub oper_itf_mcnt: Vec<(OpSclItfTimeUnity, OpSclItfContinuity, Vec<OpSclItfDiffusion>, OpSclItfSource)>,
+    pub oper_bnd_mout: Vec<(OpSclBndTimePrevious, Vec<OpSclBndDiffusion>, OpSclBndAdvectionUnity, OpSclBndSource)>,
+    pub oper_itf_mcnt: Vec<(OpSclItfContinuity, Vec<OpSclItfDiffusion>, OpSclItfSource)>,
+    pub oper_itf_mtim: Vec<OpSclItfTimeUnity>,
+    pub oper_itf_mtpr: Vec<OpSclItfTimePrevious>,
     pub oper_itf_madv: Vec<OpSclItfAdvectionUnity>,
 
     // flow operators
     pub oper_itr_flow: Vec<(OpVecDomTime, OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndTime, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
+    pub oper_bnd_trac: Vec<(OpVecBndTraction, OpVecBndTime, OpVecBndAdvection, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfTime, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
 
 impl TransientHeatMassFlow {
     pub fn new(num_comp: usize) -> Result<TransientHeatMassFlow, VFVChemError> {
-        // mass transfer is solved in non-conservative form
-        // dc_i/dt + vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
-        // c_i is per unit volume, so the c_i * div(vel) term is neglected rather than canceled by continuity
-        // uniform c_i is preserved even if discrete continuity is not satisfied
+        // mass transfer is solved in conservative form minus c_i times continuity
+        // rho * dc_i/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // on domains with flow, c_i is per unit mass and D_ij includes the density (rho * D_ij)
+        // uniform c_i is preserved even if discrete continuity is not satisfied; c_i is conserved once it is
+        // on domains without flow, c_i is per unit volume and the time derivative has unit weight
+        // the heat time derivative is weighted by the previous rho * cp to match the transient continuity term
+        // heat is conserved once discrete continuity is satisfied if cp is constant
 
         // input checking
         if num_comp == 0 { return Err(VFVChemError::MassNonPositiveNumComponents { num_comp }) }
@@ -206,6 +218,12 @@ impl TransientHeatMassFlow {
         Ok(())
     }
 
+    pub fn add_trac_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
+        self.trac_bnd.push(bnd_id);
+        self.trac_pres.insert(bnd_id, pres_id);
+        Ok(())
+    }
+
     pub fn add_fcnt_itf(&mut self, itf_id: usize) -> Result<(), VFVChemError> {
         self.fcnt_itf.push(itf_id);
         Ok(())
@@ -271,16 +289,23 @@ impl TransientBase for TransientHeatMassFlow {
         self.oper_itf_hcnt.clear();
         self.oper_itf_hadv.clear();
         self.oper_itr_mass.clear();
+        self.oper_itr_mtim.clear();
+        self.oper_itr_mtpr.clear();
         self.oper_itr_madv.clear();
         self.oper_bnd_conc.clear();
         self.oper_bnd_mflx.clear();
+        self.oper_bnd_mtim.clear();
+        self.oper_bnd_mtpr.clear();
         self.oper_bnd_madv.clear();
         self.oper_bnd_mout.clear();
         self.oper_itf_mcnt.clear();
+        self.oper_itf_mtim.clear();
+        self.oper_itf_mtpr.clear();
         self.oper_itf_madv.clear();
         self.oper_itr_flow.clear();
         self.oper_bnd_vel.clear();
         self.oper_bnd_pres.clear();
+        self.oper_bnd_trac.clear();
         self.oper_itf_fcnt.clear();
         self.oper_pref.clear();
 
@@ -290,7 +315,7 @@ impl TransientBase for TransientHeatMassFlow {
             let vlcp_id = self.itr_vlcp[&dom_id];
             let cond_id = self.itr_cond[&dom_id];
             let hsrc_id = self.itr_hsrc[&dom_id];
-            let oper_time = OpSclDomTime::new(vars, dom_id, temp_id, vlcp_id)?;
+            let oper_time = OpSclDomTimePrevious::new(vars, dom_id, temp_id, vlcp_id)?;
             let oper_diff = OpSclDomDiffusion::new(vars, dom_id, temp_id, cond_id, temp_id)?;
             let oper_src = OpSclDomSource::new(vars, dom_id, temp_id, hsrc_id)?;
             self.oper_itr_heat.push((oper_time, oper_diff, oper_src));
@@ -318,7 +343,7 @@ impl TransientBase for TransientHeatMassFlow {
             let dom_cond_id = self.itr_cond[&dom_id];
             let dom_hsrc_id = self.itr_hsrc[&dom_id];
             let bnd_hflx_id = self.hflx_hflx[&bnd_id];
-            let oper_time = OpSclBndTime::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
+            let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
             let oper_diff = OpSclBndDiffusion::new(vars, bnd_id, dom_temp_id, dom_cond_id, dom_temp_id)?;
             let oper_src = OpSclBndSource::new(vars, bnd_id, dom_temp_id, dom_hsrc_id)?;
             let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_temp_id, bnd_hflx_id)?;
@@ -342,7 +367,7 @@ impl TransientBase for TransientHeatMassFlow {
             let dom_vel_id = self.itr_vel[&dom_id];
             let dom_den_id = self.itr_den[&dom_id];
             let dom_flw_id = self.itr_flw[&dom_id];
-            let oper_time = OpSclBndTime::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
+            let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_temp_id, dom_vlcp_id)?;
             let oper_diff = OpSclBndDiffusion::new(vars, bnd_id, dom_temp_id, dom_cond_id, dom_temp_id)?;
             let oper_adv = OpSclBndAdvection::new(vars, bnd_id, dom_temp_id, dom_vlcp_id, dom_cond_id, dom_vel_id, dom_den_id, dom_flw_id)?;
             let oper_src = OpSclBndSource::new(vars, bnd_id, dom_temp_id, dom_hsrc_id)?;
@@ -361,7 +386,7 @@ impl TransientBase for TransientHeatMassFlow {
             let dom_cond_b_id = self.itr_cond[&dom_b_id];
             let dom_hsrc_a_id = self.itr_hsrc[&dom_a_id];
             let dom_hsrc_b_id = self.itr_hsrc[&dom_b_id];
-            let oper_time = OpSclItfTime::new(vars, itf_id, dom_temp_a_id, dom_vlcp_a_id, dom_temp_b_id, dom_vlcp_b_id)?;
+            let oper_time = OpSclItfTimePrevious::new(vars, itf_id, dom_temp_a_id, dom_vlcp_a_id, dom_temp_b_id, dom_vlcp_b_id)?;
             let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_temp_a_id, dom_temp_b_id)?;
             let oper_diff = OpSclItfDiffusion::new(vars, itf_id, dom_temp_a_id, dom_cond_a_id, dom_temp_a_id, dom_temp_b_id, dom_cond_b_id, dom_temp_b_id)?;
             let oper_src = OpSclItfSource::new(vars, itf_id, dom_temp_a_id, dom_hsrc_a_id, dom_temp_b_id, dom_hsrc_b_id)?;
@@ -384,21 +409,29 @@ impl TransientBase for TransientHeatMassFlow {
             // mass internal
             for (&dom_id, &conc_id) in &self.itr_conc[comp_i] {
                 let msrc_id = self.itr_msrc[comp_i][&dom_id];
-                let oper_time = OpSclDomTimeUnity::new(vars, dom_id, conc_id)?;
                 let mut oper_diff = Vec::new();
                 for (&comp_j, &diff_id) in &self.itr_diff[comp_i][&dom_id] {
                     let conc_j_id = self.itr_conc[comp_j][&dom_id];
                     oper_diff.push(OpSclDomDiffusion::new(vars, dom_id, conc_id, diff_id, conc_j_id)?);
                 }
                 let oper_src = OpSclDomSource::new(vars, dom_id, conc_id, msrc_id)?;
-                self.oper_itr_mass.push((oper_time, oper_diff, oper_src));
+                self.oper_itr_mass.push((oper_diff, oper_src));
 
                 // advection only on domains with flow; the Peclet number uses the self-diffusivity
-                if let Some(&flw_id) = self.itr_flw.get(&dom_id) {
-                    let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                    let den_id = self.itr_den[&dom_id];
-                    let oper_adv = OpSclDomAdvectionUnity::new(vars, dom_id, conc_id, diff_id, den_id, flw_id)?;
-                    self.oper_itr_madv.push(oper_adv);
+                // the time derivative is weighted by the previous density on domains with flow
+                match self.itr_flw.get(&dom_id) {
+                    Some(&flw_id) => {
+                        let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
+                        let den_id = self.itr_den[&dom_id];
+                        let oper_time = OpSclDomTimePrevious::new(vars, dom_id, conc_id, den_id)?;
+                        let oper_adv = OpSclDomAdvectionUnity::new(vars, dom_id, conc_id, diff_id, flw_id)?;
+                        self.oper_itr_mtpr.push(oper_time);
+                        self.oper_itr_madv.push(oper_adv);
+                    }
+                    None => {
+                        let oper_time = OpSclDomTimeUnity::new(vars, dom_id, conc_id)?;
+                        self.oper_itr_mtim.push(oper_time);
+                    }
                 }
             }
 
@@ -415,7 +448,6 @@ impl TransientBase for TransientHeatMassFlow {
                 let dom_conc_id = self.itr_conc[comp_i][&dom_id];
                 let dom_msrc_id = self.itr_msrc[comp_i][&dom_id];
                 let bnd_mflx_id = self.mflx_mflx[comp_i][&bnd_id];
-                let oper_time = OpSclBndTimeUnity::new(vars, bnd_id, dom_conc_id)?;
                 let mut oper_diff = Vec::new();
                 for (&comp_j, &dom_diff_id) in &self.itr_diff[comp_i][&dom_id] {
                     let dom_conc_j_id = self.itr_conc[comp_j][&dom_id];
@@ -423,15 +455,24 @@ impl TransientBase for TransientHeatMassFlow {
                 }
                 let oper_src = OpSclBndSource::new(vars, bnd_id, dom_conc_id, dom_msrc_id)?;
                 let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_conc_id, bnd_mflx_id)?;
-                self.oper_bnd_mflx.push((oper_time, oper_diff, oper_src, oper_neu));
+                self.oper_bnd_mflx.push((oper_diff, oper_src, oper_neu));
 
                 // advection only on domains with flow; the Neumann value is the diffusive flux
-                if let Some(&dom_flw_id) = self.itr_flw.get(&dom_id) {
-                    let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                    let dom_vel_id = self.itr_vel[&dom_id];
-                    let dom_den_id = self.itr_den[&dom_id];
-                    let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_den_id, dom_flw_id)?;
-                    self.oper_bnd_madv.push(oper_adv);
+                // the time derivative is weighted by the previous density on domains with flow
+                match self.itr_flw.get(&dom_id) {
+                    Some(&dom_flw_id) => {
+                        let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
+                        let dom_vel_id = self.itr_vel[&dom_id];
+                        let dom_den_id = self.itr_den[&dom_id];
+                        let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_conc_id, dom_den_id)?;
+                        let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
+                        self.oper_bnd_mtpr.push(oper_time);
+                        self.oper_bnd_madv.push(oper_adv);
+                    }
+                    None => {
+                        let oper_time = OpSclBndTimeUnity::new(vars, bnd_id, dom_conc_id)?;
+                        self.oper_bnd_mtim.push(oper_time);
+                    }
                 }
             }
             for &bnd_id in &self.mout_bnd[comp_i] {
@@ -442,14 +483,14 @@ impl TransientBase for TransientHeatMassFlow {
                 let dom_vel_id = self.itr_vel[&dom_id];
                 let dom_den_id = self.itr_den[&dom_id];
                 let dom_flw_id = self.itr_flw[&dom_id];
-                let oper_time = OpSclBndTimeUnity::new(vars, bnd_id, dom_conc_id)?;
+                let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_conc_id, dom_den_id)?;
                 let mut oper_diff = Vec::new();
                 for (&comp_j, &dom_diff_id) in &self.itr_diff[comp_i][&dom_id] {
                     let dom_conc_j_id = self.itr_conc[comp_j][&dom_id];
                     oper_diff.push(OpSclBndDiffusion::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_conc_j_id)?);
                 }
                 let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_den_id, dom_flw_id)?;
+                let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
                 let oper_src = OpSclBndSource::new(vars, bnd_id, dom_conc_id, dom_msrc_id)?;
                 self.oper_bnd_mout.push((oper_time, oper_diff, oper_adv, oper_src));
             }
@@ -462,7 +503,6 @@ impl TransientBase for TransientHeatMassFlow {
                 let dom_conc_b_id = self.itr_conc[comp_i][&dom_b_id];
                 let dom_msrc_a_id = self.itr_msrc[comp_i][&dom_a_id];
                 let dom_msrc_b_id = self.itr_msrc[comp_i][&dom_b_id];
-                let oper_time = OpSclItfTimeUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
                 let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
                 let mut oper_diff = Vec::new();
                 for (&comp_j, &dom_diff_a_id) in &self.itr_diff[comp_i][&dom_a_id] {
@@ -472,15 +512,28 @@ impl TransientBase for TransientHeatMassFlow {
                     oper_diff.push(OpSclItfDiffusion::new(vars, itf_id, dom_conc_a_id, dom_diff_a_id, dom_conc_j_a_id, dom_conc_b_id, dom_diff_b_id, dom_conc_j_b_id)?);
                 }
                 let oper_src = OpSclItfSource::new(vars, itf_id, dom_conc_a_id, dom_msrc_a_id, dom_conc_b_id, dom_msrc_b_id)?;
-                self.oper_itf_mcnt.push((oper_time, oper_cont, oper_diff, oper_src));
+                self.oper_itf_mcnt.push((oper_cont, oper_diff, oper_src));
+
+                // the time derivative is weighted by the previous density if both sides have flow
+                // c is per unit mass with flow and per unit volume without, so both sides must match
+                match (self.itr_den.get(&dom_a_id), self.itr_den.get(&dom_b_id)) {
+                    (Some(&den_a_id), Some(&den_b_id)) => {
+                        let oper_time = OpSclItfTimePrevious::new(vars, itf_id, dom_conc_a_id, den_a_id, dom_conc_b_id, den_b_id)?;
+                        self.oper_itf_mtpr.push(oper_time);
+                    }
+                    (None, None) => {
+                        let oper_time = OpSclItfTimeUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
+                        self.oper_itf_mtim.push(oper_time);
+                    }
+                    _ => return Err(VFVChemError::MassInterfaceMixedFlow { itf_id }),
+                }
 
                 // advection on each side with flow
                 for dom_id in [dom_a_id, dom_b_id] {
                     if let Some(&flw_id) = self.itr_flw.get(&dom_id) {
                         let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
                         let vel_id = self.itr_vel[&dom_id];
-                        let den_id = self.itr_den[&dom_id];
-                        let oper_adv = OpSclItfAdvectionUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id, diff_id, vel_id, den_id, flw_id)?;
+                        let oper_adv = OpSclItfAdvectionUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id, diff_id, vel_id, flw_id)?;
                         self.oper_itf_madv.push(oper_adv);
                     }
                 }
@@ -541,6 +594,28 @@ impl TransientBase for TransientHeatMassFlow {
             let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             self.oper_bnd_pres.push((oper_dir, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
+        }
+        for &bnd_id in &self.trac_bnd {
+            // momentum over the whole node control volumes; the boundary pressure sets the traction on the boundary half-edges
+            // continuity is kept, so pressure stays unknown on the boundary
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_vel_id = self.itr_vel[&dom_id];
+            let dom_pres_id = self.itr_pres[&dom_id];
+            let dom_den_id = self.itr_den[&dom_id];
+            let dom_visc_id = self.itr_visc[&dom_id];
+            let dom_fce_id = self.itr_fce[&dom_id];
+            let dom_flw_id = self.itr_flw[&dom_id];
+            let bnd_pres_id = self.trac_pres[&bnd_id];
+            let oper_trac = OpVecBndTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
+            let oper_time = OpVecBndTime::new(vars, bnd_id, dom_vel_id, dom_den_id)?;
+            let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
+            let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
+            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id)?;
+            let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
+            self.oper_bnd_trac.push((oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // flow interface
@@ -612,6 +687,18 @@ impl TransientBase for TransientHeatMassFlow {
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
+        for (oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_trac {
+            oper_trac.apply(vars, a_triplet, b_vec)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
+        }
 
         // flow interface
         for (oper_vcnt, oper_pcnt, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itf_fcnt {
@@ -671,10 +758,15 @@ impl TransientBase for TransientHeatMassFlow {
         }
 
         // mass internal
-        for (oper_time, oper_diff, oper_src) in &self.oper_itr_mass {
-            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        for (oper_diff, oper_src) in &self.oper_itr_mass {
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_time in &self.oper_itr_mtim {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
+        for oper_time in &self.oper_itr_mtpr {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
         }
         for oper_adv in &self.oper_itr_madv {
             oper_adv.apply(vars, a_triplet, b_vec)?;
@@ -684,11 +776,16 @@ impl TransientBase for TransientHeatMassFlow {
         for oper_dir in &self.oper_bnd_conc {
             oper_dir.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_time, oper_diff, oper_src, oper_neu) in &self.oper_bnd_mflx {
-            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        for (oper_diff, oper_src, oper_neu) in &self.oper_bnd_mflx {
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_neu.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_time in &self.oper_bnd_mtim {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
+        for oper_time in &self.oper_bnd_mtpr {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
         }
         for oper_adv in &self.oper_bnd_madv {
             oper_adv.apply(vars, a_triplet, b_vec)?;
@@ -701,11 +798,16 @@ impl TransientBase for TransientHeatMassFlow {
         }
 
         // mass interface
-        for (oper_time, oper_cont, oper_diff, oper_src) in &self.oper_itf_mcnt {
-            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        for (oper_cont, oper_diff, oper_src) in &self.oper_itf_mcnt {
             oper_cont.apply(vars, a_triplet, b_vec)?;
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_time in &self.oper_itf_mtim {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
+        for oper_time in &self.oper_itf_mtpr {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
         }
         for oper_adv in &self.oper_itf_madv {
             oper_adv.apply(vars, a_triplet, b_vec)?;

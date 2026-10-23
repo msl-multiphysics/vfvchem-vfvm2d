@@ -16,7 +16,7 @@ pub struct OpSclBndTime {
 impl OpSclBndTime {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, wgt_id: usize) -> Result<OpSclBndTime, VFVChemError> {
         // adds the time derivative term to the control volumes of boundary nodes
-        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -G_ij * grad(c_j) ) + R_i
         // ^^^^^^^^^^^^^
 
         // input checking

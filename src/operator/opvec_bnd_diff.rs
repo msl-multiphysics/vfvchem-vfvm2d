@@ -79,7 +79,7 @@ impl OperatorBase for OpVecBndDiffusion {
                 let (visc_x_n, visc_y_n) = visc_dom.grad[vid_n];
 
                 // get face viscosity
-                let visc_m = 2.0 * visc_v * visc_n / (visc_v + visc_n);  // harmonic mean
+                let visc_m = if visc_v + visc_n != 0.0 { 2.0 * visc_v * visc_n / (visc_v + visc_n) } else { 0.0 };  // harmonic mean
                 let visc_f = visc_m + 0.5 * (sx * (visc_x_v + visc_x_n) + sy * (visc_y_v + visc_y_n));  // skew correction
                 let visc_f = if visc_f > 0.0 { visc_f } else { visc_m };  // guard against negative viscosity
 

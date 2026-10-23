@@ -18,25 +18,26 @@ use std::fs::create_dir_all;
 /// bnd_w - walls
 ///
 /// Mass Transfer
+/// Concentrations are per unit mass and diffusion coefficients include the density on domains with flow.
 ///
 /// Properties:
 /// [non-constant properties in SI units]
-/// dom_f - diffusion coefficients (m2 s-1)
-/// [D_00 D_01] = [1.0e-4 0.0]
-/// [D_10 D_11]   [0.0    2.0e-4]
+/// dom_f - diffusion coefficients (rho*D; kg m-1 s-1)
+/// [D_00 D_01] = [1.2e-4 0.0]
+/// [D_10 D_11]   [0.0    2.4e-4]
 /// dom_f - reaction rates (mol m-3 s-1; positive if production)
-/// [R_0] = [-1.0 * c_0]
-/// [R_1]   [+1.0 * c_0]
+/// [R_0] = [-1.2 * c_0]
+/// [R_1]   [+1.2 * c_0]
 ///
 /// Initial conditions:
-/// dom_f - concentration (mol m-3)
+/// dom_f - concentration (mol kg-1)
 /// [c_0] = [0.0]
 /// [c_1]   [0.0]
 ///
 /// Boundary conditions:
-/// bnd_i - concentration (mol m-3)
-/// [c_0] = [1.0]
-/// [c_1]   [0.0]
+/// bnd_i - concentration (mol kg-1)
+/// [c_0] = [1.0 / 1.2]
+/// [c_1]   [0.0      ]
 /// bnd_o - outflow
 /// bnd_w - no flux (mol m-2 s-1)
 /// [N_0] = [0.0]
@@ -94,8 +95,9 @@ fn main() -> Result<(), VFVChemError> {
     // constant domain values
     // arguments: domain, value, output_file
     // no need to declare zero diffusion coefficients
-    let diff_00 = vars.add_scldom_cnst(dom_f, 1.0e-4, "")?;  // D_00
-    let diff_11 = vars.add_scldom_cnst(dom_f, 2.0e-4, "")?;  // D_11
+    // diffusion coefficients include the density on domains with flow
+    let diff_00 = vars.add_scldom_cnst(dom_f, 1.2e-4, "")?;  // rho * D_00
+    let diff_11 = vars.add_scldom_cnst(dom_f, 2.4e-4, "")?;  // rho * D_11
     let den = vars.add_scldom_cnst(dom_f, 1.2, "")?;  // density
     let visc = vars.add_scldom_cnst(dom_f, 1.8e-5, "")?;  // viscosity
     let fce = vars.add_vecdom_cnst(dom_f, (0.0, 0.0), "")?;  // body force (den * g; not acceleration g)
@@ -105,8 +107,9 @@ fn main() -> Result<(), VFVChemError> {
     // value_func - returns value as a function of time, position (x, y), and *unknown* values
     // - unknown values are given in the same order as in unknown_ids
     // species 0 converts to species 1, first order in the reactant
-    let msrc_0_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| { -1.0 * unkn[0] });  // unkn[0] is c_0
-    let msrc_1_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| {  1.0 * unkn[0] });  // unkn[0] is c_0
+    // the reaction rate is per unit volume, so the per unit mass concentration is multiplied by the density
+    let msrc_0_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| { -1.2 * unkn[0] });  // unkn[0] is c_0
+    let msrc_1_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| {  1.2 * unkn[0] });  // unkn[0] is c_0
     let msrc_0 = vars.add_scldom_func(dom_f, msrc_0_func, vec![conc_0], "")?;  // mass source (R_0; positive if source; negative if sink)
     let msrc_1 = vars.add_scldom_func(dom_f, msrc_1_func, vec![conc_0], "")?;  // mass source (R_1; positive if source; negative if sink)
 
@@ -121,7 +124,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // constant boundary values
     // arguments: boundary, value, output_file
-    let conc_0_i = vars.add_sclbnd_cnst(bnd_i, 1.0, "")?;  // concentration
+    let conc_0_i = vars.add_sclbnd_cnst(bnd_i, 1.0 / 1.2, "")?;  // concentration (per unit mass)
     let conc_1_i = vars.add_sclbnd_cnst(bnd_i, 0.0, "")?;  // concentration
     let mflx_0_w = vars.add_sclbnd_cnst(bnd_w, 0.0, "")?;  // molar flux (positive if outward; negative if inward)
     let mflx_1_w = vars.add_sclbnd_cnst(bnd_w, 0.0, "")?;  // molar flux
@@ -138,9 +141,10 @@ fn main() -> Result<(), VFVChemError> {
     // add_vel_bnd - register boundary with velocity
     // add_pres_bnd - register boundary with pressure
     // diffusion coefficients must be collected in a hashmap with driving concentration index as key
+    // on domains with flow, c is per unit mass and D includes the density (rho * D)
     let mut phys = TransientMassFlow::new(2)?;
-    phys.add_mass_dom(0, dom_f, conc_0, HashMap::from([(0, diff_00)]), msrc_0)?;  // arguments: component, domain, c, D, R
-    phys.add_mass_dom(1, dom_f, conc_1, HashMap::from([(1, diff_11)]), msrc_1)?;  // arguments: component, domain, c, D, R
+    phys.add_mass_dom(0, dom_f, conc_0, HashMap::from([(0, diff_00)]), msrc_0)?;  // arguments: component, domain, c, rho*D, R
+    phys.add_mass_dom(1, dom_f, conc_1, HashMap::from([(1, diff_11)]), msrc_1)?;  // arguments: component, domain, c, rho*D, R
     phys.add_conc_bnd(0, bnd_i, conc_0_i)?;  // arguments: component, boundary, c
     phys.add_conc_bnd(1, bnd_i, conc_1_i)?;  // arguments: component, boundary, c
     phys.add_mout_bnd(0, bnd_o)?;  // arguments: component, boundary

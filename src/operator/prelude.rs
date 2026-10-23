@@ -10,6 +10,7 @@ pub use super::opscl_dom_pref::*;
 pub use super::opscl_dom_pstab::*;
 pub use super::opscl_dom_src::*;
 pub use super::opscl_dom_time::*;
+pub use super::opscl_dom_timeprev::*;
 pub use super::opscl_dom_timeunity::*;
 
 // scalar boundary operators
@@ -22,6 +23,7 @@ pub use super::opscl_bnd_neu::*;
 pub use super::opscl_bnd_pstab::*;
 pub use super::opscl_bnd_src::*;
 pub use super::opscl_bnd_time::*;
+pub use super::opscl_bnd_timeprev::*;
 pub use super::opscl_bnd_timeunity::*;
 
 // scalar interface operators
@@ -33,6 +35,7 @@ pub use super::opscl_itf_div::*;
 pub use super::opscl_itf_pstab::*;
 pub use super::opscl_itf_src::*;
 pub use super::opscl_itf_time::*;
+pub use super::opscl_itf_timeprev::*;
 pub use super::opscl_itf_timeunity::*;
 
 // vector domain operators
@@ -51,6 +54,7 @@ pub use super::opvec_bnd_diff::*;
 pub use super::opvec_bnd_dir::*;
 pub use super::opvec_bnd_dtrn::*;
 pub use super::opvec_bnd_grad::*;
+pub use super::opvec_bnd_trac::*;
 pub use super::opvec_bnd_src::*;
 pub use super::opvec_bnd_time::*;
 

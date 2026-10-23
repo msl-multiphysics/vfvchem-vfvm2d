@@ -15,7 +15,7 @@ pub struct OpSclDomTimeUnity {
 impl OpSclDomTimeUnity {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize) -> Result<OpSclDomTimeUnity, VFVChemError> {
         // adds the time derivative term to scalar transport equations with unit weight
-        // dc_i/dt + div(c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        // dc_i/dt + div(c_i * vel) = -div( -G_ij * grad(c_j) ) + R_i
         // ^^^^^^^
 
         // input checking

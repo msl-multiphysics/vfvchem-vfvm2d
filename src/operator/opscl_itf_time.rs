@@ -20,7 +20,7 @@ pub struct OpSclItfTime {
 impl OpSclItfTime {
     pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, wgt_a_id: usize, unk_b_id: usize, wgt_b_id: usize) -> Result<OpSclItfTime, VFVChemError> {
         // adds the time derivative term to the combined control volumes of interface nodes
-        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -G_ij * grad(c_j) ) + R_i
         // ^^^^^^^^^^^^^
         // each domain contributes its half of the control volume; loads into the rows of domain b
 

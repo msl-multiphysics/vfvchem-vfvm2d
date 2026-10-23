@@ -16,7 +16,7 @@ pub struct OpSclBndSource {
 impl OpSclBndSource {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, src_id: usize) -> Result<OpSclBndSource, VFVChemError> {
         // adds the source term to the control volumes of boundary nodes
-        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -G_ij * grad(c_j) ) + R_i
         //                                                                      ^^^
 
         // input checking

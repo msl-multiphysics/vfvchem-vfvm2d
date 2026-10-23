@@ -15,7 +15,7 @@ pub struct OpSclBndTimeUnity {
 impl OpSclBndTimeUnity {
     pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize) -> Result<OpSclBndTimeUnity, VFVChemError> {
         // adds the time derivative term with unit weight to the control volumes of boundary nodes
-        // dc_i/dt + div(c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        // dc_i/dt + div(c_i * vel) = -div( -G_ij * grad(c_j) ) + R_i
         // ^^^^^^^
 
         // input checking

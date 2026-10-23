@@ -21,6 +21,8 @@ pub struct SteadyFlow {
     pub vel_vel: HashMap<usize, usize>,   // velocity
     pub pres_bnd: Vec<usize>,             // boundary with pressure BC
     pub pres_pres: HashMap<usize, usize>, // pressure
+    pub trac_bnd: Vec<usize>,             // boundary with traction BC
+    pub trac_pres: HashMap<usize, usize>, // pressure
 
     // interface data
     pub fcnt_itf: Vec<usize>,             // interface with continuity IC
@@ -34,6 +36,7 @@ pub struct SteadyFlow {
     pub oper_itr: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
+    pub oper_bnd_trac: Vec<(OpVecBndTraction, OpVecBndAdvection, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
@@ -63,6 +66,12 @@ impl SteadyFlow {
     pub fn add_pres_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
         self.pres_bnd.push(bnd_id);
         self.pres_pres.insert(bnd_id, pres_id);
+        Ok(())
+    }
+
+    pub fn add_trac_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
+        self.trac_bnd.push(bnd_id);
+        self.trac_pres.insert(bnd_id, pres_id);
         Ok(())
     }
 
@@ -116,6 +125,7 @@ impl SteadyBase for SteadyFlow {
         self.oper_itr.clear();
         self.oper_bnd_vel.clear();
         self.oper_bnd_pres.clear();
+        self.oper_bnd_trac.clear();
         self.oper_itf_fcnt.clear();
         self.oper_pref.clear();
 
@@ -171,6 +181,27 @@ impl SteadyBase for SteadyFlow {
             let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             self.oper_bnd_pres.push((oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
+        }
+        for &bnd_id in &self.trac_bnd {
+            // momentum over the whole node control volumes; the boundary pressure sets the traction on the boundary half-edges
+            // continuity is kept, so pressure stays unknown on the boundary
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_vel_id = self.itr_vel[&dom_id];
+            let dom_pres_id = self.itr_pres[&dom_id];
+            let dom_den_id = self.itr_den[&dom_id];
+            let dom_visc_id = self.itr_visc[&dom_id];
+            let dom_fce_id = self.itr_fce[&dom_id];
+            let dom_flw_id = self.itr_flw[&dom_id];
+            let bnd_pres_id = self.trac_pres[&bnd_id];
+            let oper_trac = OpVecBndTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
+            let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
+            let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
+            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id)?;
+            let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
+            self.oper_bnd_trac.push((oper_trac, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // interface
@@ -236,6 +267,16 @@ impl SteadyBase for SteadyFlow {
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for (oper_trac, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_trac {
+            oper_trac.apply(vars, a_triplet, b_vec)?;
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
         // interface

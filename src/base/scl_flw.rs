@@ -100,7 +100,7 @@ impl ScalarFlow {
 
                 // get face density and viscosity
                 let den_f = 0.5 * (den_v + den_n) + 0.5 * (skew_x * (den_x_v + den_x_n) + skew_y * (den_y_v + den_y_n));  // skew-corrected arithmetic mean
-                let visc_m = 2.0 * visc_v * visc_n / (visc_v + visc_n);  // harmonic mean
+                let visc_m = if visc_v + visc_n != 0.0 { 2.0 * visc_v * visc_n / (visc_v + visc_n) } else { 0.0 };  // harmonic mean
                 let visc_f = visc_m + 0.5 * (skew_x * (visc_x_v + visc_x_n) + skew_y * (visc_y_v + visc_y_n));  // skew correction
                 let visc_f = if visc_f > 0.0 { visc_f } else { visc_m };  // guard against negative viscosity
 

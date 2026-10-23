@@ -178,6 +178,10 @@ pub enum VFVChemError {
         comp: usize,
         num_comp: usize,
     },
+    #[error("Mass: Interface ID {itf_id} joins a domain with flow and a domain without flow. Concentrations are per unit mass on domains with flow and per unit volume otherwise.")]
+    MassInterfaceMixedFlow {
+        itf_id: usize,
+    },
 
 
     // linear solvers

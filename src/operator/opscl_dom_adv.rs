@@ -11,7 +11,7 @@ pub struct OpSclDomAdvection {
     // scalars
     pub unk_id: usize,   // unknown scalar (c_i); unknown
     pub wgt_id: usize,   // weight coefficient (m_i)
-    pub diff_id: usize,  // diffusion coefficient (D_ii); for the Peclet number
+    pub diff_id: usize,  // diffusion coefficient (G_ii); for the Peclet number
     pub den_id: usize,   // density (rho); converts the mass flux
 
     // flow
@@ -21,7 +21,7 @@ pub struct OpSclDomAdvection {
 impl OpSclDomAdvection {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, wgt_id: usize, diff_id: usize, den_id: usize, flw_id: usize) -> Result<OpSclDomAdvection, VFVChemError> {
         // adds the advection term to scalar transport equations
-        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -D_ii * grad(c_i) ) + R_i
+        // m_i * dc_i/dt + m_i * vel . grad(c_i) = -div( -G_ii * grad(c_i) ) + R_i
         //                 ^^^^^^^^^^^^^^^^^^^^^
         // must be used together with OpSclDomDiffusion; the power law scheme corrects its central difference
 
@@ -57,7 +57,7 @@ impl OperatorBase for OpSclDomAdvection {
         //
         // apply power law scheme
         // A(|Pe|) = max(0, (1 - 0.1 * |Pe|)^5)
-        // sum_ngh (D_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (c_n - c_v)
+        // sum_ngh (G_f * (A(|Pe_f|) - 1) + max(-F_f, 0)) * (c_n - c_v)
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -103,7 +103,7 @@ impl OperatorBase for OpSclDomAdvection {
                 // get face weight, density, and diffusion coefficient
                 let wgt_f = 0.5 * (wgt_v + wgt_n) + 0.5 * (sx * (wgt_x_v + wgt_x_n) + sy * (wgt_y_v + wgt_y_n));  // skew-corrected arithmetic mean
                 let den_f = 0.5 * (den_v + den_n) + 0.5 * (sx * (den_x_v + den_x_n) + sy * (den_y_v + den_y_n));  // skew-corrected arithmetic mean
-                let diff_m = 2.0 * diff_v * diff_n / (diff_v + diff_n);  // harmonic mean
+                let diff_m = if diff_v + diff_n != 0.0 { 2.0 * diff_v * diff_n / (diff_v + diff_n) } else { 0.0 };  // harmonic mean
                 let diff_f = diff_m + 0.5 * (sx * (diff_x_v + diff_x_n) + sy * (diff_y_v + diff_y_n));  // skew correction
                 let diff_f = if diff_f > 0.0 { diff_f } else { diff_m };  // guard against negative diffusion
 

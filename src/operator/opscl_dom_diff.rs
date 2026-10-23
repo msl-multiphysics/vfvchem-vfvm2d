@@ -10,14 +10,14 @@ pub struct OpSclDomDiffusion {
 
     // scalars
     pub unk_id: usize,   // unknown scalar (c_i)
-    pub diff_id: usize,  // diffusion coefficient (D_ij)
+    pub diff_id: usize,  // diffusion coefficient (G_ij)
     pub drv_id: usize,   // driving scalar (c_j)
 }
 
 impl OpSclDomDiffusion {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<OpSclDomDiffusion, VFVChemError> {
         // adds the diffusion term to scalar transport equations
-        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -D_ij * grad(c_j) ) + R_i
+        // d(m_i * c_i)/dt + div(m_i * c_i * vel) = -div( -G_ij * grad(c_j) ) + R_i
         //                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
 
         // input checking
@@ -38,12 +38,12 @@ impl OpSclDomDiffusion {
 
 impl OperatorBase for OpSclDomDiffusion {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
-        // int_surf -div( -D * grad(c) ) dA
-        // int_lin D * grad(c) . n dl
-        // sum_ngh D * grad(c) . n dl
+        // int_surf -div( -G * grad(c) ) dA
+        // int_lin G * grad(c) . n dl
+        // sum_ngh G * grad(c) . n dl
         //
         // apply normal derivative
-        // sum_ngh D_f * (c_n - c_v) / dn * dl
+        // sum_ngh G_f * (c_n - c_v) / dn * dl
         
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -75,7 +75,7 @@ impl OperatorBase for OpSclDomDiffusion {
                 let (diff_x_n, diff_y_n) = diff_dom.grad[vid_n];
                 
                 // get face diffusion coefficient
-                let diff_m = 2.0 * diff_v * diff_n / (diff_v + diff_n);  // harmonic mean
+                let diff_m = if diff_v + diff_n != 0.0 { 2.0 * diff_v * diff_n / (diff_v + diff_n) } else { 0.0 };  // harmonic mean
                 let diff_f = diff_m + 0.5 * (sx * (diff_x_v + diff_x_n) + sy * (diff_y_v + diff_y_n));  // skew correction
                 let diff_f = if diff_f > 0.0 { diff_f } else { diff_m };  // guard against negative diffusion
 
