@@ -31,7 +31,8 @@ use std::fs::create_dir_all;
 /// dom - body force (f = <0.0, 0.0> N m-3)
 /// dom - porosity rising near the walls (epsl = 0.4 * (1 + 1.36 * exp(-5 * d_w / diam)))
 /// d_w = min(x, 0.02 - x) is the distance from the nearest wall
-/// dom - particle diameter (diam = 2.0e-3 m)
+/// dom - permeability (K = diam^2 * epsl^3 / (150 * (1 - epsl)^2)); Ergun with particle diameter diam = 2.0e-3 m
+/// dom - Forchheimer coefficient (F = 1.75 / sqrt(150 * epsl^3)); Ergun
 ///
 /// Initial conditions:
 /// dom - velocity (v = <0.0, 0.0> m s-1)
@@ -66,15 +67,26 @@ fn main() -> Result<(), VFVChemError> {
     let den = vars.add_scldom_cnst(dom, 1000.0, "")?;  // density
     let visc = vars.add_scldom_cnst(dom, 1.0e-3, "")?;  // liquid viscosity
     let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;  // body force (den * g; not acceleration g)
-    let diam = vars.add_scldom_cnst(dom, 2.0e-3, "")?;  // particle diameter
 
     // non-constant domain values
-    // porosity is evaluated at the vertices; K and F follow from the Ergun relation in the operators
-    let epsl_func: SclDomFunc = Box::new(|_t, (x, _y), _unkn| {
-        let dw = x.min(0.02 - x);
-        0.4 * (1.0 + 1.36 * (-5.0 * dw / 2.0e-3).exp())
-    });
+    // porosity is evaluated at the vertices
+    let epsl_wall = |x: f64| 0.4 * (1.0 + 1.36 * (-5.0 * x.min(0.02 - x) / 2.0e-3).exp());
+    let epsl_func: SclDomFunc = Box::new(move |_t, (x, _y), _unkn| epsl_wall(x));
     let epsl = vars.add_scldom_func(dom, epsl_func, vec![], "examples/output_pore_transient/epsl.vtu")?;  // porosity
+
+    // permeability and Forchheimer coefficient from the Ergun relation (diam = 2.0e-3 m); user inputs
+    // K = diam^2 * epsl^3 / (150 * (1 - epsl)^2)
+    // F = 1.75 / sqrt(150 * epsl^3)
+    let perm_func: SclDomFunc = Box::new(move |_t, (x, _y), _unkn| {
+        let e = epsl_wall(x);
+        2.0e-3 * 2.0e-3 * e * e * e / (150.0 * (1.0 - e) * (1.0 - e))
+    });
+    let forch_func: SclDomFunc = Box::new(move |_t, (x, _y), _unkn| {
+        let e = epsl_wall(x);
+        1.75 / (150.0 * e * e * e).sqrt()
+    });
+    let perm = vars.add_scldom_func(dom, perm_func, vec![], "")?;  // permeability
+    let forch = vars.add_scldom_func(dom, forch_func, vec![], "")?;  // Forchheimer coefficient
 
     // constant boundary values
     let vel_l = vars.add_vecbnd_cnst(bnd_l, (0.0, 0.0), "")?;  // velocity
@@ -84,7 +96,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // transient porous medium flow solver
     let mut phys = TransientPore::new()?;
-    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, diam)?;  // arguments: domain, v, p, rho, mu, f, epsl, diam
+    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;  // arguments: domain, v, p, rho, mu, f, epsl, K, F
     phys.add_vel_bnd(bnd_l, vel_l)?;  // arguments: boundary, v
     phys.add_vel_bnd(bnd_r, vel_r)?;  // arguments: boundary, v
     phys.add_vel_bnd(bnd_b, vel_b)?;  // arguments: boundary, v

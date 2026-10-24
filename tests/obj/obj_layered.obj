@@ -1,0 +1,42 @@
+# Channel [0, 0.2] x [0, 1] split at y = 0.5 into a porous layer (bottom) and a clear fluid (top)
+#
+# Boundaries and Interfaces
+# bnd_b - bottom wall
+# bnd_t - top wall
+# bnd_lp, bnd_rp - left and right ends of the porous layer
+# bnd_lf, bnd_rf - left and right ends of the clear fluid
+# itf_m - interface at y = 0.5
+#
+# Domains
+# dom_p - porous layer (y < 0.5)
+# dom_f - clear fluid (y > 0.5)
+
+# vertices
+v 0.0 0.0 0.0
+v 0.2 0.0 0.0
+v 0.2 0.5 0.0
+v 0.2 1.0 0.0
+v 0.0 1.0 0.0
+v 0.0 0.5 0.0
+
+# 1d groups
+g bnd_b
+l 1 2
+g bnd_rp
+l 2 3
+g bnd_rf
+l 3 4
+g bnd_t
+l 4 5
+g bnd_lf
+l 5 6
+g bnd_lp
+l 6 1
+g itf_m
+l 3 6
+
+# 2d groups
+g dom_p
+l 1 2 3 6 1
+g dom_f
+l 6 3 4 5 6

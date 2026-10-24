@@ -72,10 +72,31 @@ pub use super::core::opvec_itf_src::*;
 pub use super::core::opvec_itf_time::*;
 
 // porous scalar domain operators
+pub use super::extend::pore_opscl_dom_adv::*;
+pub use super::extend::pore_opscl_dom_diff::*;
+pub use super::extend::pore_opscl_dom_disp::*;
 pub use super::extend::pore_opscl_dom_div::*;
+pub use super::extend::pore_opscl_dom_prod::*;
+pub use super::extend::pore_opscl_dom_src::*;
+pub use super::extend::pore_opscl_dom_timeprev::*;
 
 // porous scalar boundary operators
+pub use super::extend::pore_opscl_bnd_adv::*;
+pub use super::extend::pore_opscl_bnd_diff::*;
+pub use super::extend::pore_opscl_bnd_disp::*;
 pub use super::extend::pore_opscl_bnd_div::*;
+pub use super::extend::pore_opscl_bnd_prod::*;
+pub use super::extend::pore_opscl_bnd_src::*;
+pub use super::extend::pore_opscl_bnd_timeprev::*;
+
+// porous scalar interface operators
+pub use super::extend::pore_opscl_itf_adv::*;
+pub use super::extend::pore_opscl_itf_diff::*;
+pub use super::extend::pore_opscl_itf_disp::*;
+pub use super::extend::pore_opscl_itf_div::*;
+pub use super::extend::pore_opscl_itf_prod::*;
+pub use super::extend::pore_opscl_itf_src::*;
+pub use super::extend::pore_opscl_itf_timeprev::*;
 
 // porous vector domain operators
 pub use super::extend::pore_opvec_dom_adv::*;
@@ -92,3 +113,11 @@ pub use super::extend::pore_opvec_bnd_diff::*;
 pub use super::extend::pore_opvec_bnd_drag::*;
 pub use super::extend::pore_opvec_bnd_dtrn::*;
 pub use super::extend::pore_opvec_bnd_time::*;
+
+// porous vector interface operators
+pub use super::extend::pore_opvec_itf_adv::*;
+pub use super::extend::pore_opvec_itf_ddil::*;
+pub use super::extend::pore_opvec_itf_diff::*;
+pub use super::extend::pore_opvec_itf_drag::*;
+pub use super::extend::pore_opvec_itf_dtrn::*;
+pub use super::extend::pore_opvec_itf_time::*;

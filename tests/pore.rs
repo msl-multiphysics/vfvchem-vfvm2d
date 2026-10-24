@@ -1,7 +1,7 @@
 use vfvchem_vfvm2d::*;
 
 // Darcy-Brinkman-Forchheimer solvers (SteadyPore, TransientPore)
-// K and F come from the Ergun relation of the porosity (epsl) and particle diameter (diam); see PoreOpVecDomDrag::closure
+// K and F are user inputs; the tests compute them from the Ergun relation of the porosity (epsl) and particle diameter (diam)
 // run with: cargo test --release --test pore -- --nocapture --test-threads 1
 
 // positions of all vertices in a domain; vid -> (x, y)
@@ -21,9 +21,17 @@ fn end_flux(vars: &Variables, bnd: usize, vel: usize, h: f64) -> f64 {
     prof.windows(2).map(|w| 0.5 * (w[0].1 + w[1].1) * (w[1].0 - w[0].0)).sum()
 }
 
-// Ergun relation; returns (1 / K, F / sqrt(K))
+// Ergun relation; returns (K, F)
+// K = diam^2 * epsl^3 / (150 * (1 - epsl)^2)
+// F = 1.75 / sqrt(150 * epsl^3)
+fn ergun_kf(epsl: f64, diam: f64) -> (f64, f64) {
+    (diam * diam * epsl.powi(3) / (150.0 * (1.0 - epsl).powi(2)), 1.75 / (150.0 * epsl.powi(3)).sqrt())
+}
+
+// returns (1 / K, F / sqrt(K)) for the references
 fn ergun(epsl: f64, diam: f64) -> (f64, f64) {
-    (150.0 * (1.0 - epsl).powi(2) / (diam * diam * epsl.powi(3)), 1.75 * (1.0 - epsl) / (diam * epsl.powi(3)))
+    let (k, f) = ergun_kf(epsl, diam);
+    (1.0 / k, f / k.sqrt())
 }
 
 // channel [0, l] x [0, h] with four boundaries
@@ -50,7 +58,8 @@ fn poiseuille(pore: bool, transient: bool) -> Result<(Vec<(f64, f64)>, Vec<f64>)
     let visc = vars.add_scldom_cnst(dom, 0.001, "")?;
     let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;
     let epsl = vars.add_scldom_cnst(dom, 1.0, "")?;
-    let diam = vars.add_scldom_cnst(dom, 1e-3, "")?;
+    let perm = vars.add_scldom_cnst(dom, f64::INFINITY, "")?;  // free fluid
+    let forch = vars.add_scldom_cnst(dom, 0.0, "")?;
     let vel_func: VecBndFunc = Box::new(|_t, (_x, y), _u| (4.0 * 0.01 * y * (0.005 - y) / 0.005f64.powi(2), 0.0));
     let vel_l = vars.add_vecbnd_func(bnd_l, vel_func, vec![], "")?;
     let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0, "")?;
@@ -66,7 +75,7 @@ fn poiseuille(pore: bool, transient: bool) -> Result<(Vec<(f64, f64)>, Vec<f64>)
         }
         (true, false) => {
             let mut phys = SteadyPore::new()?;
-            phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, diam)?;
+            phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
             phys.add_vel_bnd(bnd_l, vel_l)?; phys.add_pres_bnd(bnd_r, pres_r)?; phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
             SteadyBase::solve(&mut phys, &mut vars, &mut lin, 50, 1e-10, 1.0)?;
         }
@@ -78,7 +87,7 @@ fn poiseuille(pore: bool, transient: bool) -> Result<(Vec<(f64, f64)>, Vec<f64>)
         }
         (true, true) => {
             let mut phys = TransientPore::new()?;
-            phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, diam)?;
+            phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
             phys.add_vel_bnd(bnd_l, vel_l)?; phys.add_pres_bnd(bnd_r, pres_r)?; phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
             TransientBase::solve(&mut phys, &mut vars, &mut lin, 0.05, 4, 100, 50, 1e-10, 1.0)?;
         }
@@ -105,8 +114,8 @@ fn regression_transient() { regression(true); }
 // ---------------------------------------------------------------- body-force channel, no-slip walls, open ends (p = 0)
 
 // returns (positions, velocity, int u dy at the left end, int u dy at the right end)
-// epsl and diam are functions of y; mu = rho = 1
-fn channel(dx: f64, g: f64, epsl: fn(f64) -> f64, diam: fn(f64) -> f64) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>, f64, f64), VFVChemError> {
+// epsl, K, and F are functions of y; mu = rho = 1
+fn channel(dx: f64, g: f64, epsl: fn(f64) -> f64, perm: fn(f64) -> f64, forch: fn(f64) -> f64) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>, f64, f64), VFVChemError> {
     let Mesh { mut vars, dom, bnd: [bnd_l, bnd_r, bnd_b, bnd_t] } = mesh(0.2, 1.0, dx)?;
     let vel = vars.add_vecdom_unkn(dom, (0.0, 0.0), "")?;
     let pres = vars.add_scldom_unkn(dom, 0.0, "")?;
@@ -114,13 +123,14 @@ fn channel(dx: f64, g: f64, epsl: fn(f64) -> f64, diam: fn(f64) -> f64) -> Resul
     let visc = vars.add_scldom_cnst(dom, 1.0, "")?;
     let fce = vars.add_vecdom_cnst(dom, (g, 0.0), "")?;
     let epsl = vars.add_scldom_func(dom, Box::new(move |_t, (_x, y), _u| epsl(y)), vec![], "")?;
-    let diam = vars.add_scldom_func(dom, Box::new(move |_t, (_x, y), _u| diam(y)), vec![], "")?;
+    let perm = vars.add_scldom_func(dom, Box::new(move |_t, (_x, y), _u| perm(y)), vec![], "")?;
+    let forch = vars.add_scldom_func(dom, Box::new(move |_t, (_x, y), _u| forch(y)), vec![], "")?;
     let pres_l = vars.add_sclbnd_cnst(bnd_l, 0.0, "")?;
     let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0, "")?;
     let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "")?;
     let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.0, 0.0), "")?;
     let mut phys = SteadyPore::new()?;
-    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, diam)?;
+    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
     phys.add_pres_bnd(bnd_l, pres_l)?; phys.add_pres_bnd(bnd_r, pres_r)?;
     phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
     let mut lin = LinearLu::new(1)?;
@@ -211,7 +221,7 @@ fn brinkman_channel() {
     let mut errs = vec![];
     let mut flux_errs = vec![];
     for &dx in &dxs {
-        let (pos, vel, flux_l, flux_r) = channel(dx, 1.0, |_| 0.5, |_| 3f64.sqrt()).unwrap();
+        let (pos, vel, flux_l, flux_r) = channel(dx, 1.0, |_| 0.5, |_| ergun_kf(0.5, 3f64.sqrt()).0, |_| ergun_kf(0.5, 3f64.sqrt()).1).unwrap();
         errs.push(errors(&pos, &vel, &exact));
         let flux_err = ((flux_l - flux_1d).abs().max((flux_r - flux_1d).abs())) / flux_1d;
         println!("RESULT brinkman_channel: dx = {dx:.4}; flux_l = {flux_l:.6e}; flux_r = {flux_r:.6e}; flux_1d = {flux_1d:.6e}; max rel err = {flux_err:.3e}");
@@ -230,7 +240,8 @@ fn vafai_kim_layered() {
     // driven by G = 1 (Brinkman-dominated) and G = 100 (Forchheimer drag significant)
     // the interface is not aligned with the random mesh, and epsl is evaluated at the vertices
     let epsl: fn(f64) -> f64 = |y| if y < 0.5 { 0.5 } else { 1.0 };
-    let diam: fn(f64) -> f64 = |_| 3f64.sqrt();
+    let perm: fn(f64) -> f64 = |y| if y < 0.5 { ergun_kf(0.5, 3f64.sqrt()).0 } else { f64::INFINITY };
+    let forch: fn(f64) -> f64 = |y| if y < 0.5 { ergun_kf(0.5, 3f64.sqrt()).1 } else { 0.0 };
     let (kinv, fsk) = ergun(0.5, 3f64.sqrt());
     let a = 0.5f64;
     let visc_p = 2.0;
@@ -258,11 +269,87 @@ fn vafai_kim_layered() {
         let exact = move |y: f64| interp(&ref_1d, y);
         let mut errs = vec![];
         for &dx in &dxs {
-            let (pos, vel, _, _) = channel(dx, g, epsl, diam).unwrap();
+            let (pos, vel, _, _) = channel(dx, g, epsl, perm, forch).unwrap();
             errs.push(errors(&pos, &vel, &exact));
         }
         order(&format!("vafai_kim G={g}"), &dxs, &errs);
         assert!(errs[2].0 < 2e-2 && errs[2].0 < errs[0].0);
+    }
+}
+
+// ---------------------------------------------------------------- Vafai-Kim with an interface
+
+// same channel as vafai_kim_layered, split at y = 1/2 into a porous domain and a clear fluid domain joined by an interface
+// the clear fluid is a pore domain with epsl = 1, K = inf, F = 0
+// returns (positions, velocity) of both domains
+fn channel_itf(dx: f64, g: f64) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>), VFVChemError> {
+    let mut vars = Variables::new_obj("tests/obj/obj_layered.obj", dx, dx, dx, 100, 42)?;
+    let dom_p = vars.add_dom("dom_p")?;
+    let dom_f = vars.add_dom("dom_f")?;
+    let bnd_b = vars.add_bnd(dom_p, "bnd_b")?;
+    let bnd_lp = vars.add_bnd(dom_p, "bnd_lp")?;
+    let bnd_rp = vars.add_bnd(dom_p, "bnd_rp")?;
+    let bnd_t = vars.add_bnd(dom_f, "bnd_t")?;
+    let bnd_lf = vars.add_bnd(dom_f, "bnd_lf")?;
+    let bnd_rf = vars.add_bnd(dom_f, "bnd_rf")?;
+    let itf_m = vars.add_itf(dom_p, dom_f, "itf_m")?;
+    let (perm_c, forch_c) = ergun_kf(0.5, 3f64.sqrt());
+    let mut phys = SteadyPore::new()?;
+    let mut vels = vec![];
+    for (dom, epsl_c, perm_c, forch_c) in [(dom_p, 0.5, perm_c, forch_c), (dom_f, 1.0, f64::INFINITY, 0.0)] {
+        let vel = vars.add_vecdom_unkn(dom, (0.0, 0.0), "")?;
+        let pres = vars.add_scldom_unkn(dom, 0.0, "")?;
+        let den = vars.add_scldom_cnst(dom, 1.0, "")?;
+        let visc = vars.add_scldom_cnst(dom, 1.0, "")?;
+        let fce = vars.add_vecdom_cnst(dom, (g, 0.0), "")?;
+        let epsl = vars.add_scldom_cnst(dom, epsl_c, "")?;
+        let perm = vars.add_scldom_cnst(dom, perm_c, "")?;
+        let forch = vars.add_scldom_cnst(dom, forch_c, "")?;
+        phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
+        vels.push(vel);
+    }
+    for bnd in [bnd_lp, bnd_rp, bnd_lf, bnd_rf] {
+        let pres = vars.add_sclbnd_cnst(bnd, 0.0, "")?;
+        phys.add_pres_bnd(bnd, pres)?;
+    }
+    for bnd in [bnd_b, bnd_t] {
+        let vel = vars.add_vecbnd_cnst(bnd, (0.0, 0.0), "")?;
+        phys.add_vel_bnd(bnd, vel)?;
+    }
+    phys.add_fcnt_itf(itf_m)?;
+    let mut lin = LinearLu::new(1)?;
+    phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0)?;
+    let mut pos = positions(&vars, dom_p);
+    pos.extend(positions(&vars, dom_f));
+    let mut vel = vars.vecdom[vels[0]].value.clone();
+    vel.extend(vars.vecdom[vels[1]].value.iter().copied());
+    Ok((pos, vel))
+}
+
+#[test]
+fn vafai_kim_interface() {
+    // the interface resolves the jumps in epsl, mu_eff, K, and F sharply; the single domain smears them over one cell
+    // u and mu_eff * du/dy are continuous at y = 1/2 as in the 1D reference
+    let epsl: fn(f64) -> f64 = |y| if y < 0.5 { 0.5 } else { 1.0 };
+    let perm: fn(f64) -> f64 = |y| if y < 0.5 { ergun_kf(0.5, 3f64.sqrt()).0 } else { f64::INFINITY };
+    let forch: fn(f64) -> f64 = |y| if y < 0.5 { ergun_kf(0.5, 3f64.sqrt()).1 } else { 0.0 };
+    let (kinv, fsk) = ergun(0.5, 3f64.sqrt());
+    let dxs = [0.05, 0.025, 0.0125];
+    for g in [1.0, 100.0] {
+        let ref_1d = layered_1d(20000, g, 0.5, 2.0, 1.0, kinv, fsk);
+        let exact = move |y: f64| interp(&ref_1d, y);
+        let mut errs_itf = vec![];
+        let mut errs_dom = vec![];
+        for &dx in &dxs {
+            let (pos, vel) = channel_itf(dx, g).unwrap();
+            errs_itf.push(errors(&pos, &vel, &exact));
+            let (pos, vel, _, _) = channel(dx, g, epsl, perm, forch).unwrap();
+            errs_dom.push(errors(&pos, &vel, &exact));
+        }
+        order(&format!("vafai_kim_interface G={g}"), &dxs, &errs_itf);
+        order(&format!("vafai_kim_smeared G={g}"), &dxs, &errs_dom);
+        for i in 0..dxs.len() { assert!(errs_itf[i].0 < errs_dom[i].0); }
+        assert!(errs_itf[2].0 < errs_itf[0].0);
     }
 }
 
@@ -278,13 +365,15 @@ fn column(u_in: f64) -> Result<(f64, f64), VFVChemError> {
     let visc = vars.add_scldom_cnst(dom, 0.001, "")?;
     let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "")?;
     let epsl = vars.add_scldom_cnst(dom, 0.4, "")?;
-    let diam = vars.add_scldom_cnst(dom, 1e-3, "")?;
+    let (perm_c, forch_c) = ergun_kf(0.4, 1e-3);
+    let perm = vars.add_scldom_cnst(dom, perm_c, "")?;
+    let forch = vars.add_scldom_cnst(dom, forch_c, "")?;
     let vel_l = vars.add_vecbnd_cnst(bnd_l, (u_in, 0.0), "")?;
     let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0, "")?;
     let vel_b = vars.add_vecbnd_cnst(bnd_b, (u_in, 0.0), "")?;
     let vel_t = vars.add_vecbnd_cnst(bnd_t, (u_in, 0.0), "")?;
     let mut phys = SteadyPore::new()?;
-    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, diam)?;
+    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
     phys.add_vel_bnd(bnd_l, vel_l)?; phys.add_pres_bnd(bnd_r, pres_r)?;
     phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
     let mut lin = LinearLu::new(1)?;
@@ -327,13 +416,15 @@ fn transient_spinup() {
     let visc = vars.add_scldom_cnst(dom, 1.0, "").unwrap();
     let fce = vars.add_vecdom_cnst(dom, (1.0, 0.0), "").unwrap();
     let epsl = vars.add_scldom_cnst(dom, 0.5, "").unwrap();
-    let diam = vars.add_scldom_cnst(dom, 0.3f64.sqrt(), "").unwrap();
+    let (perm_c, forch_c) = ergun_kf(0.5, 0.3f64.sqrt());
+    let perm = vars.add_scldom_cnst(dom, perm_c, "").unwrap();
+    let forch = vars.add_scldom_cnst(dom, forch_c, "").unwrap();
     let pres_l = vars.add_sclbnd_cnst(bnd_l, 0.0, "").unwrap();
     let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0, "").unwrap();
     let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "").unwrap();
     let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.0, 0.0), "").unwrap();
     let mut phys = TransientPore::new().unwrap();
-    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, diam).unwrap();
+    phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch).unwrap();
     phys.add_pres_bnd(bnd_l, pres_l).unwrap(); phys.add_pres_bnd(bnd_r, pres_r).unwrap();
     phys.add_vel_bnd(bnd_b, vel_b).unwrap(); phys.add_vel_bnd(bnd_t, vel_t).unwrap();
     let mut lin = LinearLu::new(1).unwrap();

@@ -16,7 +16,8 @@ pub struct TransientPore {
     pub itr_visc: HashMap<usize, usize>,  // viscosity
     pub itr_fce: HashMap<usize, usize>,   // body force
     pub itr_epsl: HashMap<usize, usize>,  // porosity
-    pub itr_diam: HashMap<usize, usize>,  // particle diameter
+    pub itr_perm: HashMap<usize, usize>,  // permeability
+    pub itr_forch: HashMap<usize, usize>, // Forchheimer coefficient
     pub itr_flw: HashMap<usize, usize>,   // flow data; created in initial_start
 
     // boundary data
@@ -26,6 +27,9 @@ pub struct TransientPore {
     pub pres_pres: HashMap<usize, usize>, // pressure
     pub trac_bnd: Vec<usize>,             // boundary with traction BC
     pub trac_pres: HashMap<usize, usize>, // pressure
+
+    // interface data
+    pub fcnt_itf: Vec<usize>,             // interface with continuity IC
 
     // reference pressure
     pub pref_dom: Vec<usize>,             // domain with reference pressure
@@ -37,6 +41,7 @@ pub struct TransientPore {
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, PoreOpSclBndDivergence, OpSclBndPressureStabilizer)>,
     pub oper_bnd_pres: Vec<(OpSclBndDirichlet, PoreOpVecBndTime, PoreOpVecBndAdvection, OpVecBndGradient, PoreOpVecBndDiffusion, PoreOpVecBndTranspose, PoreOpVecBndDilatatory, PoreOpVecBndDrag, OpVecBndSource)>,
     pub oper_bnd_trac: Vec<(OpVecBndTraction, PoreOpVecBndTime, PoreOpVecBndAdvection, PoreOpVecBndDiffusion, PoreOpVecBndTranspose, PoreOpVecBndDilatatory, PoreOpVecBndDrag, OpVecBndSource, PoreOpSclBndDivergence, OpSclBndPressureStabilizer)>,
+    pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, PoreOpVecItfTime, PoreOpVecItfAdvection, OpVecItfGradient, PoreOpVecItfDiffusion, PoreOpVecItfTranspose, PoreOpVecItfDilatatory, PoreOpVecItfDrag, OpVecItfSource, PoreOpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
 
@@ -46,7 +51,7 @@ impl TransientPore {
         Ok(phys)
     }
 
-    pub fn add_pore_dom(&mut self, dom_id: usize, vel_id: usize, pres_id: usize, den_id: usize, visc_id: usize, fce_id: usize, epsl_id: usize, diam_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_pore_dom(&mut self, dom_id: usize, vel_id: usize, pres_id: usize, den_id: usize, visc_id: usize, fce_id: usize, epsl_id: usize, perm_id: usize, forch_id: usize) -> Result<(), VFVChemError> {
         self.itr_dom.push(dom_id);
         self.itr_vel.insert(dom_id, vel_id);
         self.itr_pres.insert(dom_id, pres_id);
@@ -54,7 +59,8 @@ impl TransientPore {
         self.itr_visc.insert(dom_id, visc_id);
         self.itr_fce.insert(dom_id, fce_id);
         self.itr_epsl.insert(dom_id, epsl_id);
-        self.itr_diam.insert(dom_id, diam_id);
+        self.itr_perm.insert(dom_id, perm_id);
+        self.itr_forch.insert(dom_id, forch_id);
         Ok(())
     }
 
@@ -73,6 +79,11 @@ impl TransientPore {
     pub fn add_trac_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
         self.trac_bnd.push(bnd_id);
         self.trac_pres.insert(bnd_id, pres_id);
+        Ok(())
+    }
+
+    pub fn add_fcnt_itf(&mut self, itf_id: usize) -> Result<(), VFVChemError> {
+        self.fcnt_itf.push(itf_id);
         Ok(())
     }
 
@@ -122,6 +133,7 @@ impl TransientBase for TransientPore {
         self.oper_bnd_vel.clear();
         self.oper_bnd_pres.clear();
         self.oper_bnd_trac.clear();
+        self.oper_itf_fcnt.clear();
         self.oper_pref.clear();
 
         // internal
@@ -132,7 +144,8 @@ impl TransientBase for TransientPore {
             let visc_id = self.itr_visc[&dom_id];
             let fce_id = self.itr_fce[&dom_id];
             let epsl_id = self.itr_epsl[&dom_id];
-            let diam_id = self.itr_diam[&dom_id];
+            let perm_id = self.itr_perm[&dom_id];
+            let forch_id = self.itr_forch[&dom_id];
             let flw_id = self.itr_flw[&dom_id];
             let oper_time = PoreOpVecDomTime::new(vars, dom_id, vel_id, den_id, epsl_id)?;
             let oper_adv = PoreOpVecDomAdvection::new(vars, dom_id, vel_id, den_id, visc_id, epsl_id, flw_id)?;
@@ -140,7 +153,7 @@ impl TransientBase for TransientPore {
             let oper_diff = PoreOpVecDomDiffusion::new(vars, dom_id, vel_id, visc_id, epsl_id)?;
             let oper_dtrn = PoreOpVecDomTranspose::new(vars, dom_id, vel_id, visc_id, epsl_id)?;
             let oper_ddil = PoreOpVecDomDilatatory::new(vars, dom_id, vel_id, visc_id, epsl_id)?;
-            let oper_drag = PoreOpVecDomDrag::new(vars, dom_id, vel_id, den_id, visc_id, epsl_id, diam_id)?;
+            let oper_drag = PoreOpVecDomDrag::new(vars, dom_id, vel_id, den_id, visc_id, perm_id, forch_id)?;
             let oper_src = OpVecDomSource::new(vars, dom_id, vel_id, fce_id)?;
             let oper_div = PoreOpSclDomDivergence::new(vars, dom_id, vel_id, pres_id, den_id, epsl_id)?;
             let oper_pres = OpSclDomPressureStabilizer::new(vars, dom_id, pres_id, den_id, fce_id, flw_id)?;
@@ -172,7 +185,8 @@ impl TransientBase for TransientPore {
             let dom_visc_id = self.itr_visc[&dom_id];
             let dom_fce_id = self.itr_fce[&dom_id];
             let dom_epsl_id = self.itr_epsl[&dom_id];
-            let dom_diam_id = self.itr_diam[&dom_id];
+            let dom_perm_id = self.itr_perm[&dom_id];
+            let dom_forch_id = self.itr_forch[&dom_id];
             let dom_flw_id = self.itr_flw[&dom_id];
             let bnd_pres_id = self.pres_pres[&bnd_id];
             let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
@@ -182,7 +196,7 @@ impl TransientBase for TransientPore {
             let oper_diff = PoreOpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id, dom_epsl_id)?;
             let oper_dtrn = PoreOpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id, dom_epsl_id)?;
             let oper_ddil = PoreOpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id, dom_epsl_id)?;
-            let oper_drag = PoreOpVecBndDrag::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_epsl_id, dom_diam_id)?;
+            let oper_drag = PoreOpVecBndDrag::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_perm_id, dom_forch_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             self.oper_bnd_pres.push((oper_dir, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_drag, oper_src));
         }
@@ -196,7 +210,8 @@ impl TransientBase for TransientPore {
             let dom_visc_id = self.itr_visc[&dom_id];
             let dom_fce_id = self.itr_fce[&dom_id];
             let dom_epsl_id = self.itr_epsl[&dom_id];
-            let dom_diam_id = self.itr_diam[&dom_id];
+            let dom_perm_id = self.itr_perm[&dom_id];
+            let dom_forch_id = self.itr_forch[&dom_id];
             let dom_flw_id = self.itr_flw[&dom_id];
             let bnd_pres_id = self.trac_pres[&bnd_id];
             let oper_trac = OpVecBndTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
@@ -205,11 +220,40 @@ impl TransientBase for TransientPore {
             let oper_diff = PoreOpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id, dom_epsl_id)?;
             let oper_dtrn = PoreOpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id, dom_epsl_id)?;
             let oper_ddil = PoreOpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id, dom_epsl_id)?;
-            let oper_drag = PoreOpVecBndDrag::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_epsl_id, dom_diam_id)?;
+            let oper_drag = PoreOpVecBndDrag::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_perm_id, dom_forch_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             let oper_div = PoreOpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id, dom_epsl_id)?;
             let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
             self.oper_bnd_trac.push((oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_drag, oper_src, oper_div, oper_pres));
+        }
+
+        // interface
+        // rows of domain a set continuous velocity and pressure; rows of domain b balance momentum and mass over both halves
+        for &itf_id in &self.fcnt_itf {
+            let dom_a_id = vars.itf[itf_id].dom_a_id;
+            let dom_b_id = vars.itf[itf_id].dom_b_id;
+            let (vel_a_id, vel_b_id) = (self.itr_vel[&dom_a_id], self.itr_vel[&dom_b_id]);
+            let (pres_a_id, pres_b_id) = (self.itr_pres[&dom_a_id], self.itr_pres[&dom_b_id]);
+            let (den_a_id, den_b_id) = (self.itr_den[&dom_a_id], self.itr_den[&dom_b_id]);
+            let (visc_a_id, visc_b_id) = (self.itr_visc[&dom_a_id], self.itr_visc[&dom_b_id]);
+            let (fce_a_id, fce_b_id) = (self.itr_fce[&dom_a_id], self.itr_fce[&dom_b_id]);
+            let (epsl_a_id, epsl_b_id) = (self.itr_epsl[&dom_a_id], self.itr_epsl[&dom_b_id]);
+            let (perm_a_id, perm_b_id) = (self.itr_perm[&dom_a_id], self.itr_perm[&dom_b_id]);
+            let (forch_a_id, forch_b_id) = (self.itr_forch[&dom_a_id], self.itr_forch[&dom_b_id]);
+            let (flw_a_id, flw_b_id) = (self.itr_flw[&dom_a_id], self.itr_flw[&dom_b_id]);
+            let oper_vcnt = OpVecItfContinuity::new(vars, itf_id, vel_a_id, vel_b_id)?;
+            let oper_pcnt = OpSclItfContinuity::new(vars, itf_id, pres_a_id, pres_b_id)?;
+            let oper_time = PoreOpVecItfTime::new(vars, itf_id, vel_a_id, den_a_id, epsl_a_id, vel_b_id, den_b_id, epsl_b_id)?;
+            let oper_adv = PoreOpVecItfAdvection::new(vars, itf_id, vel_a_id, den_a_id, visc_a_id, epsl_a_id, flw_a_id, vel_b_id, den_b_id, visc_b_id, epsl_b_id, flw_b_id)?;
+            let oper_grad = OpVecItfGradient::new(vars, itf_id, vel_a_id, pres_a_id, vel_b_id, pres_b_id)?;
+            let oper_diff = PoreOpVecItfDiffusion::new(vars, itf_id, vel_a_id, visc_a_id, epsl_a_id, vel_b_id, visc_b_id, epsl_b_id)?;
+            let oper_dtrn = PoreOpVecItfTranspose::new(vars, itf_id, vel_a_id, visc_a_id, epsl_a_id, vel_b_id, visc_b_id, epsl_b_id)?;
+            let oper_ddil = PoreOpVecItfDilatatory::new(vars, itf_id, vel_a_id, visc_a_id, epsl_a_id, vel_b_id, visc_b_id, epsl_b_id)?;
+            let oper_drag = PoreOpVecItfDrag::new(vars, itf_id, vel_a_id, den_a_id, visc_a_id, perm_a_id, forch_a_id, vel_b_id, den_b_id, visc_b_id, perm_b_id, forch_b_id)?;
+            let oper_src = OpVecItfSource::new(vars, itf_id, vel_a_id, fce_a_id, vel_b_id, fce_b_id)?;
+            let oper_div = PoreOpSclItfDivergence::new(vars, itf_id, vel_a_id, pres_a_id, den_a_id, epsl_a_id, vel_b_id, pres_b_id, den_b_id, epsl_b_id)?;
+            let oper_pres = OpSclItfPressureStabilizer::new(vars, itf_id, pres_a_id, den_a_id, fce_a_id, flw_a_id, pres_b_id, den_b_id, fce_b_id, flw_b_id)?;
+            self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_drag, oper_src, oper_div, oper_pres));
         }
 
         // reference pressure
@@ -272,6 +316,23 @@ impl TransientBase for TransientPore {
             oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
+        // interface
+        for (oper_vcnt, oper_pcnt, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_drag, oper_src, oper_div, oper_pres) in &self.oper_itf_fcnt {
+            oper_vcnt.apply(vars, a_triplet, b_vec)?;
+            oper_pcnt.apply(vars, a_triplet, b_vec)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_grad.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_drag.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_pres.apply(vars, a_triplet, b_vec)?;
+        }
+
         // reference pressure; replaces equations, so it is applied last
         for oper_pref in &self.oper_pref {
             oper_pref.apply(vars, a_triplet, b_vec)?;
@@ -293,7 +354,7 @@ impl TransientBase for TransientPore {
     fn update_flow(&self, vars: &mut Variables) {
         // Rhie-Chow face mass flux of a porous medium
         for &dom_id in &self.itr_dom {
-            pore_helper::update_flow(vars, self.itr_flw[&dom_id], self.itr_epsl[&dom_id], self.itr_diam[&dom_id]);
+            pore_helper::update_flow(vars, self.itr_flw[&dom_id], self.itr_epsl[&dom_id], self.itr_perm[&dom_id], self.itr_forch[&dom_id]);
         }
     }
 }

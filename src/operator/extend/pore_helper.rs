@@ -18,7 +18,81 @@ pub fn visc_eff(vars: &Variables, visc_id: usize, epsl_id: usize, vid: usize) ->
     (visc / epsl, (visc_x / epsl - visc * epsl_x / (epsl * epsl), visc_y / epsl - visc * epsl_y / (epsl * epsl)))
 }
 
-pub fn update_flow(vars: &mut Variables, sclflw_id: usize, epsl_id: usize, diam_id: usize) {
+pub fn diff_eff(vars: &Variables, diff_id: usize, epsl_id: usize, tort_id: usize, vid: usize) -> (f64, (f64, f64)) {
+    // effective diffusion coefficient and its gradient at a vertex from the molecular diffusion coefficient G
+    // G_eff = (epsl / tau) * G
+    // grad(G_eff) = (epsl / tau) * grad(G) + G * (grad(epsl) / tau - epsl * grad(tau) / tau^2)
+
+    // get vertex properties
+    let diff_dom = &vars.scldom[diff_id];
+    let diff = diff_dom.value[vid];
+    let (diff_x, diff_y) = diff_dom.grad[vid];
+    let epsl_dom = &vars.scldom[epsl_id];
+    let epsl = epsl_dom.value[vid];
+    let (epsl_x, epsl_y) = epsl_dom.grad[vid];
+    let tort_dom = &vars.scldom[tort_id];
+    let tort = tort_dom.value[vid];
+    let (tort_x, tort_y) = tort_dom.grad[vid];
+
+    let fac = epsl / tort;
+    let fac_x = epsl_x / tort - epsl * tort_x / (tort * tort);
+    let fac_y = epsl_y / tort - epsl * tort_y / (tort * tort);
+    (fac * diff, (fac * diff_x + diff * fac_x, fac * diff_y + diff * fac_y))
+}
+
+pub fn weighted(vars: &Variables, val_id: usize, wgt_id: usize, vid: usize) -> (f64, (f64, f64)) {
+    // weighted scalar and its gradient at a vertex
+    // w * s; grad(w * s) = w * grad(s) + s * grad(w)
+
+    // get vertex properties
+    let val_dom = &vars.scldom[val_id];
+    let val = val_dom.value[vid];
+    let (val_x, val_y) = val_dom.grad[vid];
+    let wgt_dom = &vars.scldom[wgt_id];
+    let wgt = wgt_dom.value[vid];
+    let (wgt_x, wgt_y) = wgt_dom.grad[vid];
+
+    (wgt * val, (wgt * val_x + val * wgt_x, wgt * val_y + val * wgt_y))
+}
+
+pub fn disp_face(vars: &Variables, vel_id: usize, epsl_id: usize, displ_id: usize, dispt_id: usize, vid_v: usize, vid_n: usize, norm: (f64, f64)) -> (f64, f64) {
+    // normal-normal and normal-tangential components of the dispersion tensor at a face
+    // D_disp = alpha_T * |v| * I + (alpha_L - alpha_T) * v v^T / |v|, v = vel / epsl
+    // D_nn = alpha_T * |v| + (alpha_L - alpha_T) * (v . n)^2 / |v| >= 0
+    // D_nt = (alpha_L - alpha_T) * (v . n) * (v . t) / |v|, t = (-n_y, n_x)
+    // v and the dispersivities are arithmetic means of the vertex values
+
+    // get vertex properties
+    let vel_dom = &vars.vecdom[vel_id];
+    let epsl_dom = &vars.scldom[epsl_id];
+    let displ_dom = &vars.scldom[displ_id];
+    let dispt_dom = &vars.scldom[dispt_id];
+    let (u_v, v_v) = vel_dom.value[vid_v];
+    let (u_n, v_n) = vel_dom.value[vid_n];
+    let epsl_v = epsl_dom.value[vid_v];
+    let epsl_n = epsl_dom.value[vid_n];
+
+    // get face properties
+    let displ = 0.5 * (displ_dom.value[vid_v] + displ_dom.value[vid_n]);
+    let dispt = 0.5 * (dispt_dom.value[vid_v] + dispt_dom.value[vid_n]);
+    if displ == 0.0 && dispt == 0.0 {
+        return (0.0, 0.0);
+    }
+    let vx = 0.5 * (u_v / epsl_v + u_n / epsl_n);
+    let vy = 0.5 * (v_v / epsl_v + v_n / epsl_n);
+    let speed = (vx * vx + vy * vy).sqrt();
+    if speed == 0.0 {
+        return (0.0, 0.0);
+    }
+
+    // get components
+    let (nx, ny) = norm;
+    let vn = vx * nx + vy * ny;
+    let vt = -vx * ny + vy * nx;
+    (dispt * speed + (displ - dispt) * vn * vn / speed, (displ - dispt) * vn * vt / speed)
+}
+
+pub fn update_flow(vars: &mut Variables, sclflw_id: usize, epsl_id: usize, perm_id: usize, forch_id: usize) {
     // updates the flow data of a porous medium; lagged from the current velocity and pressure
     //
     // Rhie-Chow coefficient
@@ -35,7 +109,8 @@ pub fn update_flow(vars: &mut Variables, sclflw_id: usize, epsl_id: usize, diam_
     let den_dom = &vars.scldom[sclflw.den_id];
     let visc_dom = &vars.scldom[sclflw.visc_id];
     let epsl_dom = &vars.scldom[epsl_id];
-    let diam_dom = &vars.scldom[diam_id];
+    let perm_dom = &vars.scldom[perm_id];
+    let forch_dom = &vars.scldom[forch_id];
 
     // get A / a_P at every vertex
     let mut rc_vec = Vec::with_capacity(dom.num_tot());  // vid -> A / a_P
@@ -87,7 +162,7 @@ pub fn update_flow(vars: &mut Variables, sclflw_id: usize, epsl_id: usize, diam_
         }
 
         // implicit Darcy and linearized Forchheimer drag; same diagonal as PoreOpVecDomDrag
-        let (kinv, fsk) = PoreOpVecDomDrag::closure(epsl_v, diam_dom.value[vid_v]);
+        let (kinv, fsk) = PoreOpVecDomDrag::coeff(perm_dom.value[vid_v], forch_dom.value[vid_v]);
         let speed = (u_v * u_v + v_v * v_v).sqrt();
         coeff_p += (visc_dom.value[vid_v] * kinv + 2.0 * den_v * fsk * speed) * tri.cvol_area[vid_v];
         rc_vec.push(if coeff_p > 0.0 { tri.cvol_area[vid_v] / coeff_p } else { 0.0 });

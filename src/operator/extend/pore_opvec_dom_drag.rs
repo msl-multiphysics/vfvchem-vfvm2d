@@ -13,13 +13,13 @@ pub struct PoreOpVecDomDrag {
 
     // scalars
     pub den_id: usize,   // density (rho)
-    pub visc_id: usize,  // fluid viscosity (mu)
-    pub epsl_id: usize,  // porosity (epsl)
-    pub diam_id: usize,  // particle diameter (diam)
+    pub visc_id: usize,   // fluid viscosity (mu)
+    pub perm_id: usize,   // permeability (K)
+    pub forch_id: usize,  // Forchheimer coefficient (F)
 }
 
 impl PoreOpVecDomDrag {
-    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, visc_id: usize, epsl_id: usize, diam_id: usize) -> Result<PoreOpVecDomDrag, VFVChemError> {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, visc_id: usize, perm_id: usize, forch_id: usize) -> Result<PoreOpVecDomDrag, VFVChemError> {
         // adds the Darcy and Forchheimer drag to the Darcy-Brinkman-Forchheimer equation
         // (rho / epsl) * d(vel)/dt + (rho / epsl) * vel . grad(vel / epsl) = -grad(p) + div( mu_eff * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) - (mu / K) * vel - (rho * F / sqrt(K)) * |vel| * vel + fce
         //                                                                                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -28,8 +28,8 @@ impl PoreOpVecDomDrag {
         check_dom_vecdom(vars, dom_id, vel_id)?;
         check_dom_scldom(vars, dom_id, den_id)?;
         check_dom_scldom(vars, dom_id, visc_id)?;
-        check_dom_scldom(vars, dom_id, epsl_id)?;
-        check_dom_scldom(vars, dom_id, diam_id)?;
+        check_dom_scldom(vars, dom_id, perm_id)?;
+        check_dom_scldom(vars, dom_id, forch_id)?;
 
         // create struct
         let mut oper = PoreOpVecDomDrag::default();
@@ -37,22 +37,17 @@ impl PoreOpVecDomDrag {
         oper.vel_id = vel_id;
         oper.den_id = den_id;
         oper.visc_id = visc_id;
-        oper.epsl_id = epsl_id;
-        oper.diam_id = diam_id;
+        oper.perm_id = perm_id;
+        oper.forch_id = forch_id;
 
         Ok(oper)
     }
 
-    pub fn closure(epsl: f64, diam: f64) -> (f64, f64) {
-        // permeability (K) and Forchheimer coefficient (F) from the Ergun relation; returns (1 / K, F / sqrt(K))
-        // K = diam^2 * epsl^3 / (150 * (1 - epsl)^2)
-        // F = 1.75 / sqrt(150 * epsl^3)
-        // 1 / K = 150 * (1 - epsl)^2 / (diam^2 * epsl^3)
-        // F / sqrt(K) = 1.75 * (1 - epsl) / (diam * epsl^3)
-        // epsl = 1 gives a free fluid
-        if !(epsl > 0.0 && epsl < 1.0 && diam > 0.0) { return (0.0, 0.0); }  // guard against out-of-range porosity and diameter
-        let epsl_3 = epsl * epsl * epsl;
-        (150.0 * (1.0 - epsl) * (1.0 - epsl) / (diam * diam * epsl_3), 1.75 * (1.0 - epsl) / (diam * epsl_3))
+    pub fn coeff(perm: f64, forch: f64) -> (f64, f64) {
+        // drag coefficients from the user-input permeability (K) and Forchheimer coefficient (F); returns (1 / K, F / sqrt(K))
+        // K and F are computed outside the code (e.g., from the Ergun relation) and supplied as scalars
+        // K = inf gives a free fluid; K > 0 is checked by the drag operators
+        (1.0 / perm, forch / perm.sqrt())
     }
 }
 
@@ -71,8 +66,8 @@ impl OperatorBase for PoreOpVecDomDrag {
         let vel_dom = &vars.vecdom[self.vel_id];
         let den_dom = &vars.scldom[self.den_id];
         let visc_dom = &vars.scldom[self.visc_id];
-        let epsl_dom = &vars.scldom[self.epsl_id];
-        let diam_dom = &vars.scldom[self.diam_id];
+        let perm_dom = &vars.scldom[self.perm_id];
+        let forch_dom = &vars.scldom[self.forch_id];
 
         // iterate through points
         // do not iterate through nodes to skip boundaries
@@ -83,7 +78,8 @@ impl OperatorBase for PoreOpVecDomDrag {
             // get vertex properties
             let (u_v, v_v) = vel_dom.value[vid_v];
             let speed = (u_v * u_v + v_v * v_v).sqrt();
-            let (kinv, fsk) = PoreOpVecDomDrag::closure(epsl_dom.value[vid_v], diam_dom.value[vid_v]);
+            if !(perm_dom.value[vid_v] > 0.0) { return Err(VFVChemError::PoreNonPositivePermeability { dom_id: self.dom_id }) }
+            let (kinv, fsk) = PoreOpVecDomDrag::coeff(perm_dom.value[vid_v], forch_dom.value[vid_v]);
             let drag_lin = visc_dom.value[vid_v] * kinv;
             let drag_quad = den_dom.value[vid_v] * fsk * speed;
 

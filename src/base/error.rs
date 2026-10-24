@@ -195,6 +195,14 @@ pub enum VFVChemError {
     MassInterfaceMixedFlow {
         itf_id: usize,
     },
+    #[error("MassPore: Mass domain ID {dom_id} has no pore domain or no matrix data. Call add_pore_dom and add_matrix_dom for every mass domain.")]
+    MassporeMissingDomain {
+        dom_id: usize,
+    },
+    #[error("Pore: Permeability must be greater than zero on domain ID {dom_id}. Use K = infinity for a free fluid.")]
+    PoreNonPositivePermeability {
+        dom_id: usize,
+    },
 
 
     // linear solvers

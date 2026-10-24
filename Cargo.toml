@@ -91,6 +91,18 @@ path = "examples/features/feat_itf.rs"
 name = "feat_adt"
 path = "examples/features/feat_adt.rs"
 
+[[example]]
+name = "poremass_cat"
+path = "examples/poremass/poremass_cat.rs"
+
+[[example]]
+name = "poremass_hom"
+path = "examples/poremass/poremass_hom.rs"
+
+[[example]]
+name = "poremass_bed"
+path = "examples/poremass/poremass_bed.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

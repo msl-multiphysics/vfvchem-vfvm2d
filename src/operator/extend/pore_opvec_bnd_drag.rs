@@ -12,25 +12,25 @@ pub struct PoreOpVecBndDrag {
     pub vel_id: usize,  // superficial velocity (vel); unknown
 
     // scalars
-    pub den_id: usize,   // density (rho)
-    pub visc_id: usize,  // fluid viscosity (mu)
-    pub epsl_id: usize,  // porosity (epsl)
-    pub diam_id: usize,  // particle diameter (diam)
+    pub den_id: usize,    // density (rho)
+    pub visc_id: usize,   // fluid viscosity (mu)
+    pub perm_id: usize,   // permeability (K)
+    pub forch_id: usize,  // Forchheimer coefficient (F)
 }
 
 impl PoreOpVecBndDrag {
-    pub fn new(vars: &Variables, bnd_id: usize, vel_id: usize, den_id: usize, visc_id: usize, epsl_id: usize, diam_id: usize) -> Result<PoreOpVecBndDrag, VFVChemError> {
+    pub fn new(vars: &Variables, bnd_id: usize, vel_id: usize, den_id: usize, visc_id: usize, perm_id: usize, forch_id: usize) -> Result<PoreOpVecBndDrag, VFVChemError> {
         // adds the Darcy and Forchheimer drag to the control volumes of boundary nodes
         // (rho / epsl) * d(vel)/dt + (rho / epsl) * vel . grad(vel / epsl) = -grad(p) + div( mu_eff * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) - (mu / K) * vel - (rho * F / sqrt(K)) * |vel| * vel + fce
-        //                                                                                                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        // K and F are from the Ergun relation; see PoreOpVecDomDrag
+        //                                                                                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        // K and F are user inputs; see PoreOpVecDomDrag
 
         // input checking
         check_bnd_vecdom(vars, bnd_id, vel_id)?;
         check_bnd_scldom(vars, bnd_id, den_id)?;
         check_bnd_scldom(vars, bnd_id, visc_id)?;
-        check_bnd_scldom(vars, bnd_id, epsl_id)?;
-        check_bnd_scldom(vars, bnd_id, diam_id)?;
+        check_bnd_scldom(vars, bnd_id, perm_id)?;
+        check_bnd_scldom(vars, bnd_id, forch_id)?;
 
         // create struct
         let mut oper = PoreOpVecBndDrag::default();
@@ -38,8 +38,8 @@ impl PoreOpVecBndDrag {
         oper.vel_id = vel_id;
         oper.den_id = den_id;
         oper.visc_id = visc_id;
-        oper.epsl_id = epsl_id;
-        oper.diam_id = diam_id;
+        oper.perm_id = perm_id;
+        oper.forch_id = forch_id;
 
         Ok(oper)
     }
@@ -61,8 +61,8 @@ impl OperatorBase for PoreOpVecBndDrag {
         let vel_dom = &vars.vecdom[self.vel_id];
         let den_dom = &vars.scldom[self.den_id];
         let visc_dom = &vars.scldom[self.visc_id];
-        let epsl_dom = &vars.scldom[self.epsl_id];
-        let diam_dom = &vars.scldom[self.diam_id];
+        let perm_dom = &vars.scldom[self.perm_id];
+        let forch_dom = &vars.scldom[self.forch_id];
 
         // iterate through nodes
         for idx_v in 0..bnd.num_nds() {
@@ -77,7 +77,8 @@ impl OperatorBase for PoreOpVecBndDrag {
             // get vertex properties
             let (u_v, v_v) = vel_dom.value[vid_v];
             let speed = (u_v * u_v + v_v * v_v).sqrt();
-            let (kinv, fsk) = PoreOpVecDomDrag::closure(epsl_dom.value[vid_v], diam_dom.value[vid_v]);
+            if !(perm_dom.value[vid_v] > 0.0) { return Err(VFVChemError::PoreNonPositivePermeability { dom_id: bnd.dom_id }) }
+            let (kinv, fsk) = PoreOpVecDomDrag::coeff(perm_dom.value[vid_v], forch_dom.value[vid_v]);
             let drag_lin = visc_dom.value[vid_v] * kinv;
             let drag_quad = den_dom.value[vid_v] * fsk * speed;
 

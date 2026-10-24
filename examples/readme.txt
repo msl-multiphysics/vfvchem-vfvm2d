@@ -55,6 +55,11 @@ Porous Medium Flow
 - pore_steady.rs    : steady flow through a packed bed compared with the Ergun pressure drop
 - pore_transient.rs : transient flow with near-wall porosity (wall channeling)
 
+Mass Transfer in Porous Media
+- poremass_cat.rs : steady flow through a catalytic packed bed with a first-order surface reaction
+- poremass_hom.rs : transient injection of a tracer with a first-order reaction in the pore fluid
+- poremass_bed.rs : catalytic bed under a clear fluid layer joined by an interface; flow bypass and conversion
+
 Features
 - feat_prod.rs  : production coefficient versus mass source for a fast first-order reaction
 - feat_scale.rs : convergence scaling options for flow at absolute pressure

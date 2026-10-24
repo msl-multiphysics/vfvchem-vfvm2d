@@ -11,3 +11,4 @@ pub use super::core::steady_massflow::*;
 
 // porous solvers
 pub use super::extend::steady_pore::*;
+pub use super::extend::steady_masspore::*;
