@@ -60,6 +60,11 @@ Mass Transfer in Porous Media
 - poremass_hom.rs : transient injection of a tracer with a first-order reaction in the pore fluid
 - poremass_bed.rs : catalytic bed under a clear fluid layer joined by an interface; flow bypass and conversion
 
+Heat Transfer in Porous Media
+- poreheat_packedbed.rs : steady catalytic packed bed with Arrhenius surface heat release and a cooled wall
+- poreheat_surface.rs   : transient metal foam with graded porosity heated by a localized surface source
+- poreheat_bed.rs       : heated catalytic bed under a clear fluid layer joined by an interface; adiabatic solid surface
+
 Features
 - feat_prod.rs  : production coefficient versus mass source for a fast first-order reaction
 - feat_scale.rs : convergence scaling options for flow at absolute pressure

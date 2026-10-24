@@ -159,15 +159,33 @@ is rho * D_disp with D_disp = alpha_T |v| I + (alpha_L - alpha_T) v v^T / |v| an
 and surface terms (s_s, R_s) are multiplied by the specific surface area a_v. For a free
 fluid, set tau = 1, a_v = 0, and alpha_L = alpha_T = 0.
 
+Porous heat transfer operators solve the two-temperature (local thermal non-equilibrium) equations
+for the fluid temperature T_f and the solid temperature T_s. Names ending in l act on the fluid (liquid)
+and names ending in s act on the solid. The fluid conductance is epsl * k_f, the solid conductance is
+(1 - epsl) * k_s, and the exchange h * a_v * (T_s - T_f) couples the two temperatures. The fluid
+reuses the mass transfer operators for dispersion, production, source, and time derivative with
+(rho * cp)_f in place of rho.
+
 Porous interface operators join two pore domains (e.g., a packed bed and a free fluid) through
 the combined control volumes of interface nodes. Each side uses its own properties. One-sided
-operators (pore_opscl_itf_adv, pore_opscl_itf_disp) are applied once per side.
+operators (pore_opscl_itf_adv, pore_opscl_itf_disp, pore_opscl_itf_hadvl) are applied once per side.
+The solid interface operators are one-sided with an explicit row unknown: the solid temperature
+of domain b if the solid temperature is continuous, or the own solid temperature if the solid
+surface is adiabatic.
 - pore_helper            : computes the Rhie-Chow coefficient and face mass flux of a porous medium; effective viscosity,
-                           effective diffusivity, weighted scalars (w * s), and the face dispersion tensor
+                           effective diffusivity, weighted scalars (w * s), the face dispersion tensor,
+                           solid-weighted scalars ((1 - epsl) * s), and the solid mask
 - pore_opscl_bnd_adv     : adds porous advection with dispersion-aware power law weighting to the control volumes of boundary nodes
 - pore_opscl_bnd_diff    : adds effective diffusion to the control volumes of boundary nodes
 - pore_opscl_bnd_disp    : adds mechanical dispersion to the control volumes of boundary nodes
 - pore_opscl_bnd_div     : adds velocity divergence and porous storage to the control volumes of boundary nodes
+- pore_opscl_bnd_hadvl   : adds fluid heat advection with dispersion-aware power law weighting to the control volumes of boundary nodes
+- pore_opscl_bnd_hdiffl  : adds fluid heat conduction, epsl * k_f, to the control volumes of boundary nodes
+- pore_opscl_bnd_hdiffs  : adds solid heat conduction, (1 - epsl) * k_s, to the control volumes of boundary nodes
+- pore_opscl_bnd_hexc    : adds fluid-solid heat exchange, h * a_v * (T_drv - T), to the control volumes of boundary nodes
+- pore_opscl_bnd_hprods  : adds a solid production term ((1 - epsl) * s * T) to the control volumes of boundary nodes
+- pore_opscl_bnd_hsrcs   : adds a solid source ((1 - epsl) * q) to the control volumes of boundary nodes
+- pore_opscl_bnd_htimeprevs: adds a solid time derivative with the previous solid heat capacity to the control volumes of boundary nodes
 - pore_opscl_bnd_prod    : adds a weighted production term (w * s * c) to the control volumes of boundary nodes
 - pore_opscl_bnd_src     : adds a weighted source (w * R) to the control volumes of boundary nodes
 - pore_opscl_bnd_timeprev: adds a porous time derivative with the previous fluid mass to the control volumes of boundary nodes
@@ -175,13 +193,29 @@ operators (pore_opscl_itf_adv, pore_opscl_itf_disp) are applied once per side.
 - pore_opscl_dom_diff    : adds effective diffusion, (epsl / tau) * rho * D, to a species equation
 - pore_opscl_dom_disp    : adds mechanical dispersion to a species equation
 - pore_opscl_dom_div     : adds velocity divergence and porous storage (epsl * rho) to the continuity equation
+- pore_opscl_dom_hadvl   : adds fluid heat advection, (rho * cp)_f * vel . grad(T_f), with dispersion-aware power law weighting
+- pore_opscl_dom_hdiffl  : adds fluid heat conduction, epsl * k_f, to the fluid heat equation
+- pore_opscl_dom_hdiffs  : adds solid heat conduction, (1 - epsl) * k_s, to the solid heat equation
+- pore_opscl_dom_hexc    : adds fluid-solid heat exchange, h * a_v * (T_drv - T), to the fluid or solid heat equation
+- pore_opscl_dom_hprods  : adds a solid production term ((1 - epsl) * s * T) to the solid heat equation
+- pore_opscl_dom_hsrcs   : adds a solid source ((1 - epsl) * q) to the solid heat equation
+- pore_opscl_dom_htimeprevs: adds a solid time derivative, ((1 - epsl) * (rho * c)_s)_old * (T_s - T_s_old) / dt
 - pore_opscl_dom_prod    : adds a weighted production term (w * s * c) to a species equation; w = epsl or a_v
 - pore_opscl_dom_src     : adds a weighted source (w * R) to a species equation; w = epsl or a_v
 - pore_opscl_dom_timeprev: adds a porous time derivative, (epsl * rho)_old * (c - c_old) / dt, to a species equation
 - pore_opscl_itf_adv     : adds porous advection from one side to the combined control volumes of interface nodes
+- pore_opscl_itf_aprods  : adds a surface production term (a_v * s * T) from one side to the solid rows of interface nodes
+- pore_opscl_itf_asrcs   : adds a surface source (a_v * q) from one side to the solid rows of interface nodes
 - pore_opscl_itf_diff    : adds effective diffusion to the combined control volumes of interface nodes
 - pore_opscl_itf_disp    : adds mechanical dispersion from one side to the combined control volumes of interface nodes
 - pore_opscl_itf_div     : adds velocity divergence and porous storage to the combined control volumes of interface nodes
+- pore_opscl_itf_hadvl   : adds fluid heat advection from one side to the combined control volumes of interface nodes
+- pore_opscl_itf_hdiffl  : adds fluid heat conduction to the combined control volumes of interface nodes
+- pore_opscl_itf_hdiffs  : adds solid heat conduction from one side to the solid rows of interface nodes
+- pore_opscl_itf_hexc    : adds fluid-solid heat exchange from one side to the fluid or solid rows of interface nodes
+- pore_opscl_itf_hprods  : adds a solid production term from one side to the solid rows of interface nodes
+- pore_opscl_itf_hsrcs   : adds a solid source from one side to the solid rows of interface nodes
+- pore_opscl_itf_htimeprevs: adds a solid time derivative from one side to the solid rows of interface nodes
 - pore_opscl_itf_prod    : adds a weighted production term to the combined control volumes of interface nodes
 - pore_opscl_itf_src     : adds a weighted source to the combined control volumes of interface nodes
 - pore_opscl_itf_timeprev: adds a porous time derivative with the previous fluid mass to the combined control volumes of interface nodes
@@ -223,8 +257,9 @@ Core solvers (steady/core)
 - steady_massflow     : solves coupled steady mass and momentum transfer
 
 Extended solvers (steady/extend)
-- steady_pore         : solves steady porous medium flow (Darcy-Brinkman-Forchheimer)
+- steady_heatpore     : solves coupled steady two-temperature heat transfer and flow in porous media
 - steady_masspore     : solves coupled steady mass transfer and flow in porous media
+- steady_pore         : solves steady porous medium flow (Darcy-Brinkman-Forchheimer)
 
 Transient
 ---------
@@ -240,8 +275,9 @@ Core solvers (transient/core)
 - transient_massflow     : solves coupled transient mass and momentum transfer
 
 Extended solvers (transient/extend)
-- transient_pore         : solves transient porous medium flow (Darcy-Brinkman-Forchheimer)
+- transient_heatpore     : solves coupled transient two-temperature heat transfer and flow in porous media
 - transient_masspore     : solves coupled transient mass transfer and flow in porous media
+- transient_pore         : solves transient porous medium flow (Darcy-Brinkman-Forchheimer)
 
 Porous solvers
 --------------
@@ -262,3 +298,48 @@ Interfaces join two pore domains with continuous velocity, pressure, and concent
 - add_mcnt_itf          : mass continuity of one component (masspore solvers); use with add_fcnt_itf on the same interface
 Both domains of an interface must be registered (add_pore_dom, and add_matrix_dom for the masspore solvers). A free fluid next to a porous medium is a
 second pore domain with epsl = 1, K = inf, F = 0, tau = 1, a_v = 0, and alpha_L = alpha_T = 0.
+
+The heatpore solvers solve local thermal non-equilibrium heat transfer with a fluid temperature
+T_f and a solid temperature T_s. Names ending in l refer to the fluid (liquid) and names ending
+in s refer to the solid (e.g., templ and temps, hcntl and hcnts); the exchange (hexc) has no suffix.
+  fluid: epsl * (rho cp)_f * dT_f/dt + div( (rho cp)_f * vel * T_f ) = div( (epsl * k_f * I + K_d) * grad(T_f) )
+         + h * a_v * (T_s - T_f) + epsl * (s_f * T_f + q_f)
+  solid: (1 - epsl) * (rho c)_s * dT_s/dt = div( (1 - epsl) * k_s * grad(T_s) ) - h * a_v * (T_s - T_f)
+         + (1 - epsl) * (s_s * T_s + q_s) + a_v * (s_a * T_s + q_a)
+vel is the superficial velocity and K_d = (rho cp)_f * D_disp is the thermal dispersion tensor with the
+dispersivities alpha_L and alpha_T. q_f and q_s are per unit phase volume, and q_a is per unit solid
+surface area. The exchange is implicit in both temperatures.
+
+The heatpore solvers take add_pore_dom as the pore solvers and:
+- add_heatl_dom  (T_f, (rho cp)_f, k_f, s_f, q_f)            : fluid heat data
+- add_heats_dom  (T_s, (rho c)_s, k_s, s_s, q_s, s_a, q_a)    : solid heat data; (rho c)_s is not used by the steady solver
+- add_matrix_dom (h, a_v, alpha_L, alpha_T)                  : exchange and dispersion data
+Every fluid heat domain must be a pore domain with matrix data. The solid heat domain is optional
+and needs fluid heat data. A free fluid is a pore domain with epsl = 1, K = inf, F = 0, and
+alpha_L = alpha_T = 0, registered with add_heatl_dom and add_matrix_dom but without add_heats_dom.
+Inside a solid heat domain, the solid equation of a vertex is replaced with T_s = T_f if epsl >= 1 on
+the vertex and all its neighbors; the mask is applied last and overrides solid boundary and interface
+rows. Production and source coefficients given as functions of T_s (e.g., a reaction heat) are
+evaluated at the previous iterate (lagged); the Picard loop converges them.
+
+In the transient solver, the time derivatives use the heat capacity of the previous time step:
+(epsl * (rho cp)_f)_old * (T_f - T_f_old) / dt for the fluid and ((1 - epsl) * (rho c)_s)_old *
+(T_s - T_s_old) / dt for the solid.
+
+Boundary conditions of the heatpore solvers are set per phase; fluxes are outward:
+- add_templ_bnd : prescribed fluid temperature
+- add_hflxl_bnd : prescribed total non-advective (conductive plus dispersive) outward fluid heat flux on the
+                  boundary half-edges; heat also crosses the boundary by advection
+- add_houtl_bnd : fluid outflow; zero conductive and dispersive flux on the boundary half-edges, heat leaves by advection
+- add_temps_bnd : prescribed solid temperature
+- add_hflxs_bnd : prescribed conductive outward solid heat flux on the boundary half-edges
+Every boundary of a solid heat domain needs a solid boundary condition (add_hflxs_bnd with zero for adiabatic).
+
+Interfaces join two pore domains:
+- add_fcnt_itf  : flow continuity
+- add_hcntl_itf : fluid temperature and total fluid heat flux continuity; use with add_fcnt_itf on the same interface
+- add_hcnts_itf : solid temperature and solid conductive flux continuity; use with add_hcntl_itf on the same interface
+Both domains of a fluid heat interface must be registered (add_pore_dom, add_matrix_dom, and add_heatl_dom).
+The solid temperature is joined only with add_hcnts_itf, which needs a solid heat domain on both sides.
+Without add_hcnts_itf, each side with a solid heat domain has an adiabatic solid surface at the interface,
+and a side without a solid heat domain (e.g., a free fluid) has no solid and no exchange there.

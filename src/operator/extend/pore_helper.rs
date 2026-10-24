@@ -1,6 +1,8 @@
 use crate::base::prelude::*;
 use crate::operator::core::flow_helper;
 use crate::operator::extend::pore_opvec_dom_drag::PoreOpVecDomDrag;
+use faer::Col;
+use faer::sparse::Triplet;
 
 pub fn visc_eff(vars: &Variables, visc_id: usize, epsl_id: usize, vid: usize) -> (f64, (f64, f64)) {
     // effective (Brinkman) viscosity and its gradient at a vertex from the liquid viscosity mu
@@ -90,6 +92,67 @@ pub fn disp_face(vars: &Variables, vel_id: usize, epsl_id: usize, displ_id: usiz
     let vn = vx * nx + vy * ny;
     let vt = -vx * ny + vy * nx;
     (dispt * speed + (displ - dispt) * vn * vn / speed, (displ - dispt) * vn * vt / speed)
+}
+
+pub fn solid_weighted(vars: &Variables, val_id: usize, epsl_id: usize, vid: usize) -> (f64, (f64, f64)) {
+    // solid-fraction-weighted scalar and its gradient at a vertex
+    // (1 - epsl) * s; grad((1 - epsl) * s) = (1 - epsl) * grad(s) - s * grad(epsl)
+
+    // get vertex properties
+    let val_dom = &vars.scldom[val_id];
+    let val = val_dom.value[vid];
+    let (val_x, val_y) = val_dom.grad[vid];
+    let epsl_dom = &vars.scldom[epsl_id];
+    let wgt = 1.0 - epsl_dom.value[vid];
+    let (epsl_x, epsl_y) = epsl_dom.grad[vid];
+
+    (wgt * val, (wgt * val_x - val * epsl_x, wgt * val_y - val * epsl_y))
+}
+
+pub fn solid_masked(vars: &Variables, dom_id: usize, epsl_id: usize, vid: usize) -> bool {
+    // true if a vertex and all its neighbors have no solid (epsl >= 1)
+    // the solid temperature of a masked vertex is set to the fluid temperature
+
+    // get objects
+    let tri = &vars.tri[dom_id];
+    let epsl_dom = &vars.scldom[epsl_id];
+
+    epsl_dom.value[vid] >= 1.0 && tri.ngh_vid[vid].iter().all(|&vid_n| epsl_dom.value[vid_n] >= 1.0)
+}
+
+pub fn mask_solid(vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dom_id: usize, epsl_id: usize, temps_id: usize, templ_id: usize) -> Result<(), VFVChemError> {
+    // replaces the solid equation of masked vertices with T_s - T_f = 0
+    // applied after all operators; overrides solid boundary conditions on masked nodes
+
+    // get unknown starts
+    let temps_start = match vars.scldom[temps_id].scldom_type {
+        SclDomType::Unknown { start } => start,
+        _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
+    };
+    let templ_start = match vars.scldom[templ_id].scldom_type {
+        SclDomType::Unknown { start } => start,
+        _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
+    };
+
+    // find masked rows
+    let num_tot = vars.dom[dom_id].num_tot();
+    let mut masked = vec![false; num_tot];
+    let mut any = false;
+    for vid in 0..num_tot {
+        if solid_masked(vars, dom_id, epsl_id, vid) { masked[vid] = true; any = true; }
+    }
+    if !any { return Ok(()); }
+
+    // drop the assembled solid equation and load the mask
+    a_triplet.retain(|t| t.row < temps_start || t.row >= temps_start + num_tot || !masked[t.row - temps_start]);
+    for vid in 0..num_tot {
+        if !masked[vid] { continue; }
+        b_vec[temps_start + vid] = 0.0;
+        a_triplet.push(Triplet::new(temps_start + vid, temps_start + vid, 1.0));
+        a_triplet.push(Triplet::new(temps_start + vid, templ_start + vid, -1.0));
+    }
+
+    Ok(())
 }
 
 pub fn update_flow(vars: &mut Variables, sclflw_id: usize, epsl_id: usize, perm_id: usize, forch_id: usize) {

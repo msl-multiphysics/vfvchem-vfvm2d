@@ -13,3 +13,4 @@ pub use super::core::transient_massflow::*;
 // porous solvers
 pub use super::extend::transient_pore::*;
 pub use super::extend::transient_masspore::*;
+pub use super::extend::transient_heatpore::*;

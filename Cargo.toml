@@ -103,6 +103,18 @@ path = "examples/poremass/poremass_hom.rs"
 name = "poremass_bed"
 path = "examples/poremass/poremass_bed.rs"
 
+[[example]]
+name = "poreheat_packedbed"
+path = "examples/poreheat/poreheat_packedbed.rs"
+
+[[example]]
+name = "poreheat_surface"
+path = "examples/poreheat/poreheat_surface.rs"
+
+[[example]]
+name = "poreheat_bed"
+path = "examples/poreheat/poreheat_bed.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"

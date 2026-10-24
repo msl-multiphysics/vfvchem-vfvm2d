@@ -199,6 +199,10 @@ pub enum VFVChemError {
     MassporeMissingDomain {
         dom_id: usize,
     },
+    #[error("HeatPore: Domain ID {dom_id} is missing data. Call add_pore_dom and add_matrix_dom for every fluid heat domain, add_heatl_dom for every solid heat domain, add_heatl_dom on both sides of a fluid heat interface, and add_heats_dom and add_hcntl_itf for a solid heat interface.")]
+    HeatporeMissingDomain {
+        dom_id: usize,
+    },
     #[error("Pore: Permeability must be greater than zero on domain ID {dom_id}. Use K = infinity for a free fluid.")]
     PoreNonPositivePermeability {
         dom_id: usize,
