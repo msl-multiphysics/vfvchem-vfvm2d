@@ -51,6 +51,10 @@ Mass and Momentum Transfer
 Heat, Mass, and Momentum Transfer
 - heatmassflow_step.rs : transient flow past a backward-facing step with an exothermic reaction
 
+Porous Medium Flow
+- pore_steady.rs    : steady flow through a packed bed compared with the Ergun pressure drop
+- pore_transient.rs : transient flow with near-wall porosity (wall channeling)
+
 Features
 - feat_prod.rs  : production coefficient versus mass source for a fast first-order reaction
 - feat_scale.rs : convergence scaling options for flow at absolute pressure

@@ -208,4 +208,8 @@ impl SteadyBase for SteadyMass {
             oper_dir.apply_initial(vars);
         }
     }
+
+    fn update_flow(&self, _vars: &mut Variables) {
+        // no flow data
+    }
 }

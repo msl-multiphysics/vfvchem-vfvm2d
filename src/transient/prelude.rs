@@ -3,9 +3,12 @@ pub use super::transient_base::*;
 pub use super::transient_adaptive::*;
 
 // solvers
-pub use super::transient_flow::*;
-pub use super::transient_heat::*;
-pub use super::transient_heatflow::*;
-pub use super::transient_heatmassflow::*;
-pub use super::transient_mass::*;
-pub use super::transient_massflow::*;
+pub use super::core::transient_flow::*;
+pub use super::core::transient_heat::*;
+pub use super::core::transient_heatflow::*;
+pub use super::core::transient_heatmassflow::*;
+pub use super::core::transient_mass::*;
+pub use super::core::transient_massflow::*;
+
+// porous solvers
+pub use super::extend::transient_pore::*;

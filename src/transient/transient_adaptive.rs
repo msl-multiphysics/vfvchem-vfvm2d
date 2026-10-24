@@ -185,7 +185,7 @@ pub trait TransientAdaptive: TransientBase {
             let mut b_vec: Col<f64> = Col::zeros(mat_size);
             Self::_update_func(vars, t_new);
             Self::_update_grad(vars);
-            Self::_update_flow(vars);
+            self.update_flow(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
             lin.update_sparse(&a_triplet, mat_size)?;
             let mut a_mat = lin.build_matrix(&a_triplet)?;
@@ -210,7 +210,7 @@ pub trait TransientAdaptive: TransientBase {
                 Self::_solu_to_unkn(vars, &x_damp);
                 Self::_update_func(vars, t_new);
                 Self::_update_grad(vars);
-                Self::_update_flow(vars);
+                self.update_flow(vars);
                 self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
                 a_mat = lin.build_matrix(&a_triplet)?;
                 let time_i2 = Instant::now();

@@ -1,0 +1,99 @@
+use crate::base::prelude::*;
+use crate::operator::prelude::*;
+use faer::Col;
+use faer::sparse::Triplet;
+
+#[derive(Default)]
+pub struct PoreOpVecDomDrag {
+    // domain
+    pub dom_id: usize,
+
+    // vectors
+    pub vel_id: usize,  // superficial velocity (vel); unknown
+
+    // scalars
+    pub den_id: usize,   // density (rho)
+    pub visc_id: usize,  // fluid viscosity (mu)
+    pub epsl_id: usize,  // porosity (epsl)
+    pub diam_id: usize,  // particle diameter (diam)
+}
+
+impl PoreOpVecDomDrag {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, visc_id: usize, epsl_id: usize, diam_id: usize) -> Result<PoreOpVecDomDrag, VFVChemError> {
+        // adds the Darcy and Forchheimer drag to the Darcy-Brinkman-Forchheimer equation
+        // (rho / epsl) * d(vel)/dt + (rho / epsl) * vel . grad(vel / epsl) = -grad(p) + div( mu_eff * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) - (mu / K) * vel - (rho * F / sqrt(K)) * |vel| * vel + fce
+        //                                                                                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+        // input checking
+        check_dom_vecdom(vars, dom_id, vel_id)?;
+        check_dom_scldom(vars, dom_id, den_id)?;
+        check_dom_scldom(vars, dom_id, visc_id)?;
+        check_dom_scldom(vars, dom_id, epsl_id)?;
+        check_dom_scldom(vars, dom_id, diam_id)?;
+
+        // create struct
+        let mut oper = PoreOpVecDomDrag::default();
+        oper.dom_id = dom_id;
+        oper.vel_id = vel_id;
+        oper.den_id = den_id;
+        oper.visc_id = visc_id;
+        oper.epsl_id = epsl_id;
+        oper.diam_id = diam_id;
+
+        Ok(oper)
+    }
+
+    pub fn closure(epsl: f64, diam: f64) -> (f64, f64) {
+        // permeability (K) and Forchheimer coefficient (F) from the Ergun relation; returns (1 / K, F / sqrt(K))
+        // K = diam^2 * epsl^3 / (150 * (1 - epsl)^2)
+        // F = 1.75 / sqrt(150 * epsl^3)
+        // 1 / K = 150 * (1 - epsl)^2 / (diam^2 * epsl^3)
+        // F / sqrt(K) = 1.75 * (1 - epsl) / (diam * epsl^3)
+        // epsl = 1 gives a free fluid
+        if !(epsl > 0.0 && epsl < 1.0 && diam > 0.0) { return (0.0, 0.0); }  // guard against out-of-range porosity and diameter
+        let epsl_3 = epsl * epsl * epsl;
+        (150.0 * (1.0 - epsl) * (1.0 - epsl) / (diam * diam * epsl_3), 1.75 * (1.0 - epsl) / (diam * epsl_3))
+    }
+}
+
+impl OperatorBase for PoreOpVecDomDrag {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+        // int_surf -(mu / K + rho * F / sqrt(K) * |vel|) * vel dA
+        // -(mu_v / K_v + rho_v * F_v / sqrt(K_v) * |vel_v|) * vel_v * dA
+        //
+        // linearize the Forchheimer term about the previous iterate (vel_k)
+        // |vel| * vel = 2 * |vel_k| * vel - |vel_k| * vel_k
+        // lagging |vel| (Picard) stalls where the Forchheimer drag dominates; triplets are always added to keep the sparsity pattern fixed
+
+        // get objects
+        let dom = &vars.dom[self.dom_id];
+        let tri = &vars.tri[self.dom_id];
+        let vel_dom = &vars.vecdom[self.vel_id];
+        let den_dom = &vars.scldom[self.den_id];
+        let visc_dom = &vars.scldom[self.visc_id];
+        let epsl_dom = &vars.scldom[self.epsl_id];
+        let diam_dom = &vars.scldom[self.diam_id];
+
+        // iterate through points
+        // do not iterate through nodes to skip boundaries
+        for vid_v in 0..dom.num_pts() {
+            // get geometry
+            let area = tri.cvol_area[vid_v];
+
+            // get vertex properties
+            let (u_v, v_v) = vel_dom.value[vid_v];
+            let speed = (u_v * u_v + v_v * v_v).sqrt();
+            let (kinv, fsk) = PoreOpVecDomDrag::closure(epsl_dom.value[vid_v], diam_dom.value[vid_v]);
+            let drag_lin = visc_dom.value[vid_v] * kinv;
+            let drag_quad = den_dom.value[vid_v] * fsk * speed;
+
+            // load into matrix and vector
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, -(drag_lin + 2.0 * drag_quad) * area)?;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, -(drag_lin + 2.0 * drag_quad) * area)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, -drag_quad * u_v * area)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, -drag_quad * v_v * area)?;
+        }
+
+        Ok(())
+    }
+}

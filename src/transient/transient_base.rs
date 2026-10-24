@@ -10,6 +10,7 @@ pub trait TransientBase {
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError>;  // initializes operators
     fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError>;  // assemble global matrix
     fn initial_dirichlet(&self, vars: &mut Variables);  // load Dirichlet boundary values into unknowns
+    fn update_flow(&self, vars: &mut Variables);  // update the face mass flux of the flow data; empty for solvers without flow
 
     // solver function
     fn solve(
@@ -77,7 +78,7 @@ pub trait TransientBase {
             b_vec = Col::zeros(mat_size);
             Self::_update_func(vars, t);
             Self::_update_grad(vars);
-            Self::_update_flow(vars);
+            self.update_flow(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
             lin.update_sparse(&a_triplet, mat_size)?;
             let mut a_mat = lin.build_matrix(&a_triplet)?;
@@ -103,7 +104,7 @@ pub trait TransientBase {
                 Self::_solu_to_unkn(vars, &x_damp_vec);
                 Self::_update_func(vars, t);
                 Self::_update_grad(vars);
-                Self::_update_flow(vars);
+                self.update_flow(vars);
                 self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
                 a_mat = lin.build_matrix(&a_triplet)?;
                 let time_i2 = Instant::now();
@@ -112,6 +113,11 @@ pub trait TransientBase {
                 // compute tolerance: max over fields of rms(x_new - x_old) / scale (see scaling.rs)
                 res = scaled_residual(vars, &fields, &x_iter_vec, &x_damp_vec).0;
                 println!("Timestep: {ts}; Iteration: {iter}; Residual: {res:.4e}");
+
+                // error if diverged; NaN fails every comparison, so it would otherwise run to max_iter
+                if !res.is_finite() {
+                    return Err(VFVChemError::TransientNonFiniteResidual { ts, iter });
+                }
 
                 // update iteration vector
                 x_iter_vec = x_damp_vec;
@@ -281,12 +287,6 @@ pub trait TransientBase {
         }
         for vecdom in vars.vecdom.iter_mut() {
             vecdom.update_grad(&vars.tri[vecdom.dom_id]);
-        }
-    }
-
-    fn _update_flow(vars: &mut Variables) {
-        for sclflw_id in 0..vars.sclflw.len() {
-            ScalarFlow::update_flow(vars, sclflw_id);
         }
     }
 

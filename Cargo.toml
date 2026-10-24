@@ -68,6 +68,14 @@ name = "heatmassflow_step"
 path = "examples/heatmassflow/heatmassflow_step.rs"
 
 [[example]]
+name = "pore_steady"
+path = "examples/pore/pore_steady.rs"
+
+[[example]]
+name = "pore_transient"
+path = "examples/pore/pore_transient.rs"
+
+[[example]]
 name = "feat_prod"
 path = "examples/features/feat_prod.rs"
 

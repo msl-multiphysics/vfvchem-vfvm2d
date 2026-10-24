@@ -173,6 +173,15 @@ pub enum VFVChemError {
         max_iter: usize,
         res: f64,
     },
+    #[error("SteadyBase: Nonlinear iteration diverged; the solution is not finite (NaN or infinity) at iteration {iter}.")]
+    SteadyNonFiniteResidual {
+        iter: usize,
+    },
+    #[error("TransientBase: Nonlinear iteration diverged; the solution is not finite (NaN or infinity) at time step {ts}, iteration {iter}.")]
+    TransientNonFiniteResidual {
+        ts: usize,
+        iter: usize,
+    },
     #[error("Mass: Number of components must be greater than zero. Got num_comp = {num_comp}.")]
     MassNonPositiveNumComponents {
         num_comp: usize,

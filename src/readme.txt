@@ -25,6 +25,13 @@ The source code is organized into the following folders:
 - steady    : steady-state solvers
 - transient : transient solvers
 
+The operator, steady, and transient folders are split into two subfolders:
+- core   : heat, mass, and momentum transfer in single-phase materials
+- extend : additional physics built on the core (e.g., porous medium flow)
+The base classes (operator_base, steady_base, transient_base, transient_adaptive)
+and the preludes stay at the top of each folder. The preludes re-export both
+core and extend types, so `use vfvchem_vfvm2d::*` covers both.
+
 Base
 ----
 - error    : defines errors returned by the library
@@ -38,7 +45,7 @@ Base
 - scaling  : per-field reference scales for the Picard residual and the adaptive error norm
 - scl_bnd  : stores a scalar field defined on a boundary
 - scl_dom  : stores a scalar field defined on a domain
-- scl_flw  : stores the Rhie-Chow face mass flux shared by the momentum and continuity equations
+- scl_flw  : stores the Rhie-Chow face mass flux shared by the momentum and continuity equations; filled by the solvers
 - scl_itf  : stores a scalar field defined on an interface
 - vars     : owns all geometry, scalar, and vector data
 - vec_bnd  : stores a 2D vector field defined on a boundary
@@ -60,7 +67,10 @@ Flow data is registered through add_sclflw and is used by the momentum and
 continuity operators so that both use the same face mass flux.
 SteadyBase and TransientBase call update_func, update_grad, and update_flow
 before each matrix assembly so that functions, gradients, and face mass fluxes
-stay consistent with the unknowns.
+stay consistent with the unknowns. update_flow is a required method of each
+solver because the Rhie-Chow coefficient depends on the momentum equation being
+solved: flow solvers call flow_helper::update_flow, porous medium solvers call
+pore_helper::update_flow, and solvers without flow leave it empty.
 
 Operator
 --------
@@ -71,7 +81,14 @@ Domain operators apply to the whole domain, boundary operators apply to the
 control volumes of boundary nodes, and interface operators apply to the
 combined control volumes of interface nodes.
 
+Helpers hold code shared by several solvers. They are not re-exported by the
+prelude and are called by path (e.g., flow_helper::update_flow).
+
 - operator_base       : defines the common operator trait and global matrix assembly helpers
+- prelude             : re-exports operator types for convenient internal imports
+
+Core operators (operator/core)
+- flow_helper         : computes the Rhie-Chow coefficient and face mass flux of a free fluid
 - opscl_bnd_adv       : adds weighted advection to the control volumes of boundary nodes
 - opscl_bnd_advunity  : adds advection with unit weight to the control volumes of boundary nodes
 - opscl_bnd_diff      : adds diffusion to the control volumes of boundary nodes
@@ -126,7 +143,29 @@ combined control volumes of interface nodes.
 - opvec_itf_grad      : adds the pressure gradient to the combined control volumes of interface nodes
 - opvec_itf_src       : adds a body force to the combined control volumes of interface nodes
 - opvec_itf_time      : adds a momentum time derivative to the combined control volumes of interface nodes
-- prelude             : re-exports operator types for convenient internal imports
+
+Extended operators (operator/extend)
+Porous medium operators solve the Darcy-Brinkman-Forchheimer equation for the
+superficial velocity. They take the porosity (epsl) and, where needed, the particle
+diameter (diam); the permeability (K) and Forchheimer coefficient (F) are computed
+from the Ergun relation inside the operators. The viscosity (mu) is that of the liquid;
+the operators compute the effective (Brinkman) viscosity mu / epsl. epsl = 1 gives a
+free fluid.
+- pore_helper         : computes the Rhie-Chow coefficient and face mass flux of a porous medium; effective viscosity
+- pore_opscl_bnd_div  : adds velocity divergence and porous storage to the control volumes of boundary nodes
+- pore_opscl_dom_div  : adds velocity divergence and porous storage (epsl * rho) to the continuity equation
+- pore_opvec_bnd_adv  : adds porous momentum advection to the control volumes of boundary nodes
+- pore_opvec_bnd_ddil : adds the dilatatory viscous term with mu_eff to the control volumes of boundary nodes
+- pore_opvec_bnd_diff : adds the viscous diffusion term with mu_eff to the control volumes of boundary nodes
+- pore_opvec_bnd_drag : adds Darcy and Forchheimer drag to the control volumes of boundary nodes
+- pore_opvec_bnd_dtrn : adds the transpose viscous term with mu_eff to the control volumes of boundary nodes
+- pore_opvec_bnd_time : adds a porous momentum time derivative (rho / epsl) to the control volumes of boundary nodes
+- pore_opvec_dom_adv  : adds porous advection, (rho / epsl) * vel . grad(vel / epsl), to the momentum equation
+- pore_opvec_dom_ddil : adds the dilatatory viscous term with mu_eff to the momentum equation
+- pore_opvec_dom_diff : adds the viscous diffusion term with mu_eff to the momentum equation
+- pore_opvec_dom_drag : adds Darcy and Forchheimer drag to the momentum equation; defines the Ergun closure
+- pore_opvec_dom_dtrn : adds the transpose viscous term with mu_eff to the momentum equation
+- pore_opvec_dom_time : adds a porous time derivative (rho / epsl) to the momentum equation
 
 Linear
 ------
@@ -137,6 +176,8 @@ Linear
 Steady
 ------
 - steady_base         : implements the common steady nonlinear solution loop
+
+Core solvers (steady/core)
 - steady_flow         : solves steady momentum transfer
 - steady_heat         : solves steady heat transfer
 - steady_heatflow     : solves coupled steady heat and momentum transfer
@@ -144,13 +185,21 @@ Steady
 - steady_mass         : solves steady mass transfer
 - steady_massflow     : solves coupled steady mass and momentum transfer
 
+Extended solvers (steady/extend)
+- steady_pore         : solves steady porous medium flow (Darcy-Brinkman-Forchheimer)
+
 Transient
 ---------
 - transient_base         : implements the common time-stepping and nonlinear solution loops
 - transient_adaptive     : implements adaptive time stepping for every transient solver
+
+Core solvers (transient/core)
 - transient_flow         : solves transient momentum transfer
 - transient_heat         : solves transient heat transfer
 - transient_heatflow     : solves coupled transient heat and momentum transfer
 - transient_heatmassflow : solves coupled transient heat, mass, and momentum transfer
 - transient_mass         : solves transient mass transfer
 - transient_massflow     : solves coupled transient mass and momentum transfer
+
+Extended solvers (transient/extend)
+- transient_pore         : solves transient porous medium flow (Darcy-Brinkman-Forchheimer)

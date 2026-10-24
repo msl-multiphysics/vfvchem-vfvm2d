@@ -113,6 +113,10 @@ pub fn field_scale(vars: &Variables, field: &FieldNorm, x_a: &Col<f64>, x_b: &Co
 pub fn scaled_residual(vars: &Variables, fields: &[FieldNorm], x_old: &Col<f64>, x_new: &Col<f64>) -> (f64, usize) {
     // Picard residual: max over fields of rms(x_new - x_old) / s_f; returns the residual and the index of the largest field
     // with scale_off, the unscaled residual |x_new - x_old| / |x_old| (field index 0)
+    // NaN if x_new is not finite; f64::max drops NaN, so the per-field sums below would hide it
+    if (0..x_new.nrows()).any(|i| !x_new[i].is_finite()) {
+        return (f64::NAN, 0);
+    }
     if vars.scale_off || fields.is_empty() {
         return ((x_new - x_old).norm_l2() / (x_old.norm_l2() + 1e-10), 0);
     }

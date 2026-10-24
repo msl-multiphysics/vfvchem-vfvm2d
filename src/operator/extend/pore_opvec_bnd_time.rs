@@ -1,0 +1,81 @@
+use crate::base::prelude::*;
+use crate::operator::prelude::*;
+use faer::Col;
+use faer::sparse::Triplet;
+
+#[derive(Default)]
+pub struct PoreOpVecBndTime {
+    // boundary
+    pub bnd_id: usize,
+
+    // vectors
+    pub vel_id: usize,  // superficial velocity (vel); unknown
+
+    // scalars
+    pub den_id: usize,   // density (rho)
+    pub epsl_id: usize,  // porosity (epsl)
+}
+
+impl PoreOpVecBndTime {
+    pub fn new(vars: &Variables, bnd_id: usize, vel_id: usize, den_id: usize, epsl_id: usize) -> Result<PoreOpVecBndTime, VFVChemError> {
+        // adds the time derivative term to the control volumes of boundary nodes
+        // (rho / epsl) * d(vel)/dt + (rho / epsl) * vel . grad(vel / epsl) = -grad(p) + div( mu_eff * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) - (mu / K) * vel - (rho * F / sqrt(K)) * |vel| * vel + fce
+        // ^^^^^^^^^^^^^^^^^^^^^^^^
+
+        // input checking
+        check_bnd_vecdom(vars, bnd_id, vel_id)?;
+        check_bnd_scldom(vars, bnd_id, den_id)?;
+        check_bnd_scldom(vars, bnd_id, epsl_id)?;
+
+        // create struct
+        let mut oper = PoreOpVecBndTime::default();
+        oper.bnd_id = bnd_id;
+        oper.vel_id = vel_id;
+        oper.den_id = den_id;
+        oper.epsl_id = epsl_id;
+
+        Ok(oper)
+    }
+
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+        // int_surf -(rho / epsl) * d(vel)/dt dA
+        // -(rho_v / epsl_v) * (vel_v - vel_v_prev) * dA / dt
+
+        // get objects
+        let bnd = &vars.bnd[self.bnd_id];
+        let dom = &vars.dom[bnd.dom_id];
+        let tri = &vars.tri[bnd.dom_id];
+        let vel_dom = &vars.vecdom[self.vel_id];
+        let den_dom = &vars.scldom[self.den_id];
+        let epsl_dom = &vars.scldom[self.epsl_id];
+
+        // iterate through nodes
+        for idx_v in 0..bnd.num_nds() {
+            // get indices
+            let gnd_v = bnd.nds_gnd[idx_v];
+            let nid_v = dom.nds_nid[&gnd_v];
+            let vid_v = dom.num_pts() + nid_v;
+
+            // get geometry
+            let area = tri.cvol_area[vid_v];
+
+            // get vertex properties
+            let den_v = den_dom.value[vid_v] / epsl_dom.value[vid_v];
+            let (u_v_prev, v_v_prev) = vel_dom.value_prev[vid_v];
+
+            // load into matrix and vector
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, -den_v * area / dt)?;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, -den_v * area / dt)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, -den_v * u_v_prev * area / dt)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, -den_v * v_v_prev * area / dt)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl OperatorBase for PoreOpVecBndTime {
+    fn apply(&self, _vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+        Err(VFVChemError::OperatorUseApplyTime {})
+    }
+}

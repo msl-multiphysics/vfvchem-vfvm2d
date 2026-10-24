@@ -1,12 +1,13 @@
 use crate::base::prelude::*;
+use crate::operator::core::flow_helper;
 use crate::operator::prelude::*;
-use crate::steady::prelude::*;
+use crate::transient::prelude::*;
 use faer::Col;
 use faer::sparse::Triplet;
 use std::collections::HashMap;
 
 #[derive(Default)]
-pub struct SteadyMassFlow {
+pub struct TransientMassFlow {
     // mass internal data
     // indexed by component, then by domain
     pub num_comp: usize,                                       // number of components
@@ -52,36 +53,42 @@ pub struct SteadyMassFlow {
 
     // mass operators
     pub oper_itr_mass: Vec<(Vec<OpSclDomDiffusion>, OpSclDomProduction, OpSclDomSource)>,
+    pub oper_itr_mtim: Vec<OpSclDomTimeUnity>,
+    pub oper_itr_mtpr: Vec<OpSclDomTimePrevious>,
     pub oper_itr_madv: Vec<OpSclDomAdvectionUnity>,
     pub oper_bnd_conc: Vec<OpSclBndDirichlet>,
     pub oper_bnd_mflx: Vec<(Vec<OpSclBndDiffusion>, OpSclBndProduction, OpSclBndSource, OpSclBndNeumann)>,
+    pub oper_bnd_mtim: Vec<OpSclBndTimeUnity>,
+    pub oper_bnd_mtpr: Vec<OpSclBndTimePrevious>,
     pub oper_bnd_madv: Vec<OpSclBndAdvectionUnity>,
-    pub oper_bnd_mout: Vec<(Vec<OpSclBndDiffusion>, OpSclBndAdvectionUnity, OpSclBndProduction, OpSclBndSource)>,
+    pub oper_bnd_mout: Vec<(OpSclBndTimePrevious, Vec<OpSclBndDiffusion>, OpSclBndAdvectionUnity, OpSclBndProduction, OpSclBndSource)>,
     pub oper_itf_mcnt: Vec<(OpSclItfContinuity, Vec<OpSclItfDiffusion>, OpSclItfProduction, OpSclItfSource)>,
+    pub oper_itf_mtim: Vec<OpSclItfTimeUnity>,
+    pub oper_itf_mtpr: Vec<OpSclItfTimePrevious>,
     pub oper_itf_madv: Vec<OpSclItfAdvectionUnity>,
 
     // flow operators
-    pub oper_itr_flow: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
+    pub oper_itr_flow: Vec<(OpVecDomTime, OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence, OpSclDomPressureStabilizer)>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
-    pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
-    pub oper_bnd_trac: Vec<(OpVecBndTraction, OpVecBndAdvection, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
-    pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
+    pub oper_bnd_pres: Vec<(OpSclBndDirichlet, OpVecBndTime, OpVecBndAdvection, OpVecBndGradient, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource)>,
+    pub oper_bnd_trac: Vec<(OpVecBndTraction, OpVecBndTime, OpVecBndAdvection, OpVecBndDiffusion, OpVecBndTranspose, OpVecBndDilatatory, OpVecBndSource, OpSclBndDivergence, OpSclBndPressureStabilizer)>,
+    pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity, OpVecItfTime, OpVecItfAdvection, OpVecItfGradient, OpVecItfDiffusion, OpVecItfTranspose, OpVecItfDilatatory, OpVecItfSource, OpSclItfDivergence, OpSclItfPressureStabilizer)>,
     pub oper_pref: Vec<OpSclDomPressureReference>,
 }
 
-impl SteadyMassFlow {
-    pub fn new(num_comp: usize) -> Result<SteadyMassFlow, VFVChemError> {
+impl TransientMassFlow {
+    pub fn new(num_comp: usize) -> Result<TransientMassFlow, VFVChemError> {
         // mass transfer is solved in conservative form minus c_i times continuity
-        // rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
+        // rho * dc_i/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + R_i
         // on domains with flow, c_i is per unit mass and D_ij includes the density (rho * D_ij)
         // uniform c_i is preserved even if discrete continuity is not satisfied; c_i is conserved once it is
-        // on domains without flow, c_i is per unit volume
+        // on domains without flow, c_i is per unit volume and the time derivative has unit weight
 
         // input checking
         if num_comp == 0 { return Err(VFVChemError::MassNonPositiveNumComponents { num_comp }) }
 
         // create struct with data for each component
-        let mut phys = SteadyMassFlow::default();
+        let mut phys = TransientMassFlow::default();
         phys.num_comp = num_comp;
         phys.itr_conc = vec![HashMap::new(); num_comp];
         phys.itr_diff = vec![HashMap::new(); num_comp];
@@ -175,7 +182,7 @@ impl SteadyMassFlow {
 
 }
 
-impl SteadyBase for SteadyMassFlow {
+impl TransientBase for TransientMassFlow {
     fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError> {
         // iterate over unknown vectors and scalars
         let mut xid = 0;  // index in solution vector
@@ -214,12 +221,18 @@ impl SteadyBase for SteadyMassFlow {
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError> {
         // purge operators from a previous solve
         self.oper_itr_mass.clear();
+        self.oper_itr_mtim.clear();
+        self.oper_itr_mtpr.clear();
         self.oper_itr_madv.clear();
         self.oper_bnd_conc.clear();
         self.oper_bnd_mflx.clear();
+        self.oper_bnd_mtim.clear();
+        self.oper_bnd_mtpr.clear();
         self.oper_bnd_madv.clear();
         self.oper_bnd_mout.clear();
         self.oper_itf_mcnt.clear();
+        self.oper_itf_mtim.clear();
+        self.oper_itf_mtpr.clear();
         self.oper_itf_madv.clear();
         self.oper_itr_flow.clear();
         self.oper_bnd_vel.clear();
@@ -243,10 +256,20 @@ impl SteadyBase for SteadyMassFlow {
                 self.oper_itr_mass.push((oper_diff, oper_prd, oper_src));
 
                 // advection only on domains with flow; the Peclet number uses the self-diffusivity
-                if let Some(&flw_id) = self.itr_flw.get(&dom_id) {
-                    let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                    let oper_adv = OpSclDomAdvectionUnity::new(vars, dom_id, conc_id, diff_id, flw_id)?;
-                    self.oper_itr_madv.push(oper_adv);
+                // the time derivative is weighted by the previous density on domains with flow
+                match self.itr_flw.get(&dom_id) {
+                    Some(&flw_id) => {
+                        let diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
+                        let den_id = self.itr_den[&dom_id];
+                        let oper_time = OpSclDomTimePrevious::new(vars, dom_id, conc_id, den_id)?;
+                        let oper_adv = OpSclDomAdvectionUnity::new(vars, dom_id, conc_id, diff_id, flw_id)?;
+                        self.oper_itr_mtpr.push(oper_time);
+                        self.oper_itr_madv.push(oper_adv);
+                    }
+                    None => {
+                        let oper_time = OpSclDomTimeUnity::new(vars, dom_id, conc_id)?;
+                        self.oper_itr_mtim.push(oper_time);
+                    }
                 }
             }
 
@@ -275,11 +298,21 @@ impl SteadyBase for SteadyMassFlow {
                 self.oper_bnd_mflx.push((oper_diff, oper_prd, oper_src, oper_neu));
 
                 // advection only on domains with flow; the Neumann value is the diffusive flux
-                if let Some(&dom_flw_id) = self.itr_flw.get(&dom_id) {
-                    let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
-                    let dom_vel_id = self.itr_vel[&dom_id];
-                    let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
-                    self.oper_bnd_madv.push(oper_adv);
+                // the time derivative is weighted by the previous density on domains with flow
+                match self.itr_flw.get(&dom_id) {
+                    Some(&dom_flw_id) => {
+                        let dom_diff_id = self.itr_diff[comp_i][&dom_id].get(&comp_i).copied();
+                        let dom_vel_id = self.itr_vel[&dom_id];
+                        let dom_den_id = self.itr_den[&dom_id];
+                        let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_conc_id, dom_den_id)?;
+                        let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
+                        self.oper_bnd_mtpr.push(oper_time);
+                        self.oper_bnd_madv.push(oper_adv);
+                    }
+                    None => {
+                        let oper_time = OpSclBndTimeUnity::new(vars, bnd_id, dom_conc_id)?;
+                        self.oper_bnd_mtim.push(oper_time);
+                    }
                 }
             }
             for &bnd_id in &self.mout_bnd[comp_i] {
@@ -289,7 +322,9 @@ impl SteadyBase for SteadyMassFlow {
                 let dom_mprd_id = self.itr_mprd[comp_i][&dom_id];
                 let dom_msrc_id = self.itr_msrc[comp_i][&dom_id];
                 let dom_vel_id = self.itr_vel[&dom_id];
+                let dom_den_id = self.itr_den[&dom_id];
                 let dom_flw_id = self.itr_flw[&dom_id];
+                let oper_time = OpSclBndTimePrevious::new(vars, bnd_id, dom_conc_id, dom_den_id)?;
                 let mut oper_diff = Vec::new();
                 for (&comp_j, &dom_diff_id) in &self.itr_diff[comp_i][&dom_id] {
                     let dom_conc_j_id = self.itr_conc[comp_j][&dom_id];
@@ -299,17 +334,13 @@ impl SteadyBase for SteadyMassFlow {
                 let oper_adv = OpSclBndAdvectionUnity::new(vars, bnd_id, dom_conc_id, dom_diff_id, dom_vel_id, dom_flw_id)?;
                 let oper_prd = OpSclBndProduction::new(vars, bnd_id, dom_conc_id, dom_mprd_id)?;
                 let oper_src = OpSclBndSource::new(vars, bnd_id, dom_conc_id, dom_msrc_id)?;
-                self.oper_bnd_mout.push((oper_diff, oper_adv, oper_prd, oper_src));
+                self.oper_bnd_mout.push((oper_time, oper_diff, oper_adv, oper_prd, oper_src));
             }
 
             // mass interface
             for &itf_id in &self.mcnt_itf[comp_i] {
                 let dom_a_id = vars.itf[itf_id].dom_a_id;
                 let dom_b_id = vars.itf[itf_id].dom_b_id;
-
-                // c is per unit mass with flow and per unit volume without, so both sides must match
-                if self.itr_flw.contains_key(&dom_a_id) != self.itr_flw.contains_key(&dom_b_id) { return Err(VFVChemError::MassInterfaceMixedFlow { itf_id }) }
-
                 let dom_conc_a_id = self.itr_conc[comp_i][&dom_a_id];
                 let dom_conc_b_id = self.itr_conc[comp_i][&dom_b_id];
                 let dom_mprd_a_id = self.itr_mprd[comp_i][&dom_a_id];
@@ -327,6 +358,20 @@ impl SteadyBase for SteadyMassFlow {
                 let oper_prd = OpSclItfProduction::new(vars, itf_id, dom_conc_a_id, dom_mprd_a_id, dom_conc_b_id, dom_mprd_b_id)?;
                 let oper_src = OpSclItfSource::new(vars, itf_id, dom_conc_a_id, dom_msrc_a_id, dom_conc_b_id, dom_msrc_b_id)?;
                 self.oper_itf_mcnt.push((oper_cont, oper_diff, oper_prd, oper_src));
+
+                // the time derivative is weighted by the previous density if both sides have flow
+                // c is per unit mass with flow and per unit volume without, so both sides must match
+                match (self.itr_den.get(&dom_a_id), self.itr_den.get(&dom_b_id)) {
+                    (Some(&den_a_id), Some(&den_b_id)) => {
+                        let oper_time = OpSclItfTimePrevious::new(vars, itf_id, dom_conc_a_id, den_a_id, dom_conc_b_id, den_b_id)?;
+                        self.oper_itf_mtpr.push(oper_time);
+                    }
+                    (None, None) => {
+                        let oper_time = OpSclItfTimeUnity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
+                        self.oper_itf_mtim.push(oper_time);
+                    }
+                    _ => return Err(VFVChemError::MassInterfaceMixedFlow { itf_id }),
+                }
 
                 // advection on each side with flow
                 for dom_id in [dom_a_id, dom_b_id] {
@@ -348,6 +393,7 @@ impl SteadyBase for SteadyMassFlow {
             let visc_id = self.itr_visc[&dom_id];
             let fce_id = self.itr_fce[&dom_id];
             let flw_id = self.itr_flw[&dom_id];
+            let oper_time = OpVecDomTime::new(vars, dom_id, vel_id, den_id)?;
             let oper_adv = OpVecDomAdvection::new(vars, dom_id, vel_id, den_id, visc_id, flw_id)?;
             let oper_grad = OpVecDomGradient::new(vars, dom_id, vel_id, pres_id)?;
             let oper_diff = OpVecDomDiffusion::new(vars, dom_id, vel_id, visc_id)?;
@@ -356,7 +402,7 @@ impl SteadyBase for SteadyMassFlow {
             let oper_src = OpVecDomSource::new(vars, dom_id, vel_id, fce_id)?;
             let oper_div = OpSclDomDivergence::new(vars, dom_id, vel_id, pres_id, den_id)?;
             let oper_pres = OpSclDomPressureStabilizer::new(vars, dom_id, pres_id, den_id, fce_id, flw_id)?;
-            self.oper_itr_flow.push((oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
+            self.oper_itr_flow.push((oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // flow boundary
@@ -385,13 +431,14 @@ impl SteadyBase for SteadyMassFlow {
             let dom_flw_id = self.itr_flw[&dom_id];
             let bnd_pres_id = self.pres_pres[&bnd_id];
             let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
+            let oper_time = OpVecBndTime::new(vars, bnd_id, dom_vel_id, dom_den_id)?;
             let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
             let oper_grad = OpVecBndGradient::new(vars, bnd_id, dom_vel_id, dom_pres_id)?;
             let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_ddil = OpVecBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
-            self.oper_bnd_pres.push((oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
+            self.oper_bnd_pres.push((oper_dir, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src));
         }
         for &bnd_id in &self.trac_bnd {
             // momentum over the whole node control volumes; the boundary pressure sets the traction on the boundary half-edges
@@ -405,6 +452,7 @@ impl SteadyBase for SteadyMassFlow {
             let dom_flw_id = self.itr_flw[&dom_id];
             let bnd_pres_id = self.trac_pres[&bnd_id];
             let oper_trac = OpVecBndTraction::new(vars, bnd_id, dom_vel_id, dom_pres_id, bnd_pres_id)?;
+            let oper_time = OpVecBndTime::new(vars, bnd_id, dom_vel_id, dom_den_id)?;
             let oper_adv = OpVecBndAdvection::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_visc_id, dom_flw_id)?;
             let oper_diff = OpVecBndDiffusion::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
             let oper_dtrn = OpVecBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
@@ -412,7 +460,7 @@ impl SteadyBase for SteadyMassFlow {
             let oper_src = OpVecBndSource::new(vars, bnd_id, dom_vel_id, dom_fce_id)?;
             let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_pres_id, dom_den_id)?;
             let oper_pres = OpSclBndPressureStabilizer::new(vars, bnd_id, dom_pres_id, dom_den_id, dom_fce_id, dom_flw_id)?;
-            self.oper_bnd_trac.push((oper_trac, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
+            self.oper_bnd_trac.push((oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // flow interface
@@ -428,6 +476,7 @@ impl SteadyBase for SteadyMassFlow {
             let (flw_a_id, flw_b_id) = (self.itr_flw[&dom_a_id], self.itr_flw[&dom_b_id]);
             let oper_vcnt = OpVecItfContinuity::new(vars, itf_id, vel_a_id, vel_b_id)?;
             let oper_pcnt = OpSclItfContinuity::new(vars, itf_id, pres_a_id, pres_b_id)?;
+            let oper_time = OpVecItfTime::new(vars, itf_id, vel_a_id, den_a_id, vel_b_id, den_b_id)?;
             let oper_adv = OpVecItfAdvection::new(vars, itf_id, vel_a_id, den_a_id, visc_a_id, flw_a_id, vel_b_id, den_b_id, visc_b_id, flw_b_id)?;
             let oper_grad = OpVecItfGradient::new(vars, itf_id, vel_a_id, pres_a_id, vel_b_id, pres_b_id)?;
             let oper_diff = OpVecItfDiffusion::new(vars, itf_id, vel_a_id, visc_a_id, vel_b_id, visc_b_id)?;
@@ -436,7 +485,7 @@ impl SteadyBase for SteadyMassFlow {
             let oper_src = OpVecItfSource::new(vars, itf_id, vel_a_id, fce_a_id, vel_b_id, fce_b_id)?;
             let oper_div = OpSclItfDivergence::new(vars, itf_id, vel_a_id, pres_a_id, den_a_id, vel_b_id, pres_b_id, den_b_id)?;
             let oper_pres = OpSclItfPressureStabilizer::new(vars, itf_id, pres_a_id, den_a_id, fce_a_id, flw_a_id, pres_b_id, den_b_id, fce_b_id, flw_b_id)?;
-            self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
+            self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres));
         }
 
         // reference pressure
@@ -451,9 +500,10 @@ impl SteadyBase for SteadyMassFlow {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
         // flow internal
-        for (oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itr_flow {
+        for (oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itr_flow {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_grad.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
@@ -461,6 +511,7 @@ impl SteadyBase for SteadyMassFlow {
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
@@ -468,10 +519,12 @@ impl SteadyBase for SteadyMassFlow {
         for (oper_dir, oper_div, oper_pres) in &self.oper_bnd_vel {
             oper_dir.apply(vars, a_triplet, b_vec)?;
             oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_pres.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_dir, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src) in &self.oper_bnd_pres {
+        for (oper_dir, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src) in &self.oper_bnd_pres {
             oper_dir.apply(vars, a_triplet, b_vec)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_grad.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
@@ -479,21 +532,24 @@ impl SteadyBase for SteadyMassFlow {
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_trac, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_trac {
+        for (oper_trac, oper_time, oper_adv, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_bnd_trac {
             oper_trac.apply(vars, a_triplet, b_vec)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
         // flow interface
-        for (oper_vcnt, oper_pcnt, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itf_fcnt {
+        for (oper_vcnt, oper_pcnt, oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div, oper_pres) in &self.oper_itf_fcnt {
             oper_vcnt.apply(vars, a_triplet, b_vec)?;
             oper_pcnt.apply(vars, a_triplet, b_vec)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_grad.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
@@ -501,6 +557,7 @@ impl SteadyBase for SteadyMassFlow {
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_div.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_pres.apply(vars, a_triplet, b_vec)?;
         }
 
@@ -509,6 +566,12 @@ impl SteadyBase for SteadyMassFlow {
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
             oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_time in &self.oper_itr_mtim {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
+        for oper_time in &self.oper_itr_mtpr {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
         }
         for oper_adv in &self.oper_itr_madv {
             oper_adv.apply(vars, a_triplet, b_vec)?;
@@ -524,10 +587,17 @@ impl SteadyBase for SteadyMassFlow {
             oper_src.apply(vars, a_triplet, b_vec)?;
             oper_neu.apply(vars, a_triplet, b_vec)?;
         }
+        for oper_time in &self.oper_bnd_mtim {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
+        for oper_time in &self.oper_bnd_mtpr {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
         for oper_adv in &self.oper_bnd_madv {
             oper_adv.apply(vars, a_triplet, b_vec)?;
         }
-        for (oper_diff, oper_adv, oper_prd, oper_src) in &self.oper_bnd_mout {
+        for (oper_time, oper_diff, oper_adv, oper_prd, oper_src) in &self.oper_bnd_mout {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_prd.apply(vars, a_triplet, b_vec)?;
@@ -540,6 +610,12 @@ impl SteadyBase for SteadyMassFlow {
             for oper in oper_diff { oper.apply(vars, a_triplet, b_vec)?; }
             oper_prd.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_time in &self.oper_itf_mtim {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+        }
+        for oper_time in &self.oper_itf_mtpr {
+            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
         }
         for oper_adv in &self.oper_itf_madv {
             oper_adv.apply(vars, a_triplet, b_vec)?;
@@ -563,6 +639,13 @@ impl SteadyBase for SteadyMassFlow {
         }
         for (oper_dir, ..) in &self.oper_bnd_pres {
             oper_dir.apply_initial(vars);
+        }
+    }
+
+    fn update_flow(&self, vars: &mut Variables) {
+        // Rhie-Chow face mass flux of a free fluid
+        for &dom_id in &self.itr_fdom {
+            flow_helper::update_flow(vars, self.itr_flw[&dom_id]);
         }
     }
 }
