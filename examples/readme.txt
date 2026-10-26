@@ -1,9 +1,3 @@
-__     _________     ______ _                    
-\ \   / /  ___\ \   / / ___| |__   ___ _ __ ___  
- \ \ / /| |_   \ \ / / |   | '_ \ / _ \ '_ ` _ \ 
-  \ V / |  _|   \ V /| |___| | | |  __/ | | | | |
-   \_/  |_|      \_/  \____|_| |_|\___|_| |_| |_|
-
 Vertex-Centered Finite Volume Method Solver for Chemical Engineering Applications
 2D Vertex-Centered Finite Volume Method Module - Examples
 
