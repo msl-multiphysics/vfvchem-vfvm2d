@@ -3,5 +3,6 @@ pub mod prelude;
 pub mod linear_base;
 
 // matrix solvers
-pub mod linear_lu;
-pub mod linear_gmres;
+pub mod faer_lu;
+pub mod rslab_lu;
+pub mod rslab_gmres;

@@ -104,7 +104,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // physics solver
     // arguments: vars, linear_solver, dt, num_ts, num_ts_write, max_iter, tol, damping_factor
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 0.5, 20, 5, 30, 1e-6, 1.0)?;
 
     Ok(())

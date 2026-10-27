@@ -91,11 +91,11 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_hflx_bnd(bnd_t, hflx_t)?;  // arguments: boundary, q
 
     // physics solver
-    // LinearLu::new - sparse LU linear solver; arguments: num_thread
+    // FaerLu::new - sparse LU linear solver; arguments: num_thread
     // arguments: vars, linear_solver, max_iter, tol, damping_factor
     // damping_factor - between 0.0 and 1.0; lower for stability and higher for speed (if linear or nearly linear)
     // for highly non-linear problems, using a lower damping factor (e.g., 0.8-0.9) may be faster
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 10, 1e-6, 1.0)?;
     Ok(())
 }

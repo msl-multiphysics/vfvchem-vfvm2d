@@ -66,7 +66,7 @@ fn options_defaults() {
 fn default_output_times() {
     let path = folder("default");
     let mut h = heat(None).unwrap();
-    let mut lin: Box<dyn LinearBase> = LinearLu::new(1).unwrap();
+    let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
     let mut opt = AdaptiveOptions::new(0.01, 1.0, path.to_str().unwrap()).unwrap();
     opt.atol = 1e-6;  // T starts at 0; a tiny atol would drive the first step to dt_min
     h.phys.solve_adaptive(&mut h.vars, &mut lin, &opt).unwrap();
@@ -97,7 +97,7 @@ fn custom_output_times() {
     // unsorted, duplicated, out of range, and missing t_end
     let path = folder("custom");
     let mut h = heat(None).unwrap();
-    let mut lin: Box<dyn LinearBase> = LinearLu::new(1).unwrap();
+    let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
     let mut opt = AdaptiveOptions::new(0.01, 1.0, path.to_str().unwrap()).unwrap();
     opt.out_times = vec![0.7, 0.25, -1.0, 0.0, 0.25, 2.0];
     h.phys.solve_adaptive(&mut h.vars, &mut lin, &opt).unwrap();
@@ -114,7 +114,7 @@ fn rejected_steps_keep_previous_state() {
     // a large first step is rejected; value_prev seen by the hook must always be the last accepted state
     let path = folder("reject");
     let mut h = heat(Some((0.3, 0.05))).unwrap();
-    let mut lin: Box<dyn LinearBase> = LinearLu::new(1).unwrap();
+    let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
     let mut opt = AdaptiveOptions::new(1.0, 1.0, path.to_str().unwrap()).unwrap();
     opt.rtol = 1e-3;
     opt.atol = 1e-6;
@@ -144,7 +144,7 @@ fn rejected_steps_keep_previous_state() {
 fn fixed_matches_solve() {
     let path = folder("fixed");
     let mut a = heat(Some((0.1, 0.05))).unwrap();
-    let mut lin: Box<dyn LinearBase> = LinearLu::new(1).unwrap();
+    let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
     a.phys.solve(&mut a.vars, &mut lin, 0.01, 50, 50, 30, 1e-10, 1.0).unwrap();
 
     let mut b = heat(Some((0.1, 0.05))).unwrap();

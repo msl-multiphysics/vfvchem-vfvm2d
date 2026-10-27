@@ -6,18 +6,18 @@ use faer::sparse::linalg::solvers::{Lu, SymbolicLu};
 use faer::{ColMut, Par};
 use std::num::NonZeroUsize;
 
-pub struct LinearLu {
+pub struct FaerLu {
     symbolic: SymbolicSparseColMat<usize, usize, usize>,
     argsort: Argsort<usize>,
     symbolic_lu: SymbolicLu<usize>,
 }
 
-impl LinearLu {
+impl FaerLu {
     pub fn new(num_thread: usize) -> Result<Box<dyn LinearBase>, VFVChemError> {
         // placeholder default
         let (symbolic, argsort) = SymbolicSparseColMat::try_new_from_indices(0, 0, &[]).map_err(|e| _symbolic_err(e))?;
         let symbolic_lu = SymbolicLu::try_new(symbolic.as_ref()).map_err(|e| _symbolic_lu_err(e))?;
-        let lin = LinearLu { symbolic, argsort, symbolic_lu };
+        let lin = FaerLu { symbolic, argsort, symbolic_lu };
 
         // set number of threads
         let num_thread_nz = NonZeroUsize::new(num_thread).unwrap();
@@ -28,7 +28,7 @@ impl LinearLu {
     }
 }
 
-impl LinearBase for LinearLu {
+impl LinearBase for FaerLu {
     fn update_sparse(&mut self, a_triplet: &Vec<(usize, usize, f64)>, mat_size: usize) -> Result<(), VFVChemError> {
         // collect (row, col) pairs
         let a_pair: Vec<Pair<usize, usize>> = a_triplet.iter().map(|&(row, col, _)| Pair::new(row, col)).collect();
@@ -64,17 +64,17 @@ impl LinearBase for LinearLu {
 }
 
 fn _symbolic_err(source: faer::sparse::CreationError) -> VFVChemError {
-    VFVChemError::LinearLuSymbolicError { message: format!("{source}") }
+    VFVChemError::FaerLuSymbolicError { message: format!("{source}") }
 }
 
 fn _matrix_err(source: faer::sparse::FaerError) -> VFVChemError {
-    VFVChemError::LinearLuMatrixError { message: format!("{source}") }
+    VFVChemError::FaerLuMatrixError { message: format!("{source}") }
 }
 
 fn _symbolic_lu_err(source: faer::sparse::FaerError) -> VFVChemError {
-    VFVChemError::LinearLuSymbolicLuError { message: format!("{source}") }
+    VFVChemError::FaerLuSymbolicLuError { message: format!("{source}") }
 }
 
 fn _lu_err(source: faer::sparse::linalg::LuError) -> VFVChemError {
-    VFVChemError::LinearLuLuError { message: format!("{source}") }
+    VFVChemError::FaerLuLuError { message: format!("{source}") }
 }

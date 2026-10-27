@@ -65,7 +65,7 @@ fn poiseuille(pore: bool, transient: bool) -> Result<(Vec<(f64, f64)>, Vec<f64>)
     let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0, "")?;
     let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0), "")?;
     let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.0, 0.0), "")?;
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     match (pore, transient) {
         (false, false) => {
             let mut phys = SteadyFlow::new()?;
@@ -133,7 +133,7 @@ fn channel(dx: f64, g: f64, epsl: fn(f64) -> f64, perm: fn(f64) -> f64, forch: f
     phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
     phys.add_pres_bnd(bnd_l, pres_l)?; phys.add_pres_bnd(bnd_r, pres_r)?;
     phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0)?;
     let flux_l = end_flux(&vars, bnd_l, vel, 1.0);
     let flux_r = end_flux(&vars, bnd_r, vel, 1.0);
@@ -317,7 +317,7 @@ fn channel_itf(dx: f64, g: f64) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>), VF
         phys.add_vel_bnd(bnd, vel)?;
     }
     phys.add_fcnt_itf(itf_m)?;
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0)?;
     let mut pos = positions(&vars, dom_p);
     pos.extend(positions(&vars, dom_f));
@@ -376,7 +376,7 @@ fn column(u_in: f64) -> Result<(f64, f64), VFVChemError> {
     phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch)?;
     phys.add_vel_bnd(bnd_l, vel_l)?; phys.add_pres_bnd(bnd_r, pres_r)?;
     phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0)?;
     let pos = positions(&vars, dom);
     let p = &vars.scldom[pres].value;
@@ -427,7 +427,7 @@ fn transient_spinup() {
     phys.add_pore_dom(dom, vel, pres, den, visc, fce, epsl, perm, forch).unwrap();
     phys.add_pres_bnd(bnd_l, pres_l).unwrap(); phys.add_pres_bnd(bnd_r, pres_r).unwrap();
     phys.add_vel_bnd(bnd_b, vel_b).unwrap(); phys.add_vel_bnd(bnd_t, vel_t).unwrap();
-    let mut lin = LinearLu::new(1).unwrap();
+    let mut lin = FaerLu::new(1).unwrap();
     let dt = 5e-4;
     let mut u_be = 0.0;
     let pos = positions(&vars, dom);

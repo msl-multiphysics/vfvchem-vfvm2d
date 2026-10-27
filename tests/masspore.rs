@@ -75,7 +75,7 @@ fn poiseuille(pore: bool, transient: bool) -> Result<Vec<Vec<f64>>, VFVChemError
     let mflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0, "")?;
     let mflx_t = vars.add_sclbnd_cnst(bnd_t, 1e-4, "")?;
     let diffs = [HashMap::from([(0, diff_00), (1, diff_01)]), HashMap::from([(1, diff_11)])];
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     macro_rules! setup {
         ($phys:ident) => {
             for i in 0..2 {
@@ -203,7 +203,7 @@ fn packed_column_cdr() {
         phys.add_mflx_bnd(0, bnd_b, mflx_b).unwrap(); phys.add_mflx_bnd(0, bnd_t, mflx_t).unwrap();
         phys.add_vel_bnd(bnd_l, vel_l).unwrap(); phys.add_pres_bnd(bnd_r, pres_r).unwrap();
         phys.add_vel_bnd(bnd_b, vel_b).unwrap(); phys.add_vel_bnd(bnd_t, vel_t).unwrap();
-        let mut lin = LinearLu::new(1).unwrap();
+        let mut lin = FaerLu::new(1).unwrap();
         phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0).unwrap();
         let pos = positions(&vars, dom);
         let c = &vars.scldom[conc].value;
@@ -257,7 +257,7 @@ fn pulse(displ: f64, dt: f64) -> Result<(f64, f64, f64, f64, f64), VFVChemError>
     phys.add_vel_bnd(bnd_l, vel_l)?; phys.add_pres_bnd(bnd_r, pres_r)?;
     phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
     let m0_init = s0 * (2.0 * std::f64::consts::PI).sqrt() * h;  // the CV areas are built in solve
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     let num_ts = (t_end / dt).round() as usize;
     phys.solve(&mut vars, &mut lin, dt, num_ts, num_ts, 50, 1e-10, 1.0)?;
     let (m0, m1, m2) = moments(&vars, dom, conc);
@@ -310,7 +310,7 @@ fn transverse_dispersion() {
     phys.add_mflx_bnd(0, bnd_b, mflx_b).unwrap(); phys.add_mflx_bnd(0, bnd_t, mflx_t).unwrap();
     phys.add_vel_bnd(bnd_l, vel_l).unwrap(); phys.add_pres_bnd(bnd_r, pres_r).unwrap();
     phys.add_vel_bnd(bnd_b, vel_b).unwrap(); phys.add_vel_bnd(bnd_t, vel_t).unwrap();
-    let mut lin = LinearLu::new(1).unwrap();
+    let mut lin = FaerLu::new(1).unwrap();
     phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0).unwrap();
     let pos = positions(&vars, dom);
     let c = &vars.scldom[conc].value;
@@ -360,7 +360,7 @@ fn outflow_conservation() {
     phys.add_mflx_bnd(0, bnd_b, mflx_b).unwrap(); phys.add_mflx_bnd(0, bnd_t, mflx_t).unwrap();
     phys.add_vel_bnd(bnd_l, vel_l).unwrap(); phys.add_pres_bnd(bnd_r, pres_r).unwrap();
     phys.add_vel_bnd(bnd_b, vel_b).unwrap(); phys.add_vel_bnd(bnd_t, vel_t).unwrap();
-    let mut lin = LinearLu::new(1).unwrap();
+    let mut lin = FaerLu::new(1).unwrap();
     phys.solve(&mut vars, &mut lin, 100, 1e-12, 1.0).unwrap();
 
     // outward advective flux of each control volume; c_v times the net outward face mass flux (rho = 1)
@@ -474,7 +474,7 @@ fn interface_layered() {
         }
         phys.add_fcnt_itf(itf_m).unwrap();
         phys.add_mcnt_itf(0, itf_m).unwrap();
-        let mut lin = LinearLu::new(1).unwrap();
+        let mut lin = FaerLu::new(1).unwrap();
         phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0).unwrap();
         let mut sum = 0.0;
         let mut emax: f64 = 0.0;

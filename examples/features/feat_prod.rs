@@ -115,10 +115,10 @@ fn run(use_prd: bool) -> Result<(), VFVChemError> {
     phys.add_mflx_bnd(0, bnd_t, mflx_0_t)?;  // arguments: component, boundary, N
 
     // physics solver
-    // LinearLu::new - sparse LU linear solver; arguments: num_thread
+    // FaerLu::new - sparse LU linear solver; arguments: num_thread
     // arguments: vars, linear_solver, max_iter, tol, damping_factor
     // damping_factor - between 0.0 and 1.0; lower for stability and higher for speed (if linear or nearly linear)
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 50, 1e-8, 1.0)?;
 
     Ok(())

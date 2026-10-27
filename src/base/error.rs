@@ -218,49 +218,86 @@ pub enum VFVChemError {
 
 
     // linear solvers
-    #[error("LinearLu: Could not construct symbolic sparse matrix. {message}")]
-    LinearLuSymbolicError {
+    #[error("FaerLu: Could not construct symbolic sparse matrix. {message}")]
+    FaerLuSymbolicError {
         message: String,
     },
-    #[error("LinearLu: Could not assemble sparse matrix. {message}")]
-    LinearLuMatrixError {
+    #[error("FaerLu: Could not assemble sparse matrix. {message}")]
+    FaerLuMatrixError {
         message: String,
     },
-    #[error("LinearLu: Could not compute symbolic LU factorization. {message}")]
-    LinearLuSymbolicLuError {
+    #[error("FaerLu: Could not compute symbolic LU factorization. {message}")]
+    FaerLuSymbolicLuError {
         message: String,
     },
-    #[error("LinearLu: Could not compute LU factorization. {message}")]
-    LinearLuLuError {
+    #[error("FaerLu: Could not compute LU factorization. {message}")]
+    FaerLuLuError {
         message: String,
     },
-    #[error("LinearGmres: Number of threads must be greater than zero. Got num_thread = {num_thread}.")]
-    LinearGmresNonPositiveThreads {
+    #[error("RslabLu: Number of threads must be greater than zero. Got num_thread = {num_thread}.")]
+    RslabLuNonPositiveThreads {
         num_thread: usize,
     },
-    #[error("LinearGmres: Tolerance must be greater than zero. Got tol = {tol}.")]
-    LinearGmresNonPositiveTolerance {
+    #[error("RslabLu: Could not construct sparse matrix layout. {message}")]
+    RslabLuLayoutError {
+        message: String,
+    },
+    #[error("RslabLu: Could not compute symbolic LU factorization. {message}")]
+    RslabLuSymbolicError {
+        message: String,
+    },
+    #[error("RslabLu: Could not compute LU factorization. {message}")]
+    RslabLuLuError {
+        message: String,
+    },
+    #[error("RslabLu: Could not solve the linear system. {message}")]
+    RslabLuSolveError {
+        message: String,
+    },
+    #[error("RslabLu: Sparsity pattern is missing. Call update_sparse before solve.")]
+    RslabLuMissingSparse {},
+    #[error("RslabGmres: Number of threads must be greater than zero. Got num_thread = {num_thread}.")]
+    RslabGmresNonPositiveThreads {
+        num_thread: usize,
+    },
+    #[error("RslabGmres: Tolerance must be greater than zero. Got tol = {tol}.")]
+    RslabGmresNonPositiveTolerance {
         tol: f64,
     },
-    #[error("LinearGmres: Restart size must be greater than zero. Got restart = {restart}.")]
-    LinearGmresNonPositiveRestart {
+    #[error("RslabGmres: Restart size must be greater than zero. Got restart = {restart}.")]
+    RslabGmresNonPositiveRestart {
         restart: usize,
     },
-    #[error("LinearGmres: Maximum outer iterations must be greater than zero. Got max_outer = {max_outer}.")]
-    LinearGmresNonPositiveMaxOuter {
-        max_outer: usize,
+    #[error("RslabGmres: Maximum iterations must be greater than zero. Got max_iter = {max_iter}.")]
+    RslabGmresNonPositiveMaxIter {
+        max_iter: usize,
     },
-    #[error("LinearGmres: Could not construct symbolic sparse matrix. {message}")]
-    LinearGmresSymbolicError {
+    #[error("RslabGmres: Drop tolerance must be greater than zero. Got drop_tol = {drop_tol}.")]
+    RslabGmresNonPositiveDropTolerance {
+        drop_tol: f64,
+    },
+    #[error("RslabGmres: Could not construct sparse matrix layout. {message}")]
+    RslabGmresLayoutError {
         message: String,
     },
-    #[error("LinearGmres: Could not assemble sparse matrix. {message}")]
-    LinearGmresMatrixError {
+    #[error("RslabGmres: Could not compute symbolic LU factorization. {message}")]
+    RslabGmresSymbolicError {
         message: String,
     },
-    #[error("LinearGmres: Solver did not converge. {message}")]
-    LinearGmresDidNotConverge {
+    #[error("RslabGmres: Could not compute incomplete LU preconditioner. {message}")]
+    RslabGmresLuError {
         message: String,
+    },
+    #[error("RslabGmres: Could not run GMRES. {message}")]
+    RslabGmresSolveError {
+        message: String,
+    },
+    #[error("RslabGmres: Sparsity pattern is missing. Call update_sparse before solve.")]
+    RslabGmresMissingSparse {},
+    #[error("RslabGmres: Solver did not converge after {iters} iterations. Relative residual = {res:.4e}.")]
+    RslabGmresDidNotConverge {
+        iters: usize,
+        res: f64,
     },
 
     // operators

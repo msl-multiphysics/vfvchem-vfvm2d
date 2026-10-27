@@ -5,11 +5,11 @@ edition = "2024"
 
 [dependencies]
 faer = "0.24.0"
-faer_gmres = "0.5.0"
 itertools = "0.13"
+rand = "0.9"
+rslab = { git = "https://github.com/milanofthe/rslab", tag = "v1.7.0" }
 spade = "2"
 thiserror = "1"
-rand = "0.9"
 
 [[example]]
 name = "heat_transient"
@@ -118,4 +118,7 @@ codegen-units = 1
 panic = "abort"
 
 [profile.dev.package.faer]
+opt-level = 3
+
+[profile.dev.package.rslab]
 opt-level = 3

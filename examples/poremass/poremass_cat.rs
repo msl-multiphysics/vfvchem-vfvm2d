@@ -132,7 +132,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_vel_bnd(bnd_b, vel_w)?;
     phys.add_vel_bnd(bnd_t, vel_t)?;
 
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-8, 1.0)?;
     
     Ok(())

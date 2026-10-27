@@ -141,7 +141,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_vel_bnd(bnd_t, vel_t)?;
 
     // 50 s steps for 100 steps (pore velocity 1.4 mm s-1), write every 20; the deferred cross dispersion converges slowly in the first steps
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 50.0, 100, 20, 300, 1e-6, 1.0)?;
     
     Ok(())

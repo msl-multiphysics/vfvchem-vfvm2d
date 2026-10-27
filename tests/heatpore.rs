@@ -85,7 +85,7 @@ fn poiseuille(pore: bool, transient: bool) -> Result<Vec<f64>, VFVChemError> {
     let shflx_r = vars.add_sclbnd_cnst(bnd_r, 1e3, "")?;
     let shflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0, "")?;
     let shflx_t = vars.add_sclbnd_cnst(bnd_t, 0.0, "")?;
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     macro_rules! setup {
         ($phys:ident) => {
             $phys.add_vel_bnd(bnd_l, vel_l)?; $phys.add_pres_bnd(bnd_r, pres_r)?; $phys.add_vel_bnd(bnd_b, vel_b)?; $phys.add_vel_bnd(bnd_t, vel_t)?;
@@ -196,7 +196,7 @@ fn column(dx: f64, epsl_c: f64, kf: f64, ks: f64, h: f64, av: f64, ssrc_c: f64, 
     phys.add_templ_bnd(bnd_l, temp_l)?; phys.add_houtl_bnd(bnd_r)?; phys.add_hflxl_bnd(bnd_b, flx0[2])?; phys.add_hflxl_bnd(bnd_t, flx0[3])?;
     for i in 0..4 { phys.add_hflxs_bnd(bnd[i], flx0[i])?; }
     phys.add_vel_bnd(bnd_l, vel_l)?; phys.add_pres_bnd(bnd_r, pres_r)?; phys.add_vel_bnd(bnd_b, vel_b)?; phys.add_vel_bnd(bnd_t, vel_t)?;
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0)?;
     Ok(Column { vars, dom, temp, stemp })
 }
@@ -362,7 +362,7 @@ fn per_phase_bcs() {
         phys.add_hflxs_bnd(bnd_l, shflx_l).unwrap(); phys.add_temps_bnd(bnd_r, stemp_r).unwrap(); phys.add_hflxs_bnd(bnd_b, flx0[2]).unwrap(); phys.add_hflxs_bnd(bnd_t, flx0[3]).unwrap();
         for i in 0..4 { phys.add_vel_bnd(bnd[i], vel0[i]).unwrap(); }
         phys.set_pres_ref(dom, 0, 0.0).unwrap();
-        let mut lin = LinearLu::new(1).unwrap();
+        let mut lin = FaerLu::new(1).unwrap();
         phys.solve(&mut vars, &mut lin, 20, 1e-10, 1.0).unwrap();
         let ef = errors(&vars, dom, temp, &tf_ex);
         let es = errors(&vars, dom, stemp, &ts_ex);
@@ -435,7 +435,7 @@ fn closed_box(sources: bool) -> (f64, f64, f64, f64) {
         (0..tf.len()).map(|v| (e[v] * 1.2e3 * tf[v] + (1.0 - e[v]) * 2.0e6 * ts[v]) * tri.cvol_area[v]).sum()
     };
     let (dt, nts) = (5.0, 20);
-    let mut lin = LinearLu::new(1).unwrap();
+    let mut lin = FaerLu::new(1).unwrap();
     TransientBase::solve(&mut phys, &mut vars, &mut lin, dt, 1, 100, 20, 1e-12, 1.0).unwrap();
     // E needs the control volume areas and the epsl values, which only exist after a solve
     // the first one-step solve builds them; value_prev holds the initial state, which is restored before measuring E0
@@ -547,7 +547,7 @@ fn interface_split() {
         phys.add_fcnt_itf(itf).unwrap();
         phys.add_hcntl_itf(itf).unwrap();
         phys.add_hcnts_itf(itf).unwrap();
-        let mut lin = LinearLu::new(1).unwrap();
+        let mut lin = FaerLu::new(1).unwrap();
         phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0).unwrap();
 
         // errors over both layers against the exact solution in y
@@ -620,7 +620,7 @@ fn bed_fluid(swap: bool) -> (f64, Vec<f64>, Vec<f64>) {
     }
     phys.add_fcnt_itf(itf).unwrap();
     phys.add_hcntl_itf(itf).unwrap();
-    let mut lin = LinearLu::new(1).unwrap();
+    let mut lin = FaerLu::new(1).unwrap();
     phys.solve(&mut vars, &mut lin, 100, 1e-10, 1.0).unwrap();
 
     // outward advective flux of each control volume; T_v times the net outward face mass flux ((rho cp)_f = rho = 1)

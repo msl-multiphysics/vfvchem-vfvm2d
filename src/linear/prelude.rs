@@ -2,5 +2,6 @@
 pub use super::linear_base::*;
 
 // matrix solvers
-pub use super::linear_lu::*;
-pub use super::linear_gmres::*;
+pub use super::faer_lu::*;
+pub use super::rslab_lu::*;
+pub use super::rslab_gmres::*;

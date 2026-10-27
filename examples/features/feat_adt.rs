@@ -150,9 +150,9 @@ fn main() -> Result<(), VFVChemError> {
     opt.out_times = vec![10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2000.0];  // output times
 
     // physics solver
-    // LinearLu::new - sparse LU linear solver; arguments: num_thread
+    // FaerLu::new - sparse LU linear solver; arguments: num_thread
     // arguments: vars, linear_solver, adaptive_options
-    let mut lin = LinearLu::new(1)?;
+    let mut lin = FaerLu::new(1)?;
     phys.solve_adaptive(&mut vars, &mut lin, &opt)?;
 
     Ok(())
