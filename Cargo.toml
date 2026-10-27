@@ -80,10 +80,6 @@ name = "feat_prod"
 path = "examples/features/feat_prod.rs"
 
 [[example]]
-name = "feat_scale"
-path = "examples/features/feat_scale.rs"
-
-[[example]]
 name = "feat_itf"
 path = "examples/features/feat_itf.rs"
 

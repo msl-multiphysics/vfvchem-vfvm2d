@@ -31,6 +31,9 @@ pub struct ScalarDomain {
     pub grad: Vec<(f64, f64)>,  // vid -> (dv/dx, dv/dy)
     pub grad_prev: Vec<(f64, f64)>,
 
+    // convergence scale
+    pub scale: f64,  // lower bound on the field scale of an unknown (0 if not set)
+
     // output file
     pub file_name: String,  // file path without extension
     pub file_type: String,  // file extension

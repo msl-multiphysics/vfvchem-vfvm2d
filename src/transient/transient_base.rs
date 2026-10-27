@@ -44,7 +44,6 @@ pub trait TransientBase {
         // initialize operators
         let mat_size = self.initial_start(vars)?;
         self.initial_operator(vars)?;
-        let fields = field_norms(vars, &[]);  // unknown fields for the scaled residual
 
         // initialize matrices
         let mut a_triplet: Vec<Triplet<usize, usize, f64>> = Vec::new();
@@ -110,8 +109,14 @@ pub trait TransientBase {
                 let time_i2 = Instant::now();
                 time_asm += time_i2 - time_i1;
 
-                // compute tolerance: max over fields of rms(x_new - x_old) / scale (see scaling.rs)
-                res = scaled_residual(vars, &fields, &x_iter_vec, &x_damp_vec).0;
+                // compute tolerance: rms of the change relative to the field scale of each unknown (1e-12 absolute floor)
+                let s_vec = Self::_solu_scale(vars, &x_iter_vec, &x_damp_vec);
+                let mut sum = 0.0;
+                for i in 0..mat_size {
+                    let w = 1e-12 + s_vec[i];
+                    sum += ((x_damp_vec[i] - x_iter_vec[i]) / w).powi(2);
+                }
+                res = (sum / mat_size as f64).sqrt();
                 println!("Timestep: {ts}; Iteration: {iter}; Residual: {res:.4e}");
 
                 // error if diverged; NaN fails every comparison, so it would otherwise run to max_iter
@@ -192,6 +197,53 @@ pub trait TransientBase {
             }
         }
 
+    }
+
+    fn _solu_scale(vars: &Variables, x_a_vec: &Col<f64>, x_b_vec: &Col<f64>) -> Col<f64> {
+        // field scale of every unknown: max magnitude of its field over both solution vectors, at least the field scale bound
+        let mut s_vec: Col<f64> = Col::zeros(x_a_vec.nrows());
+
+        // iterate through unknown scalars
+        for scldom in &vars.scldom {
+            match scldom.scldom_type {
+                SclDomType::Unknown { start } => {
+                    // max |v| over points
+                    let num_tot = scldom.value.len();
+                    let mut scale: f64 = scldom.scale;  // lower bound set with set_scldom_scale (0 if not set)
+                    for x_vec in [x_a_vec, x_b_vec] {
+                        for tid in 0..num_tot {
+                            scale = scale.max(x_vec[start + tid].abs());
+                        }
+                    }
+                    for tid in 0..num_tot {
+                        s_vec[start + tid] = scale;
+                    }
+                }
+                _ => {continue;}  // skip if not unknown
+            }
+        }
+
+        // iterate through unknown vectors
+        for vecdom in &vars.vecdom {
+            match vecdom.vecdom_type {
+                VecDomType::Unknown { start } => {
+                    // max |(v_x, v_y)| over points; both components share one scale
+                    let num_tot = vecdom.value.len();
+                    let mut scale: f64 = vecdom.scale;  // lower bound set with set_vecdom_scale (0 if not set)
+                    for x_vec in [x_a_vec, x_b_vec] {
+                        for tid in 0..num_tot {
+                            scale = scale.max(x_vec[start + tid].hypot(x_vec[start + num_tot + tid]));
+                        }
+                    }
+                    for tid in 0..2 * num_tot {
+                        s_vec[start + tid] = scale;
+                    }
+                }
+                _ => {continue;}  // skip if not unknown
+            }
+        }
+
+        s_vec
     }
 
     fn _solu_to_unkn(vars: &mut Variables, x_vec: &Col<f64>) {

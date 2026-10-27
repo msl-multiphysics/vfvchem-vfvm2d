@@ -582,6 +582,7 @@ fn bed_fluid(swap: bool) -> (f64, Vec<f64>, Vec<f64>) {
     let mut templs = vec![];
     for (d, epsl_d, perm, forch) in [(dom_p, epsl, 1e-2, 0.5), (dom_f, 1.0, f64::INFINITY, 0.0)] {
         let [vel, pres, den, visc, fce, epsl_id, perm, forch] = layered_flow(&mut vars, d, u, epsl_d, perm, forch).unwrap();
+        vars.set_scldom_scale(pres, 1.0).unwrap();  // rho U^2; the clear fluid pressure is zero (no flow resistance)
         let templ = vars.add_scldom_unkn(d, 0.0, "").unwrap();
         let one = vars.add_scldom_cnst(d, 1.0, "").unwrap();
         let zero = vars.add_scldom_cnst(d, 0.0, "").unwrap();

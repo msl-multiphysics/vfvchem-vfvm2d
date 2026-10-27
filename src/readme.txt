@@ -11,6 +11,10 @@ Each domain is triangulated with a constrained Delaunay triangulation, and a con
 Currently, only backward Euler time stepping is implemented, with constant or adaptive time steps.
 Advective transport is discretized via the power law scheme.
 Pressure-velocity coupling in the Navier-Stokes equation is handled via Rhie-Chow interpolation.
+Pressure unknowns are gauge pressures; functions that need the absolute pressure add p_atm to the gauge pressure.
+Convergence is measured with each unknown relative to the max magnitude of its field, so an absolute pressure (large
+constant offset) would loosen the convergence of the pressure. A field that can be zero everywhere (e.g., a gauge
+pressure without flow resistance) needs a lower bound on its scale, set with set_scldom_scale or set_vecdom_scale.
 
 The source code is organized into the following folders:
 - base      : core data structures (e.g., geometry, vertices, scalars, vectors, writers)
@@ -36,7 +40,6 @@ Base
 - nds      : stores nodes on boundaries and interfaces
 - pts      : stores points inside domains; placed via Poisson-disk sampling
 - read_obj : imports boundary, interface, and domain polylines from an obj file
-- scaling  : per-field reference scales for the Picard residual and the adaptive error norm
 - scl_bnd  : stores a scalar field defined on a boundary
 - scl_dom  : stores a scalar field defined on a domain
 - scl_flw  : stores the Rhie-Chow face mass flux shared by the momentum and continuity equations; filled by the solvers

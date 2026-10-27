@@ -31,6 +31,9 @@ pub struct VectorDomain {
     pub grad: Vec<(f64, f64, f64, f64)>,  // vid -> (du/dx, du/dy, dv/dx, dv/dy)
     pub grad_prev: Vec<(f64, f64, f64, f64)>,
 
+    // convergence scale
+    pub scale: f64,  // lower bound on the field scale (magnitude) of an unknown (0 if not set)
+
     // output file
     pub file_name: String,  // file path without extension
     pub file_type: String,  // file extension

@@ -95,8 +95,6 @@ fn main() -> Result<(), VFVChemError> {
     let vel = vars.add_vecdom_unkn(dom, (5e-4, 0.0), "examples/output_poremass_hom/vel.vtu")?;
     let pres = vars.add_scldom_unkn(dom, 0.0, "examples/output_poremass_hom/pres.vtu")?;
 
-    vars.set_scldom_scale(conc_1, 1.0)?;  // residual scale of c_1; c_1 is small in the first steps
-
     // fluid and matrix properties
     let den = vars.add_scldom_cnst(dom, 1000.0, "")?;
     let visc = vars.add_scldom_cnst(dom, 1e-3, "")?;

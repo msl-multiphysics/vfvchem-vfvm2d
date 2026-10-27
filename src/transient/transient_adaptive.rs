@@ -19,13 +19,11 @@ use std::time::{Duration, Instant};
 // Taylor expansion gives y_BE - y_p = dt * (2 dt + dt_prev) / 2 * y'' and the BE local error is dt^2 / 2 * y'', so
 //   LTE ~ dt / (2 dt + dt_prev) * |y_BE - y_p|
 // (on the first step, the constant predictor y_p = y_n is used with factor 1/2: a safe overestimate).
-// The error norm is the maximum over unknown fields (scalar, vector, pressure) of
-//   max_i |LTE_i| / (atol + rtol * s_f)
-// with s_f the field reference scale (see scaling.rs): max |y| for scalars, max |u| for vectors (shared by both
-// components), and max(range of p, rho U^2, user reference) for pressure, so fields of different magnitude
-// (T, c, u, p) are each measured relative to their own size and a constant pressure offset does not matter
-// (pressure round-off PRES_ROUNDOFF * max|p| is added to atol for pressure).
-// With vars.scale_off, the previous norm (per scalar or vector component block, s = max_i max(|y_n,i|, |y_BE,i|)) is used.
+// The error norm is over all unknowns
+//   max_i |LTE_i| / (atol + rtol * s_i)
+// with s_i the field scale of unknown i: max magnitude of its field over y_n and y_BE (|(v_x, v_y)| for vectors),
+// so fields of different magnitude (T, c, u, p) are each measured relative to their own size.
+// Pressure is a gauge pressure; an absolute pressure (large constant offset) would loosen its error control.
 //
 // Controller: PI (Gustafsson / Hairer), local order k = 2:
 //   fac = safety * err^(-0.7 / k) * err_prev^(0.4 / k), clamped to [fac_min, fac_max], then dt in [dt_min, dt_max]
@@ -53,7 +51,6 @@ pub struct AdaptiveOptions {
     pub tol: f64,         // Picard
     pub damp: f64,        // Picard
     pub fixed: bool,      // if true, dt = dt_init throughout (still hitting the output times); no error control
-    pub scl_exclude: Vec<usize>,  // scalar (scldom) ids left out of the error norm, e.g., pressure (algebraic)
     pub folder_path: String,  // folder for adaptive_times.csv and adaptive_stats.csv
 }
 
@@ -64,7 +61,7 @@ impl AdaptiveOptions {
             t_end, dt_init, dt_min: 1e-12 * t_end, dt_max: t_end, rtol: 1e-3, atol: 1e-12,
             safety: 0.9, fac_min: 0.2, fac_max: 2.0, fac_fail: 0.25, max_reject: 30,
             out_times: (0..=10).map(|i| t_end * (i as f64) / 10.0).collect(),
-            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false, scl_exclude: Vec::new(),
+            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false,
             folder_path: folder_path.to_string(),
         };
         Ok(opt)
@@ -126,9 +123,6 @@ pub trait TransientAdaptive: TransientBase {
         time_dual += time_1 - time_0;
         let mat_size = self.initial_start(vars)?;
         self.initial_operator(vars)?;
-        let blocks = _field_blocks(vars, &opt.scl_exclude);
-        let fields = field_norms(vars, &[]);  // unknown fields for the scaled Picard residual
-        let fields_err = field_norms(vars, &opt.scl_exclude);  // unknown fields for the error norm
 
         // write initial condition at t = 0; it is the previous state of the first step
         let mut x_n: Col<f64> = Col::zeros(mat_size);  // last accepted state
@@ -215,7 +209,14 @@ pub trait TransientAdaptive: TransientBase {
                 a_mat = lin.build_matrix(&a_triplet)?;
                 let time_i2 = Instant::now();
                 time_asm += time_i2 - time_i1;
-                res = scaled_residual(vars, &fields, &x_iter, &x_damp).0;
+                // compute tolerance: rms of the change relative to the field scale of each unknown (1e-12 absolute floor)
+                let s_vec = Self::_solu_scale(vars, &x_iter, &x_damp);
+                let mut sum = 0.0;
+                for i in 0..mat_size {
+                    let w = 1e-12 + s_vec[i];
+                    sum += ((x_damp[i] - x_iter[i]) / w).powi(2);
+                }
+                res = (sum / mat_size as f64).sqrt();
                 num_picard += 1;
                 println!("Timestep: {ts}; Time: {t_new:.4e}; dt: {dt_step:.4e}; Iteration: {iter}; Residual: {res:.4e}");
                 x_iter = x_damp;
@@ -238,36 +239,17 @@ pub trait TransientAdaptive: TransientBase {
             }
 
             // error estimate
-            let err = if opt.fixed { 0.0 } else if !vars.scale_off {
-                // max over fields of max_i |LTE_i| / (atol + rtol * s_f), s_f the field scale (see scaling.rs)
+            let err = if opt.fixed { 0.0 } else {
+                // max_i |LTE_i| / (atol + rtol * s_i), s_i the field scale over y_n and y_BE
+                let s_vec = Self::_solu_scale(vars, &x_n, &x_iter);
                 let mut e: f64 = 0.0;
-                for field in &fields_err {
-                    let ncomp = if let FieldKind::Vector = field.kind { 2 } else { 1 };
-                    let mut emax: f64 = 0.0;
-                    for i in field.start..field.start + ncomp * field.len {
-                        let (yp, fac) = match &x_nm1 {
-                            Some((xm, dtm)) => (x_n[i] + dt_step / dtm * (x_n[i] - xm[i]), dt_step / (2.0 * dt_step + dtm)),
-                            None => (x_n[i], 0.5),
-                        };
-                        emax = emax.max(fac * (x_iter[i] - yp).abs());
-                    }
-                    e = e.max(emax / (opt.atol + pres_roundoff(field, &x_n, &x_iter) + opt.rtol * field_scale(vars, field, &x_n, &x_iter)));
-                }
-                e
-            } else {
-                let mut e: f64 = 0.0;
-                for &(s, len) in &blocks {
-                    let mut emax: f64 = 0.0;
-                    let mut ymax: f64 = 0.0;
-                    for i in s..s + len {
-                        let (yp, fac) = match &x_nm1 {
-                            Some((xm, dtm)) => (x_n[i] + dt_step / dtm * (x_n[i] - xm[i]), dt_step / (2.0 * dt_step + dtm)),
-                            None => (x_n[i], 0.5),
-                        };
-                        emax = emax.max(fac * (x_iter[i] - yp).abs());
-                        ymax = ymax.max(x_n[i].abs()).max(x_iter[i].abs());
-                    }
-                    e = e.max(emax / (opt.atol + opt.rtol * ymax));
+                for i in 0..mat_size {
+                    let (yp, fac) = match &x_nm1 {
+                        Some((xm, dtm)) => (x_n[i] + dt_step / dtm * (x_n[i] - xm[i]), dt_step / (2.0 * dt_step + dtm)),
+                        None => (x_n[i], 0.5),
+                    };
+                    let w = opt.atol + opt.rtol * s_vec[i];
+                    e = e.max(fac * (x_iter[i] - yp).abs() / w);
                 }
                 e
             };
@@ -351,23 +333,6 @@ pub trait TransientAdaptive: TransientBase {
 }
 
 impl<T: TransientBase> TransientAdaptive for T {}
-
-fn _field_blocks(vars: &Variables, exclude: &[usize]) -> Vec<(usize, usize)> {
-    // (start, length) of every unknown scalar and vector-component block in the solution vector
-    let mut blocks = Vec::new();
-    for (id, scldom) in vars.scldom.iter().enumerate() {
-        if exclude.contains(&id) { continue; }
-        if let SclDomType::Unknown { start } = scldom.scldom_type { blocks.push((start, scldom.value.len())); }
-    }
-    for vecdom in &vars.vecdom {
-        if let VecDomType::Unknown { start } = vecdom.vecdom_type {
-            let num_tot = vecdom.value.len();
-            blocks.push((start, num_tot));
-            blocks.push((start + num_tot, num_tot));
-        }
-    }
-    blocks
-}
 
 fn _adaptive_err(file_path: &str, source: std::io::Error) -> VFVChemError {
     VFVChemError::WriteCsv { file_path: file_path.to_string(), source }

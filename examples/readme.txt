@@ -61,6 +61,5 @@ Heat Transfer in Porous Media
 
 Features
 - feat_prod.rs  : production coefficient versus mass source for a fast first-order reaction
-- feat_scale.rs : convergence scaling options for flow at absolute pressure
 - feat_itf.rs   : heat and mass transfer through regions with different properties joined by an interface
 - feat_adt.rs   : adaptive time stepping

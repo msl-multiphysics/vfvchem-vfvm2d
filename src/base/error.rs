@@ -154,9 +154,17 @@ pub enum VFVChemError {
     SolverNonPositiveTolerance {
         tol: f64,
     },
-    #[error("Variables: Reference scale must be greater than zero. Got scale = {scale}.")]
+    #[error("Variables: Scale must be greater than zero. Got scale = {scale}.")]
     VariablesNonPositiveScale {
         scale: f64,
+    },
+    #[error("Variables: Scale can only be set on unknown-type fields. ScalarDomain ID {scldom_id} is not unknown-type.")]
+    VariablesScldomScaleNotUnknown {
+        scldom_id: usize,
+    },
+    #[error("Variables: Scale can only be set on unknown-type fields. VectorDomain ID {vecdom_id} is not unknown-type.")]
+    VariablesVecdomScaleNotUnknown {
+        vecdom_id: usize,
     },
     #[error("Solver: Damping must be in (0, 1]. Got damp = {damp}.")]
     SolverInvalidDamping {

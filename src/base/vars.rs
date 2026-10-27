@@ -1,5 +1,4 @@
 use crate::base::prelude::*;
-use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct Variables {
@@ -23,12 +22,6 @@ pub struct Variables {
     pub vecdom: Vec<VectorDomain>,
     pub vecbnd: Vec<VectorBoundary>,
     pub vecitf: Vec<VectorInterface>,
-
-    // convergence scaling
-    // reference scales of unknown fields used in the Picard residual and the adaptive error norm (see scaling.rs)
-    pub scale_scldom: HashMap<usize, f64>,  // scldom id -> reference scale (for pressure: reference pressure difference)
-    pub scale_vecdom: HashMap<usize, f64>,  // vecdom id -> reference scale (velocity magnitude)
-    pub scale_off: bool,                    // if true, the unscaled residual |x_new - x_old| / |x_old| is used
 }
 
 impl Variables {
@@ -198,17 +191,20 @@ impl Variables {
         Ok(vecitf_id)
     }
 
-
-    // convergence scaling
+    // convergence scale
+    // lower bound on the field scale used in the Picard residual and the adaptive error norm
+    // needed only for fields that can be zero everywhere (e.g., a gauge pressure without flow resistance)
     pub fn set_scldom_scale(&mut self, scldom_id: usize, scale: f64) -> Result<(), VFVChemError> {
         if scale.is_nan() || scale <= 0.0 { return Err(VFVChemError::VariablesNonPositiveScale { scale }); }
-        self.scale_scldom.insert(scldom_id, scale);
+        if !matches!(self.scldom[scldom_id].scldom_type, SclDomType::Unknown { .. }) { return Err(VFVChemError::VariablesScldomScaleNotUnknown { scldom_id }); }
+        self.scldom[scldom_id].scale = scale;
         Ok(())
     }
 
     pub fn set_vecdom_scale(&mut self, vecdom_id: usize, scale: f64) -> Result<(), VFVChemError> {
         if scale.is_nan() || scale <= 0.0 { return Err(VFVChemError::VariablesNonPositiveScale { scale }); }
-        self.scale_vecdom.insert(vecdom_id, scale);
+        if !matches!(self.vecdom[vecdom_id].vecdom_type, VecDomType::Unknown { .. }) { return Err(VFVChemError::VariablesVecdomScaleNotUnknown { vecdom_id }); }
+        self.vecdom[vecdom_id].scale = scale;
         Ok(())
     }
 
