@@ -191,7 +191,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_vel_bnd(bnd_t, vel_w_t)?;
     phys.add_fcnt_itf(itf_bed)?;  // flow continuity across the interface
 
-    let mut lin = FaerLu::new(1)?;
+    let mut lin = RslabLu::new(4)?;
     phys.solve(&mut vars, &mut lin, 100, 1e-8, 1.0)?;
 
     Ok(())

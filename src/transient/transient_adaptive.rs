@@ -32,58 +32,63 @@ use std::time::{Duration, Instant};
 // Time-dependent functions are evaluated at the end of each step, so a forcing discontinuity (e.g., a source switched
 // on at t0) must be listed in out_times; otherwise a pulse that falls inside one step is missed.
 
-pub struct AdaptiveOptions {
-    pub t_end: f64,
-    pub dt_init: f64,
-    pub dt_min: f64,
-    pub dt_max: f64,
-    pub rtol: f64,
-    pub atol: f64,
-    pub safety: f64,     // 0.9
-    pub fac_min: f64,    // 0.2; largest shrink per step
-    pub fac_max: f64,    // 2.0; largest growth per step
-    pub fac_fail: f64,   // 0.25; shrink after a Picard failure
-    pub max_reject: usize,  // consecutive rejections before giving up
-    pub out_times: Vec<f64>,  // output written exactly at these times (plus t = 0 and t_end)
-    pub max_iter: usize,  // Picard
-    pub tol: f64,         // Picard
-    pub damp: f64,        // Picard
-    pub fixed: bool,      // if true, dt = dt_init throughout (still hitting the output times); no error control
-    pub folder_path: String,  // folder for adaptive_times.csv and adaptive_stats.csv
-}
-
-impl AdaptiveOptions {
-    pub fn new(dt_init: f64, t_end: f64, folder_path: &str) -> Result<AdaptiveOptions, VFVChemError> {
-        // default output times are 11 evenly spaced times from 0 to t_end
-        let opt = AdaptiveOptions {
-            t_end, dt_init, dt_min: 1e-12 * t_end, dt_max: t_end, rtol: 1e-3, atol: 1e-12,
-            safety: 0.9, fac_min: 0.2, fac_max: 2.0, fac_fail: 0.25, max_reject: 30,
-            out_times: (0..=10).map(|i| t_end * (i as f64) / 10.0).collect(),
-            max_iter: 30, tol: 1e-6, damp: 1.0, fixed: false,
-            folder_path: folder_path.to_string(),
-        };
-        Ok(opt)
-    }
-}
+//
+// Arguments:
+//   t_end, dt_init, dt_min, dt_max - end time, initial step, and step size bounds
+//   rtol, atol - relative and absolute local error tolerances
+//   safety - step size safety factor (0.9)
+//   fac_min - largest shrink per step (0.2); fac_max - largest growth per step (2.0)
+//   fac_fail - shrink after a Picard failure (0.25)
+//   max_reject - consecutive rejections before giving up (30)
+//   out_times - output written exactly at these times (plus t = 0 and t_end)
+//   max_iter, tol, damp - Picard iteration
+//   fixed - if true, dt = dt_init throughout (still hitting the output times); no error control
+//   folder_path - folder for adaptive_times.csv and adaptive_stats.csv
 
 pub trait TransientAdaptive: TransientBase {
-    fn solve_adaptive(&mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>, opt: &AdaptiveOptions) -> Result<(), VFVChemError> {
-        self.solve_adaptive_with(vars, lin, opt, &mut |_v: &Variables, _t: f64, _dt: f64| {})
+    // output at num_step + 1 evenly spaced times from 0 to t_end; rtol = 1e-3, atol = 1e-12, safety = 0.9, max_reject = 30
+    fn solve_adaptive(
+        &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
+        max_iter: usize, tol: f64, damp: f64,
+        t_end: f64, dt_init: f64, dt_min: f64, dt_max: f64, num_step: usize,
+        fac_min: f64, fac_max: f64, fac_fail: f64, folder_path: &str
+    ) -> Result<(), VFVChemError> {
+        if num_step == 0 { return Err(VFVChemError::SolverNonPositiveNumTimeSteps { num_ts: num_step }); }
+        let out_times: Vec<f64> = (0..=num_step).map(|i| t_end * (i as f64) / (num_step as f64)).collect();
+        self.solve_adaptive_with_options(
+            vars, lin, t_end, dt_init, dt_min, dt_max, 1e-3, 1e-12, 0.9, fac_min, fac_max, fac_fail, 30,
+            &out_times, max_iter, tol, damp, false, folder_path
+        )
+    }
+
+    fn solve_adaptive_with_options(
+        &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
+        t_end: f64, dt_init: f64, dt_min: f64, dt_max: f64, rtol: f64, atol: f64, safety: f64,
+        fac_min: f64, fac_max: f64, fac_fail: f64, max_reject: usize, out_times: &[f64],
+        max_iter: usize, tol: f64, damp: f64, fixed: bool, folder_path: &str
+    ) -> Result<(), VFVChemError> {
+        self.solve_adaptive_with(
+            vars, lin, t_end, dt_init, dt_min, dt_max, rtol, atol, safety, fac_min, fac_max, fac_fail, max_reject,
+            out_times, max_iter, tol, damp, fixed, folder_path, &mut |_v: &Variables, _t: f64, _dt: f64| {}
+        )
     }
 
     // hook(vars, t, dt) is called after each accepted step, before the state is copied to value_prev,
     // so value_prev still holds the state at t - dt (useful for balances)
     fn solve_adaptive_with(
-        &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>, opt: &AdaptiveOptions,
+        &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
+        t_end: f64, dt_init: f64, dt_min: f64, dt_max: f64, rtol: f64, atol: f64, safety: f64,
+        fac_min: f64, fac_max: f64, fac_fail: f64, max_reject: usize, out_times: &[f64],
+        max_iter: usize, tol: f64, damp: f64, fixed: bool, folder_path: &str,
         hook: &mut dyn FnMut(&Variables, f64, f64)
     ) -> Result<(), VFVChemError> {
         // error handling
-        if !(opt.t_end > 0.0) { return Err(VFVChemError::SolverNonPositiveTimeStep { dt: opt.t_end }); }
-        if !(opt.dt_init > 0.0) || !(opt.dt_min > 0.0) || !(opt.dt_max >= opt.dt_min) { return Err(VFVChemError::SolverNonPositiveTimeStep { dt: opt.dt_init }); }
-        if opt.max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter: opt.max_iter }); }
-        if !(opt.tol > 0.0) { return Err(VFVChemError::SolverNonPositiveTolerance { tol: opt.tol }); }
-        if !(opt.damp > 0.0 && opt.damp <= 1.0) { return Err(VFVChemError::SolverInvalidDamping { damp: opt.damp }); }
-        if !opt.fixed && !(opt.rtol > 0.0 || opt.atol > 0.0) { return Err(VFVChemError::SolverNonPositiveTolerance { tol: opt.rtol }); }
+        if !(t_end > 0.0) { return Err(VFVChemError::SolverNonPositiveTimeStep { dt: t_end }); }
+        if !(dt_init > 0.0) || !(dt_min > 0.0) || !(dt_max >= dt_min) { return Err(VFVChemError::SolverNonPositiveTimeStep { dt: dt_init }); }
+        if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
+        if !(tol > 0.0) { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
+        if !(damp > 0.0 && damp <= 1.0) { return Err(VFVChemError::SolverInvalidDamping { damp }); }
+        if !fixed && !(rtol > 0.0 || atol > 0.0) { return Err(VFVChemError::SolverNonPositiveTolerance { tol: rtol }); }
 
         // start solver
         let time_start = Instant::now();
@@ -96,20 +101,20 @@ pub trait TransientAdaptive: TransientBase {
         let mut time_wrt = Duration::ZERO;
 
         // output times; sorted, without duplicates, and ending at t_end
-        let t_eps = 1e-12 * opt.t_end;
-        let mut outs: Vec<f64> = opt.out_times.iter().cloned().filter(|&t| t > t_eps && t <= opt.t_end).collect();
+        let t_eps = 1e-12 * t_end;
+        let mut outs: Vec<f64> = out_times.iter().cloned().filter(|&t| t > t_eps && t <= t_end).collect();
         outs.sort_by(|a, b| a.total_cmp(b));
         outs.dedup_by(|a, b| (*a - *b).abs() <= t_eps);
         match outs.last_mut() {
-            Some(t) if *t >= opt.t_end - t_eps => { *t = opt.t_end; }
-            _ => { outs.push(opt.t_end); }
+            Some(t) if *t >= t_end - t_eps => { *t = t_end; }
+            _ => { outs.push(t_end); }
         }
 
         // file index and time of every output
-        if !opt.folder_path.is_empty() {
-            create_dir_all(&opt.folder_path).map_err(|e| _adaptive_err(&opt.folder_path, e))?;
+        if !folder_path.is_empty() {
+            create_dir_all(folder_path).map_err(|e| _adaptive_err(folder_path, e))?;
         }
-        let times_path = Path::new(&opt.folder_path).join("adaptive_times.csv").display().to_string();
+        let times_path = Path::new(folder_path).join("adaptive_times.csv").display().to_string();
         let times_file = File::create(&times_path).map_err(|e| _adaptive_err(&times_path, e))?;
         let mut times_w = BufWriter::new(times_file);
         writeln!(times_w, "file_index,time").map_err(|e| _adaptive_err(&times_path, e))?;
@@ -148,13 +153,13 @@ pub trait TransientAdaptive: TransientBase {
         let mut out_idx = 0;
         let mut n_write = 0;
         let mut t = 0.0;
-        let mut dt = opt.dt_init.clamp(opt.dt_min, opt.dt_max);
+        let mut dt = dt_init.clamp(dt_min, dt_max);
         let mut x_nm1: Option<(Vec<f64>, f64)> = None;  // previous accepted state and its step size
         let mut err_prev: f64 = 1.0;
         let mut n_reject = 0;
         let mut no_grow = false;
         let mut a_triplet: Vec<(usize, usize, f64)> = Vec::new();
-        while t < opt.t_end - t_eps {
+        while t < t_end - t_eps {
             // index of the step being attempted; retries after a rejection keep the same index
             let ts = num_accept;
 
@@ -186,7 +191,7 @@ pub trait TransientAdaptive: TransientBase {
             // iterate to convergence; a failed linear solve or a non-finite residual rejects the step
             let mut is_conv = false;
             let mut res = f64::NAN;
-            for iter in 0..opt.max_iter {
+            for iter in 0..max_iter {
                 let time_i0 = Instant::now();
                 let x_solve = lin.solve(&a_triplet, &b_vec, &x_iter);
                 let time_i1 = Instant::now();
@@ -195,7 +200,7 @@ pub trait TransientAdaptive: TransientBase {
                     Ok(x) => x,
                     Err(e) => { println!("Timestep: {ts}; Linear solve failed: {e}"); break; }
                 };
-                let x_damp: Vec<f64> = (0..mat_size).map(|i| (1.0 - opt.damp) * x_iter[i] + opt.damp * x_udmp[i]).collect();
+                let x_damp: Vec<f64> = (0..mat_size).map(|i| (1.0 - damp) * x_iter[i] + damp * x_udmp[i]).collect();
                 a_triplet.clear();
                 b_vec = vec![0.0; mat_size];
                 Self::_solu_to_unkn(vars, &x_damp);
@@ -217,25 +222,25 @@ pub trait TransientAdaptive: TransientBase {
                 println!("Timestep: {ts}; Time: {t_new:.4e}; dt: {dt_step:.4e}; Iteration: {iter}; Residual: {res:.4e}");
                 x_iter = x_damp;
                 if !res.is_finite() { break; }
-                if res < opt.tol { is_conv = true; break; }
+                if res < tol { is_conv = true; break; }
             }
 
             // reject on Picard failure; unknowns go back to the last accepted state
             if !is_conv {
                 num_reject_picard += 1;
                 n_reject += 1;
-                if opt.fixed || n_reject > opt.max_reject || dt_step <= opt.dt_min * (1.0 + 1e-12) {
-                    return Err(VFVChemError::TransientDidNotConverge { ts: num_accept, max_iter: opt.max_iter, res });
+                if fixed || n_reject > max_reject || dt_step <= dt_min * (1.0 + 1e-12) {
+                    return Err(VFVChemError::TransientDidNotConverge { ts: num_accept, max_iter, res });
                 }
                 Self::_solu_to_unkn(vars, &x_n);
-                dt = (dt_step * opt.fac_fail).max(opt.dt_min);
+                dt = (dt_step * fac_fail).max(dt_min);
                 no_grow = true;
                 println!("Timestep: {ts}; Picard did not converge; retry with dt = {dt:.4e}");
                 continue;
             }
 
             // error estimate
-            let err = if opt.fixed { 0.0 } else {
+            let err = if fixed { 0.0 } else {
                 // max_i |LTE_i| / (atol + rtol * s_i), s_i the field scale over y_n and y_BE
                 let s_vec = Self::_solu_scale(vars, &x_n, &x_iter);
                 let mut e: f64 = 0.0;
@@ -244,19 +249,19 @@ pub trait TransientAdaptive: TransientBase {
                         Some((xm, dtm)) => (x_n[i] + dt_step / dtm * (x_n[i] - xm[i]), dt_step / (2.0 * dt_step + dtm)),
                         None => (x_n[i], 0.5),
                     };
-                    let w = opt.atol + opt.rtol * s_vec[i];
+                    let w = atol + rtol * s_vec[i];
                     e = e.max(fac * (x_iter[i] - yp).abs() / w);
                 }
                 e
             };
 
             // reject on error; at dt_min the step is accepted anyway
-            if err > 1.0 && dt_step > opt.dt_min * (1.0 + 1e-12) {
+            if err > 1.0 && dt_step > dt_min * (1.0 + 1e-12) {
                 num_reject_err += 1;
                 n_reject += 1;
-                if n_reject > opt.max_reject { return Err(VFVChemError::TransientDidNotConverge { ts: num_accept, max_iter: opt.max_iter, res: err }); }
+                if n_reject > max_reject { return Err(VFVChemError::TransientDidNotConverge { ts: num_accept, max_iter, res: err }); }
                 Self::_solu_to_unkn(vars, &x_n);
-                dt = (dt_step * (opt.safety * err.powf(-0.5)).max(opt.fac_min)).max(opt.dt_min);
+                dt = (dt_step * (safety * err.powf(-0.5)).max(fac_min)).max(dt_min);
                 no_grow = true;
                 println!("Timestep: {ts}; Error: {err:.4e}; rejected; retry with dt = {dt:.4e}");
                 continue;
@@ -287,19 +292,19 @@ pub trait TransientAdaptive: TransientBase {
             }
 
             // next step size; a step shortened to hit an output time does not limit the next one
-            if opt.fixed { dt = opt.dt_init; continue; }
+            if fixed { dt = dt_init; continue; }
             let e = err.max(1e-10);
-            let mut fac = opt.safety * e.powf(-0.35) * err_prev.max(1e-10).powf(0.2);
-            fac = fac.clamp(opt.fac_min, opt.fac_max);
+            let mut fac = safety * e.powf(-0.35) * err_prev.max(1e-10).powf(0.2);
+            fac = fac.clamp(fac_min, fac_max);
             if no_grow { fac = fac.min(1.0); no_grow = false; }
             let base = if hits { dt.max(dt_step) } else { dt_step };
-            dt = (base * fac).clamp(opt.dt_min, opt.dt_max);
+            dt = (base * fac).clamp(dt_min, dt_max);
             err_prev = e;
         }
 
         // write statistics; summary counts are repeated on every accepted step
         let time_w4 = Instant::now();
-        let stats_path = Path::new(&opt.folder_path).join("adaptive_stats.csv").display().to_string();
+        let stats_path = Path::new(folder_path).join("adaptive_stats.csv").display().to_string();
         let stats_file = File::create(&stats_path).map_err(|e| _adaptive_err(&stats_path, e))?;
         let mut stats_w = BufWriter::new(stats_file);
         writeln!(stats_w, "accepted,rejected_error,rejected_picard,picard_iterations,time,dt,error").map_err(|e| _adaptive_err(&stats_path, e))?;

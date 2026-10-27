@@ -143,7 +143,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_vel_bnd(bnd_t, vel_t)?;
 
     // 15 s; dt = 1 s
-    let mut lin = FaerLu::new(1)?;
+    let mut lin = RslabLu::new(4)?;
     phys.solve(&mut vars, &mut lin, 1.0, 15, 5, 50, 1e-8, 1.0)?;
 
     // post-processing; mean outlet T_f over the points within 2 mm of the outlet

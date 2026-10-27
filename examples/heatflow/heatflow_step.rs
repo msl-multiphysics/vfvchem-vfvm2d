@@ -129,13 +129,13 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_vel_bnd(bnd_w, vel_w)?;  // arguments: boundary, v
 
     // physics solver
-    // FaerLu::new - sparse LU linear solver; arguments: num_thread
+    // RslabLu::new - sparse LU linear solver; arguments: num_thread
     // arguments: vars, linear_solver, dt, num_ts, num_ts_write, max_iter, tol, damping_factor
     // num_ts_write - writes an output file every num_ts_write time steps; the initial condition is output 0
     // max_iter, tol - maximum number of iterations and tolerance in each time step
     // damping_factor - between 0.0 and 1.0; lower for stability and higher for speed (if linear or nearly linear)
     // for multiphysics problems, use a tolerance small enough to converge the results
-    let mut lin = FaerLu::new(1)?;
+    let mut lin = RslabLu::new(4)?;
     phys.solve(&mut vars, &mut lin, 0.1, 100, 1, 30, 1e-3, 0.5)?;
 
     Ok(())

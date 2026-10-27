@@ -50,16 +50,20 @@ fn read_csv(path: PathBuf) -> (String, Vec<Vec<f64>>) {
 }
 
 #[test]
-fn options_defaults() {
-    let opt = AdaptiveOptions::new(0.01, 2.0, "out").unwrap();
-    assert_eq!(opt.dt_init, 0.01);
-    assert_eq!(opt.t_end, 2.0);
-    assert_eq!(opt.rtol, 1e-3);
-    assert_eq!(opt.folder_path, "out");
-    assert_eq!(opt.out_times.len(), 11);
-    for (i, &t) in opt.out_times.iter().enumerate() {
-        assert!((t - 0.2 * i as f64).abs() < 1e-12);
+fn solve_adaptive_output_times() {
+    // dt fixed by dt_min = dt_max; output at num_step + 1 evenly spaced times
+    let path = folder("simple");
+    let mut h = heat(None).unwrap();
+    let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
+    h.phys.solve_adaptive(&mut h.vars, &mut lin, 30, 1e-6, 1.0, 1.0, 0.01, 0.01, 0.01, 10, 0.2, 2.0, 0.25, path.to_str().unwrap()).unwrap();
+
+    let (_, rows) = read_csv(path.join("adaptive_times.csv"));
+    assert_eq!(rows.len(), 11);
+    for (i, row) in rows.iter().enumerate() {
+        assert_eq!(row[0], i as f64);
+        assert!((row[1] - 0.1 * i as f64).abs() < 1e-12);
     }
+    let _ = remove_dir_all(&path);
 }
 
 #[test]
@@ -67,9 +71,12 @@ fn default_output_times() {
     let path = folder("default");
     let mut h = heat(None).unwrap();
     let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
-    let mut opt = AdaptiveOptions::new(0.01, 1.0, path.to_str().unwrap()).unwrap();
-    opt.atol = 1e-6;  // T starts at 0; a tiny atol would drive the first step to dt_min
-    h.phys.solve_adaptive(&mut h.vars, &mut lin, &opt).unwrap();
+    let out_times: Vec<f64> = (0..=10).map(|i| 0.1 * i as f64).collect();
+    // atol = 1e-6: T starts at 0; a tiny atol would drive the first step to dt_min
+    h.phys.solve_adaptive_with_options(
+        &mut h.vars, &mut lin, 1.0, 0.01, 1e-12, 1.0, 1e-3, 1e-6, 0.9, 0.2, 2.0, 0.25, 30,
+        &out_times, 30, 1e-6, 1.0, false, path.to_str().unwrap()
+    ).unwrap();
 
     // file index i is written at t = 0.1 * i
     let (header, rows) = read_csv(path.join("adaptive_times.csv"));
@@ -98,9 +105,11 @@ fn custom_output_times() {
     let path = folder("custom");
     let mut h = heat(None).unwrap();
     let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
-    let mut opt = AdaptiveOptions::new(0.01, 1.0, path.to_str().unwrap()).unwrap();
-    opt.out_times = vec![0.7, 0.25, -1.0, 0.0, 0.25, 2.0];
-    h.phys.solve_adaptive(&mut h.vars, &mut lin, &opt).unwrap();
+    let out_times = vec![0.7, 0.25, -1.0, 0.0, 0.25, 2.0];
+    h.phys.solve_adaptive_with_options(
+        &mut h.vars, &mut lin, 1.0, 0.01, 1e-12, 1.0, 1e-3, 1e-12, 0.9, 0.2, 2.0, 0.25, 30,
+        &out_times, 30, 1e-6, 1.0, false, path.to_str().unwrap()
+    ).unwrap();
 
     let (_, rows) = read_csv(path.join("adaptive_times.csv"));
     let times: Vec<f64> = rows.iter().map(|r| r[1]).collect();
@@ -115,15 +124,14 @@ fn rejected_steps_keep_previous_state() {
     let path = folder("reject");
     let mut h = heat(Some((0.3, 0.05))).unwrap();
     let mut lin: Box<dyn LinearBase> = FaerLu::new(1).unwrap();
-    let mut opt = AdaptiveOptions::new(1.0, 1.0, path.to_str().unwrap()).unwrap();
-    opt.rtol = 1e-3;
-    opt.atol = 1e-6;
-    opt.out_times = vec![0.3, 0.35];
+    let out_times = vec![0.3, 0.35];
     let temp = h.temp;
     let mut last = h.vars.scldom[temp].value.clone();
     let mut t_last = 0.0;
     let mut max_diff: f64 = 0.0;
-    h.phys.solve_adaptive_with(&mut h.vars, &mut lin, &opt, &mut |v, t, dt| {
+    h.phys.solve_adaptive_with(
+        &mut h.vars, &mut lin, 1.0, 1.0, 1e-12, 1.0, 1e-3, 1e-6, 0.9, 0.2, 2.0, 0.25, 30,
+        &out_times, 30, 1e-6, 1.0, false, path.to_str().unwrap(), &mut |v, t, dt| {
         let prev = &v.scldom[temp].value_prev;
         max_diff = max_diff.max(prev.iter().zip(&last).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max));
         assert!((t - dt - t_last).abs() < 1e-12);
@@ -148,11 +156,11 @@ fn fixed_matches_solve() {
     a.phys.solve(&mut a.vars, &mut lin, 0.01, 50, 50, 30, 1e-10, 1.0).unwrap();
 
     let mut b = heat(Some((0.1, 0.05))).unwrap();
-    let mut opt = AdaptiveOptions::new(0.01, 0.5, path.to_str().unwrap()).unwrap();
-    opt.fixed = true;
-    opt.tol = 1e-10;
-    opt.out_times = vec![0.1, 0.15];
-    b.phys.solve_adaptive(&mut b.vars, &mut lin, &opt).unwrap();
+    let out_times = vec![0.1, 0.15];
+    b.phys.solve_adaptive_with_options(
+        &mut b.vars, &mut lin, 0.5, 0.01, 5e-13, 0.5, 1e-3, 1e-12, 0.9, 0.2, 2.0, 0.25, 30,
+        &out_times, 30, 1e-10, 1.0, true, path.to_str().unwrap()
+    ).unwrap();
 
     let ta = &a.vars.scldom[a.temp].value;
     let tb = &b.vars.scldom[b.temp].value;

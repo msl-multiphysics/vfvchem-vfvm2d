@@ -140,10 +140,10 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_hcnt_itf(itf_d)?;  // arguments: interface
 
     // physics solver
-    // FaerLu::new - sparse LU linear solver; arguments: num_thread
+    // RslabLu::new - sparse LU linear solver; arguments: num_thread
     // arguments: vars, linear_solver, max_iter, tol, damping_factor
     // damping_factor - between 0.0 and 1.0; lower for stability and higher for speed (if linear or nearly linear)
-    let mut lin = FaerLu::new(1)?;
+    let mut lin = RslabLu::new(4)?;
     phys.solve(&mut vars, &mut lin, 10, 1e-8, 1.0)?;
 
     // mass transfer
@@ -198,7 +198,7 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_mcnt_itf(0, itf_d)?;  // arguments: component, interface
 
     // physics solver
-    let mut lin = FaerLu::new(1)?;
+    let mut lin = RslabLu::new(4)?;
     phys.solve(&mut vars, &mut lin, 10, 1e-8, 1.0)?;
 
     Ok(())

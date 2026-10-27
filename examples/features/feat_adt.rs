@@ -139,21 +139,30 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_mflx_bnd(1, bnd_b, mflx_1_b)?;  // arguments: component, boundary, N
     phys.add_mflx_bnd(1, bnd_t, mflx_1_t)?;  // arguments: component, boundary, N
 
-    // adaptive time stepping options
-    // AdaptiveOptions::new - arguments: dt_init, t_end, folder for adaptive_times.csv and adaptive_stats.csv
-    // out_times - output is written exactly at these times (plus t = 0 and t_end)
-    // if out_times is not specified, output is written at 11 evenly spaced times from 0 to t_end
-    let mut opt = AdaptiveOptions::new(1.0, 2000.0, "examples/output_feat_adt")?;
-    opt.rtol = 1e-3;  // relative local error per step; each field is measured against its own scale
-    opt.dt_max = 500.0;  // largest time step
-    opt.tol = 1e-8;  // tolerance of the iteration in each time step
-    opt.out_times = vec![10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2000.0];  // output times
-
     // physics solver
-    // FaerLu::new - sparse LU linear solver; arguments: num_thread
-    // arguments: vars, linear_solver, adaptive_options
-    let mut lin = FaerLu::new(1)?;
-    phys.solve_adaptive(&mut vars, &mut lin, &opt)?;
+    // RslabLu::new - sparse LU linear solver; arguments: num_thread
+    // arguments: vars, linear_solver, max_iter, tol, damp, t_end, dt_init, dt_min, dt_max, num_step,
+    //            fac_min, fac_max, fac_fail, folder for adaptive_times.csv and adaptive_stats.csv
+    // num_step - output is written at num_step + 1 evenly spaced times from 0 to t_end
+    // fac_min, fac_max - largest shrink and growth of the time step per step; fac_fail - shrink after a failed iteration
+    let mut lin = RslabLu::new(4)?;
+    phys.solve_adaptive(
+        &mut vars, &mut lin, 30, 1e-8, 1.0, 2000.0, 1.0, 2e-9, 500.0, 10,
+        0.2, 2.0, 0.25, "examples/output_feat_adt"
+    )?;
+
+    // complete version with all options
+    // arguments: vars, linear_solver, t_end, dt_init, dt_min, dt_max, rtol, atol, safety, fac_min, fac_max, fac_fail,
+    //            max_reject, out_times, max_iter, tol, damp, fixed, folder for adaptive_times.csv and adaptive_stats.csv
+    // rtol, atol - relative and absolute local error per step; each field is measured against its own scale
+    // max_reject - consecutive rejected steps before giving up
+    // out_times - output is written exactly at these times (plus t = 0 and t_end)
+    // fixed - if true, dt = dt_init throughout (still hitting the output times); no error control
+    // let out_times = vec![10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2000.0];
+    // phys.solve_adaptive_with_options(
+    //     &mut vars, &mut lin, 2000.0, 1.0, 2e-9, 500.0, 1e-3, 1e-12, 0.9, 0.2, 2.0, 0.25,
+    //     30, &out_times, 30, 1e-8, 1.0, false, "examples/output_feat_adt"
+    // )?;
 
     Ok(())
 }
