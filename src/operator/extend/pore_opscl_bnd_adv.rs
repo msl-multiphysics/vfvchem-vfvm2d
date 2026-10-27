@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::extend::pore_helper;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct PoreOpSclBndAdvection {
@@ -63,7 +61,7 @@ impl PoreOpSclBndAdvection {
 }
 
 impl OperatorBase for PoreOpSclBndAdvection {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -rho * vel . grad(c) dA
         // sum_ngh -F_f * (c_f - c_v) with the superficial mass flux F = rho * vel * dl
         //

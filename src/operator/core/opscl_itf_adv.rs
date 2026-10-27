@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclItfAdvection {
@@ -61,7 +59,7 @@ impl OpSclItfAdvection {
 }
 
 impl OperatorBase for OpSclItfAdvection {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -m * vel . grad(c) dA
         // int_lin -m * (c - c_v) * (vel . n) dl
         // sum_ngh -m * (c - c_v) * (vel . n) dl + sum_bnd -m * (c - c_v) * (vel . n) dl

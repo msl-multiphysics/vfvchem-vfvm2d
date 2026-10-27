@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclDomPressureReference {
@@ -45,7 +43,7 @@ impl OpSclDomPressureReference {
 }
 
 impl OperatorBase for OpSclDomPressureReference {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get row in the global system
         let dom = &vars.dom[self.dom_id];
         let start = match vars.scldom[self.pres_id].scldom_type {
@@ -55,8 +53,8 @@ impl OperatorBase for OpSclDomPressureReference {
         let xid = start + dom.num_pts() + self.nid;
 
         // replace the existing equation -> load into matrix
-        a_triplet.retain(|t| t.row != xid);
-        a_triplet.push(Triplet::new(xid, xid, 1.0));
+        a_triplet.retain(|t| t.0 != xid);
+        a_triplet.push((xid, xid, 1.0));
         b_vec[xid] = self.pres_ref;
 
         Ok(())

@@ -218,25 +218,21 @@ pub enum VFVChemError {
 
 
     // linear solvers
-    #[error("LinearLu: Could not construct symbolic sparse matrix.")]
+    #[error("LinearLu: Could not construct symbolic sparse matrix. {message}")]
     LinearLuSymbolicError {
-        #[source]
-        source: faer::sparse::CreationError,
+        message: String,
     },
-    #[error("LinearLu: Could not assemble sparse matrix.")]
+    #[error("LinearLu: Could not assemble sparse matrix. {message}")]
     LinearLuMatrixError {
-        #[source]
-        source: faer::sparse::FaerError,
+        message: String,
     },
-    #[error("LinearLu: Could not compute symbolic LU factorization.")]
+    #[error("LinearLu: Could not compute symbolic LU factorization. {message}")]
     LinearLuSymbolicLuError {
-        #[source]
-        source: faer::sparse::FaerError,
+        message: String,
     },
-    #[error("LinearLu: Could not compute LU factorization.")]
+    #[error("LinearLu: Could not compute LU factorization. {message}")]
     LinearLuLuError {
-        #[source]
-        source: faer::sparse::linalg::LuError,
+        message: String,
     },
     #[error("LinearGmres: Number of threads must be greater than zero. Got num_thread = {num_thread}.")]
     LinearGmresNonPositiveThreads {
@@ -254,15 +250,13 @@ pub enum VFVChemError {
     LinearGmresNonPositiveMaxOuter {
         max_outer: usize,
     },
-    #[error("LinearGmres: Could not construct symbolic sparse matrix.")]
+    #[error("LinearGmres: Could not construct symbolic sparse matrix. {message}")]
     LinearGmresSymbolicError {
-        #[source]
-        source: faer::sparse::CreationError,
+        message: String,
     },
-    #[error("LinearGmres: Could not assemble sparse matrix.")]
+    #[error("LinearGmres: Could not assemble sparse matrix. {message}")]
     LinearGmresMatrixError {
-        #[source]
-        source: faer::sparse::FaerError,
+        message: String,
     },
     #[error("LinearGmres: Solver did not converge. {message}")]
     LinearGmresDidNotConverge {

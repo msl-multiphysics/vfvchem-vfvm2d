@@ -1,15 +1,13 @@
 use crate::base::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 pub trait OperatorBase {
     // to implement in specific solvers
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError>;
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError>;
 
     // matrix insertion convenience functions
 
     // scalar-scalar blocks
-    fn add_sclscl_a(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, row_scl: usize, row_idx: usize, col_scl: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
+    fn add_sclscl_a(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, row_scl: usize, row_idx: usize, col_scl: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
         let row_start = match vars.scldom[row_scl].scldom_type {
             SclDomType::Unknown { start } => start,
             _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
@@ -20,10 +18,10 @@ pub trait OperatorBase {
         };
         let row_xid = row_start + row_idx;
         let col_xid = col_start + col_idx;
-        a_triplet.push(Triplet::new(row_xid, col_xid, value));
+        a_triplet.push((row_xid, col_xid, value));
         Ok(())
     }
-    fn add_scl_b(&self, vars: &Variables, b_vec: &mut Col<f64>, row_scl: usize, row_idx: usize, value: f64) -> Result<(), VFVChemError> {
+    fn add_scl_b(&self, vars: &Variables, b_vec: &mut Vec<f64>, row_scl: usize, row_idx: usize, value: f64) -> Result<(), VFVChemError> {
         let row_start = match vars.scldom[row_scl].scldom_type {
             SclDomType::Unknown { start } => start,
             _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
@@ -34,7 +32,7 @@ pub trait OperatorBase {
     }
 
     // vector-vector blocks
-    fn add_vecvec_a(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, row_vec: usize, row_comp: usize, row_idx: usize, col_vec: usize, col_comp: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
+    fn add_vecvec_a(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, row_vec: usize, row_comp: usize, row_idx: usize, col_vec: usize, col_comp: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
         let row_start = match vars.vecdom[row_vec].vecdom_type {
             VecDomType::Unknown { start } => start,
             _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
@@ -47,10 +45,10 @@ pub trait OperatorBase {
         let col_vert = vars.vecdom[col_vec].value.len();
         let row_xid = row_start + row_comp * row_vert + row_idx;
         let col_xid = col_start + col_comp * col_vert + col_idx;
-        a_triplet.push(Triplet::new(row_xid, col_xid, value));
+        a_triplet.push((row_xid, col_xid, value));
         Ok(())
     }
-    fn add_vec_b(&self, vars: &Variables, b_vec: &mut Col<f64>, row_vec: usize, row_comp: usize, row_idx: usize, value: f64) -> Result<(), VFVChemError> {
+    fn add_vec_b(&self, vars: &Variables, b_vec: &mut Vec<f64>, row_vec: usize, row_comp: usize, row_idx: usize, value: f64) -> Result<(), VFVChemError> {
         let row_start = match vars.vecdom[row_vec].vecdom_type {
             VecDomType::Unknown { start } => start,
             _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
@@ -62,7 +60,7 @@ pub trait OperatorBase {
     }
 
     // scalar-vector blocks
-    fn add_sclvec_a(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, row_scl: usize, row_idx: usize, col_vec: usize, col_comp: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
+    fn add_sclvec_a(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, row_scl: usize, row_idx: usize, col_vec: usize, col_comp: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
         let row_start = match vars.scldom[row_scl].scldom_type {
             SclDomType::Unknown { start } => start,
             _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
@@ -74,10 +72,10 @@ pub trait OperatorBase {
         let num_pts = vars.vecdom[col_vec].value.len();
         let row_xid = row_start + row_idx;
         let col_xid = col_start + col_comp * num_pts + col_idx;
-        a_triplet.push(Triplet::new(row_xid, col_xid, value));
+        a_triplet.push((row_xid, col_xid, value));
         Ok(())
     }
-    fn add_vecscl_a(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, row_vec: usize, row_comp: usize, row_idx: usize, col_scl: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
+    fn add_vecscl_a(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, row_vec: usize, row_comp: usize, row_idx: usize, col_scl: usize, col_idx: usize, value: f64) -> Result<(), VFVChemError> {
         let row_start = match vars.vecdom[row_vec].vecdom_type {
             VecDomType::Unknown { start } => start,
             _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
@@ -89,7 +87,7 @@ pub trait OperatorBase {
         let num_pts = vars.vecdom[row_vec].value.len();
         let row_xid = row_start + row_comp * num_pts + row_idx;
         let col_xid = col_start + col_idx;
-        a_triplet.push(Triplet::new(row_xid, col_xid, value));
+        a_triplet.push((row_xid, col_xid, value));
         Ok(())
     }
 

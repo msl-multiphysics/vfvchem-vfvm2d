@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclItfContinuity {
@@ -36,7 +34,7 @@ impl OpSclItfContinuity {
 }
 
 impl OperatorBase for OpSclItfContinuity {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get objects
         let itf = &vars.itf[self.itf_id];
         let dom_a = &vars.dom[vars.scldom[self.unk_a_id].dom_id];

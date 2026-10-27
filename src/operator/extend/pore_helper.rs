@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::core::flow_helper;
 use crate::operator::extend::pore_opvec_dom_drag::PoreOpVecDomDrag;
-use faer::Col;
-use faer::sparse::Triplet;
 
 pub fn visc_eff(vars: &Variables, visc_id: usize, epsl_id: usize, vid: usize) -> (f64, (f64, f64)) {
     // effective (Brinkman) viscosity and its gradient at a vertex from the liquid viscosity mu
@@ -120,7 +118,7 @@ pub fn solid_masked(vars: &Variables, dom_id: usize, epsl_id: usize, vid: usize)
     epsl_dom.value[vid] >= 1.0 && tri.ngh_vid[vid].iter().all(|&vid_n| epsl_dom.value[vid_n] >= 1.0)
 }
 
-pub fn mask_solid(vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dom_id: usize, epsl_id: usize, temps_id: usize, templ_id: usize) -> Result<(), VFVChemError> {
+pub fn mask_solid(vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dom_id: usize, epsl_id: usize, temps_id: usize, templ_id: usize) -> Result<(), VFVChemError> {
     // replaces the solid equation of masked vertices with T_s - T_f = 0
     // applied after all operators; overrides solid boundary conditions on masked nodes
 
@@ -144,12 +142,12 @@ pub fn mask_solid(vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f6
     if !any { return Ok(()); }
 
     // drop the assembled solid equation and load the mask
-    a_triplet.retain(|t| t.row < temps_start || t.row >= temps_start + num_tot || !masked[t.row - temps_start]);
+    a_triplet.retain(|t| t.0 < temps_start || t.0 >= temps_start + num_tot || !masked[t.0 - temps_start]);
     for vid in 0..num_tot {
         if !masked[vid] { continue; }
         b_vec[temps_start + vid] = 0.0;
-        a_triplet.push(Triplet::new(temps_start + vid, temps_start + vid, 1.0));
-        a_triplet.push(Triplet::new(temps_start + vid, templ_start + vid, -1.0));
+        a_triplet.push((temps_start + vid, temps_start + vid, 1.0));
+        a_triplet.push((temps_start + vid, templ_start + vid, -1.0));
     }
 
     Ok(())

@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 const NEG_FRAC_TWO_THREE: f64 = -2.0/3.0;
 
@@ -38,7 +36,7 @@ impl OpVecDomDilatatory {
 }
 
 impl OperatorBase for OpVecDomDilatatory {
-    fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf div( lam * div(vel) * I ) dA
         // int_lin lam * div(vel) * I . n dl
         // int_lin lam * div(vel) * n dl

@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclBndNeumann {
@@ -33,7 +31,7 @@ impl OpSclBndNeumann {
 }
 
 impl OperatorBase for OpSclBndNeumann {
-    fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_bnd N dl
         // sum_ngh (0.75 * N_v + 0.25 * N_n) * dl
         

@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::extend::pore_helper;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct PoreOpSclItfHeatAdvection {
@@ -70,7 +68,7 @@ impl PoreOpSclItfHeatAdvection {
 }
 
 impl OperatorBase for PoreOpSclItfHeatAdvection {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -(rho * cp)_f * vel . grad(T_f) dA
         // sum_ngh -F_f * (T_f - T_v) with the weight flux F = ((rho * cp)_f / rho) * rho * vel * dl
         //

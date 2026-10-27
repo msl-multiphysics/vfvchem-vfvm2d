@@ -1,14 +1,12 @@
 use crate::base::prelude::*;
 use crate::linear::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 use std::time::{Duration, Instant};
 
 pub trait SteadyBase {
     // to implement in specific solvers
     fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError>;  // set start indices, create derived data, and compute matrix sizes
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError>;  // initializes operators
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError>;  // assemble global matrix
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError>;  // assemble global matrix
     fn initial_dirichlet(&self, vars: &mut Variables);  // load Dirichlet boundary values into unknowns
     fn update_flow(&self, vars: &mut Variables);  // update the face mass flux of the flow data; empty for solvers without flow
 
@@ -43,10 +41,10 @@ pub trait SteadyBase {
         self.initial_operator(vars)?;
 
         // initialize matrices
-        let mut a_triplet: Vec<Triplet<usize, usize, f64>> = Vec::new();
-        let mut b_vec: Col<f64> = Col::zeros(mat_size);
-        let mut x_udmp_vec: Col<f64>;  // undamped result
-        let mut x_iter_vec: Col<f64> = Col::zeros(mat_size);  // result between iterations
+        let mut a_triplet: Vec<(usize, usize, f64)> = Vec::new();
+        let mut b_vec: Vec<f64> = vec![0.0; mat_size];
+        let mut x_udmp_vec: Vec<f64>;  // undamped result
+        let mut x_iter_vec: Vec<f64> = vec![0.0; mat_size];  // result between iterations
 
         // load Dirichlet boundary values into the initial unknowns
         Self::_update_func(vars, 0.0);
@@ -62,7 +60,6 @@ pub trait SteadyBase {
         self.update_flow(vars);
         self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
         lin.update_sparse(&a_triplet, mat_size)?;
-        let mut a_mat = lin.build_matrix(&a_triplet)?;
         let num_triplet = a_triplet.len();
         let time_2 = Instant::now();
         time_asm += time_2 - time_1;
@@ -74,20 +71,19 @@ pub trait SteadyBase {
             // solve for x_udmp in A_k x_udmp = b_k
             // solve for x_{k+1} in x_damp = (1 - damp) * x_k + damp * x_udmp
             let time_i0 = Instant::now();
-            x_udmp_vec = lin.solve_matrix(&a_mat, &b_vec, &x_iter_vec, mat_size)?;
+            x_udmp_vec = lin.solve(&a_triplet, &b_vec, &x_iter_vec)?;
             let time_i1 = Instant::now();
-            let x_damp_vec = (1.0 - damp) * &x_iter_vec + damp * &x_udmp_vec;
+            let x_damp_vec: Vec<f64> = (0..mat_size).map(|i| (1.0 - damp) * x_iter_vec[i] + damp * x_udmp_vec[i]).collect();
             time_lin += time_i1 - time_i0;
 
             // assemble A_{k+1} and b_{k+1} using x_{k+1}
             a_triplet = Vec::with_capacity(num_triplet);  // reset A
-            b_vec = Col::zeros(mat_size);  // reset b
+            b_vec = vec![0.0; mat_size];  // reset b
             Self::_solu_to_unkn(vars, &x_damp_vec);
             Self::_update_func(vars, 0.0);
             Self::_update_grad(vars);
             self.update_flow(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
-            a_mat = lin.build_matrix(&a_triplet)?;
             let time_i2 = Instant::now();
             time_asm += time_i2 - time_i1;
 
@@ -139,7 +135,7 @@ pub trait SteadyBase {
         Ok(())
     }
 
-    fn _unkn_to_solu(vars: &Variables, x_vec: &mut Col<f64>) {
+    fn _unkn_to_solu(vars: &Variables, x_vec: &mut Vec<f64>) {
         // iterate through unknown scalars
         for scldom in &vars.scldom {
             match scldom.scldom_type {
@@ -174,9 +170,9 @@ pub trait SteadyBase {
 
     }
 
-    fn _solu_scale(vars: &Variables, x_a_vec: &Col<f64>, x_b_vec: &Col<f64>) -> Col<f64> {
+    fn _solu_scale(vars: &Variables, x_a_vec: &Vec<f64>, x_b_vec: &Vec<f64>) -> Vec<f64> {
         // field scale of every unknown: max magnitude of its field over both solution vectors, at least the field scale bound
-        let mut s_vec: Col<f64> = Col::zeros(x_a_vec.nrows());
+        let mut s_vec: Vec<f64> = vec![0.0; x_a_vec.len()];
 
         // iterate through unknown scalars
         for scldom in &vars.scldom {
@@ -221,7 +217,7 @@ pub trait SteadyBase {
         s_vec
     }
 
-    fn _solu_to_unkn(vars: &mut Variables, x_vec: &Col<f64>) {
+    fn _solu_to_unkn(vars: &mut Variables, x_vec: &Vec<f64>) {
         // iterate through unknown scalars
         for scldom in &mut vars.scldom {
             match scldom.scldom_type {

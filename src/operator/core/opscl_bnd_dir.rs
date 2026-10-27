@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclBndDirichlet {
@@ -53,7 +51,7 @@ impl OpSclBndDirichlet {
 }
 
 impl OperatorBase for OpSclBndDirichlet {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get objects
         let bnd = &vars.bnd[self.bnd_id];
         let dom = &vars.dom[bnd.dom_id];

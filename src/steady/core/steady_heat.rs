@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
 use crate::steady::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -140,7 +138,7 @@ impl SteadyBase for SteadyHeat {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // internal
         for (oper_diff, oper_prd, oper_src) in &self.oper_itr {
             oper_diff.apply(vars, a_triplet, b_vec)?;

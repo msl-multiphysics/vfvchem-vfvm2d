@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
 use crate::transient::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -149,7 +147,7 @@ impl TransientBase for TransientHeat {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
         // internal
         for (oper_time, oper_diff, oper_prd, oper_src) in &self.oper_itr {
             oper_time.apply_time(vars, a_triplet, b_vec, dt)?;

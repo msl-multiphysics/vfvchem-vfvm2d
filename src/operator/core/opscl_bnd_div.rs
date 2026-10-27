@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclBndDivergence {
@@ -37,7 +35,7 @@ impl OpSclBndDivergence {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, _a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
         // int_surf -d(rho)/dt dA
         // -(rho_v - rho_v_prev) * dA / dt
 
@@ -70,7 +68,7 @@ impl OpSclBndDivergence {
 }
 
 impl OperatorBase for OpSclBndDivergence {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -div(rho * vel) dA
         // int_lin -rho * vel . n dl
         // sum_ngh -rho * vel . n dl + sum_bnd -rho * vel . n dl

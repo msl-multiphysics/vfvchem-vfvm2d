@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclItfDiffusion {
@@ -47,7 +45,7 @@ impl OpSclItfDiffusion {
 }
 
 impl OperatorBase for OpSclItfDiffusion {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -div( -G * grad(c) ) dA
         // int_lin G * grad(c) . n dl
         // sum_ngh G * grad(c) . n dl

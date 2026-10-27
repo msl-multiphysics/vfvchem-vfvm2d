@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
 use crate::operator::extend::pore_helper;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct PoreOpVecItfAdvection {
@@ -59,7 +57,7 @@ impl PoreOpVecItfAdvection {
 }
 
 impl OperatorBase for PoreOpVecItfAdvection {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -(rho / epsl) * vel . grad(vel / epsl) dA
         // int_lin -(rho / epsl_v) * (vel / epsl - vel_v / epsl_v) * (vel . n) dl
         // sum_ngh -(rho / epsl_v) * (vel / epsl - vel_v / epsl_v) * (vel . n) dl + sum_bnd -(rho / epsl_v) * (vel / epsl - vel_v / epsl_v) * (vel . n) dl

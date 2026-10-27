@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::linear::prelude::*;
 use crate::transient::transient_base::TransientBase;
-use faer::Col;
-use faer::sparse::Triplet;
 use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -125,7 +123,7 @@ pub trait TransientAdaptive: TransientBase {
         self.initial_operator(vars)?;
 
         // write initial condition at t = 0; it is the previous state of the first step
-        let mut x_n: Col<f64> = Col::zeros(mat_size);  // last accepted state
+        let mut x_n: Vec<f64> = vec![0.0; mat_size];  // last accepted state
         Self::_update_func(vars, 0.0);
         self.initial_dirichlet(vars);  // load Dirichlet boundary values at t = 0 into the initial unknowns
         Self::_unkn_to_solu(vars, &mut x_n);
@@ -151,11 +149,11 @@ pub trait TransientAdaptive: TransientBase {
         let mut n_write = 0;
         let mut t = 0.0;
         let mut dt = opt.dt_init.clamp(opt.dt_min, opt.dt_max);
-        let mut x_nm1: Option<(Col<f64>, f64)> = None;  // previous accepted state and its step size
+        let mut x_nm1: Option<(Vec<f64>, f64)> = None;  // previous accepted state and its step size
         let mut err_prev: f64 = 1.0;
         let mut n_reject = 0;
         let mut no_grow = false;
-        let mut a_triplet: Vec<Triplet<usize, usize, f64>> = Vec::new();
+        let mut a_triplet: Vec<(usize, usize, f64)> = Vec::new();
         while t < opt.t_end - t_eps {
             // index of the step being attempted; retries after a rejection keep the same index
             let ts = num_accept;
@@ -176,13 +174,12 @@ pub trait TransientAdaptive: TransientBase {
             let time_t0 = Instant::now();
             let mut x_iter = x_n.clone();
             a_triplet.clear();
-            let mut b_vec: Col<f64> = Col::zeros(mat_size);
+            let mut b_vec: Vec<f64> = vec![0.0; mat_size];
             Self::_update_func(vars, t_new);
             Self::_update_grad(vars);
             self.update_flow(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
             lin.update_sparse(&a_triplet, mat_size)?;
-            let mut a_mat = lin.build_matrix(&a_triplet)?;
             let time_t1 = Instant::now();
             time_asm += time_t1 - time_t0;
 
@@ -191,22 +188,21 @@ pub trait TransientAdaptive: TransientBase {
             let mut res = f64::NAN;
             for iter in 0..opt.max_iter {
                 let time_i0 = Instant::now();
-                let x_solve = lin.solve_matrix(&a_mat, &b_vec, &x_iter, mat_size);
+                let x_solve = lin.solve(&a_triplet, &b_vec, &x_iter);
                 let time_i1 = Instant::now();
                 time_lin += time_i1 - time_i0;
                 let x_udmp = match x_solve {
                     Ok(x) => x,
                     Err(e) => { println!("Timestep: {ts}; Linear solve failed: {e}"); break; }
                 };
-                let x_damp = (1.0 - opt.damp) * &x_iter + opt.damp * &x_udmp;
+                let x_damp: Vec<f64> = (0..mat_size).map(|i| (1.0 - opt.damp) * x_iter[i] + opt.damp * x_udmp[i]).collect();
                 a_triplet.clear();
-                b_vec = Col::zeros(mat_size);
+                b_vec = vec![0.0; mat_size];
                 Self::_solu_to_unkn(vars, &x_damp);
                 Self::_update_func(vars, t_new);
                 Self::_update_grad(vars);
                 self.update_flow(vars);
                 self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_step)?;
-                a_mat = lin.build_matrix(&a_triplet)?;
                 let time_i2 = Instant::now();
                 time_asm += time_i2 - time_i1;
                 // compute tolerance: rms of the change relative to the field scale of each unknown (1e-12 absolute floor)

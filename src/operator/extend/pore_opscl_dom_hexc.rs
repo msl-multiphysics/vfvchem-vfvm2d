@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::extend::pore_helper;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct PoreOpSclDomHeatExchange {
@@ -47,7 +45,7 @@ impl PoreOpSclDomHeatExchange {
 }
 
 impl OperatorBase for PoreOpSclDomHeatExchange {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf h * a_v * (T_drv - T_unk) dA
         // (h * a_v)_v * (T_drv,v - T_unk,v) * dA
 

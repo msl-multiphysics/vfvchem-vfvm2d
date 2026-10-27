@@ -1,8 +1,6 @@
 use crate::base::prelude::*;
 use crate::operator::extend::pore_helper;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct PoreOpSclBndDispersion {
@@ -51,7 +49,7 @@ impl PoreOpSclBndDispersion {
 }
 
 impl OperatorBase for PoreOpSclBndDispersion {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -div( -rho * D_disp * grad(c) ) dA
         // sum_ngh rho_f * (n . D_disp,f . grad(c)) * dl
         // sum_ngh rho_f * (D_nn,f * (c_n - c_v) / dn + D_nt,f * grad(c)_f . t) * dl

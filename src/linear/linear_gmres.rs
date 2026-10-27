@@ -1,13 +1,13 @@
 use crate::base::prelude::*;
 use crate::linear::prelude::*;
-use faer::sparse::{Argsort, Pair, SparseColMat, SymbolicSparseColMat, Triplet};
-use faer::{Col, Par};
+use faer::sparse::{Argsort, Pair, SparseColMat, SymbolicSparseColMat};
+use faer::{ColMut, ColRef, Par};
 use faer_gmres::{JacobiPreconLinOp, restarted_gmres};
 use std::num::NonZeroUsize;
 
 pub struct LinearGmres {
-    pub symbolic: SymbolicSparseColMat<usize, usize, usize>,
-    pub argsort: Argsort<usize>,
+    symbolic: SymbolicSparseColMat<usize, usize, usize>,
+    argsort: Argsort<usize>,
     tol: f64,
     restart: usize,
     max_outer: usize,
@@ -50,9 +50,9 @@ impl LinearGmres {
 }
 
 impl LinearBase for LinearGmres {
-    fn update_sparse(&mut self, a_triplet: &Vec<Triplet<usize, usize, f64>>, mat_size: usize) -> Result<(), VFVChemError> {
+    fn update_sparse(&mut self, a_triplet: &Vec<(usize, usize, f64)>, mat_size: usize) -> Result<(), VFVChemError> {
         // collect (row, col) pairs
-        let a_pair: Vec<Pair<usize, usize>> = a_triplet.iter().map(|t| Pair::new(t.row, t.col)).collect();
+        let a_pair: Vec<Pair<usize, usize>> = a_triplet.iter().map(|&(row, col, _)| Pair::new(row, col)).collect();
 
         // symbolic sparse matrix
         // reused for every later matrix with this sparsity pattern
@@ -63,31 +63,27 @@ impl LinearBase for LinearGmres {
         Ok(())
     }
 
-    fn build_matrix(&self, a_triplet: &Vec<Triplet<usize, usize, f64>>) -> Result<SparseColMat<usize, f64>, VFVChemError> {
+    fn solve(&self, a_triplet: &Vec<(usize, usize, f64)>, b_vec: &Vec<f64>, x_init: &Vec<f64>) -> Result<Vec<f64>, VFVChemError> {
         // collect values
-        let a_vals: Vec<f64> = a_triplet.iter().map(|t| t.val).collect();
+        let a_vals: Vec<f64> = a_triplet.iter().map(|&(_, _, val)| val).collect();
 
         // assemble matrix using symbolic factorization
         let a_mat = SparseColMat::new_from_argsort(self.symbolic.clone(), &self.argsort, &a_vals).map_err(|e| _matrix_err(e))?;
 
-        Ok(a_mat)
-    }
-
-    fn solve_matrix(&self, a_mat: &SparseColMat<usize, f64>, b_vec: &Col<f64>, x_init: &Col<f64>, _mat_size: usize) -> Result<Col<f64>, VFVChemError> {
         // Jacobi-preconditioned restarted GMRES, starting from x_init
-        let mut x_vec = x_init.clone();
+        let mut x_vec = x_init.to_vec();
         let jacobi = JacobiPreconLinOp::new(a_mat.as_ref());
 
-        restarted_gmres(a_mat.as_ref(), b_vec.as_mat(), x_vec.as_mat_mut(), self.restart, self.max_outer, self.tol, Some(&jacobi)).map_err(|e| VFVChemError::LinearGmresDidNotConverge { message: format!("{e:?}") })?;
+        restarted_gmres(a_mat.as_ref(), ColRef::from_slice(b_vec).as_mat(), ColMut::from_slice_mut(&mut x_vec).as_mat_mut(), self.restart, self.max_outer, self.tol, Some(&jacobi)).map_err(|e| VFVChemError::LinearGmresDidNotConverge { message: format!("{e:?}") })?;
 
         Ok(x_vec)
     }
 }
 
 fn _symbolic_err(source: faer::sparse::CreationError) -> VFVChemError {
-    VFVChemError::LinearGmresSymbolicError { source }
+    VFVChemError::LinearGmresSymbolicError { message: format!("{source}") }
 }
 
 fn _matrix_err(source: faer::sparse::FaerError) -> VFVChemError {
-    VFVChemError::LinearGmresMatrixError { source }
+    VFVChemError::LinearGmresMatrixError { message: format!("{source}") }
 }

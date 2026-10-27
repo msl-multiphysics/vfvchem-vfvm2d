@@ -2,8 +2,6 @@ use crate::base::prelude::*;
 use crate::operator::extend::pore_helper;
 use crate::operator::prelude::*;
 use crate::transient::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -549,7 +547,7 @@ impl TransientBase for TransientMassPore {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, b_vec: &mut Col<f64>, dt: f64) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
         // flow internal
         for (oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_drag, oper_src, oper_div, oper_pres) in &self.oper_itr {
             oper_time.apply_time(vars, a_triplet, b_vec, dt)?;

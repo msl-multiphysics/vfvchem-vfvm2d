@@ -1,7 +1,5 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
-use faer::Col;
-use faer::sparse::Triplet;
 
 #[derive(Default)]
 pub struct OpSclDomAdvectionUnity {
@@ -43,7 +41,7 @@ impl OpSclDomAdvectionUnity {
 }
 
 impl OperatorBase for OpSclDomAdvectionUnity {
-    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<Triplet<usize, usize, f64>>, _b_vec: &mut Col<f64>) -> Result<(), VFVChemError> {
+    fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // int_surf -rho * vel . grad(c) dA
         // int_lin -rho * (c - c_v) * (vel . n) dl
         // sum_ngh -rho * (c - c_v) * (vel . n) dl
