@@ -1,0 +1,24 @@
+[package]
+name = "vfvchem_vfvm2d"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+itertools = "0.13"
+rand = "0.9"
+rslab = { git = "https://github.com/milanofthe/rslab", tag = "v1.7.0" }
+simple_delaunay_lib = "0.2"
+thiserror = "1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev.package.faer]
+opt-level = 3
+
+[profile.dev.package.rslab]
+opt-level = 3

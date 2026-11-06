@@ -1,0 +1,83 @@
+use crate::base::prelude::*;
+use crate::operator::prelude::*;
+
+#[derive(Default)]
+pub struct OpVecDomTime {
+    // domain
+    pub dom_id: usize,
+
+    // unknowns
+    pub vel_id: usize,  // velocity (vel)
+
+    // others
+    pub den_id: usize,  // density (rho)
+}
+
+impl OpVecDomTime {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize) -> Result<OpVecDomTime, VFVChemError> {
+        // adds the advection term to the Navier-Stokes equation
+        // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
+        // ^^^^^^^^^^^^^^^
+
+        // input checking
+        check_dom_vecdom(vars, dom_id, vel_id)?;
+        check_dom_scldom(vars, dom_id, den_id)?;
+
+        // create struct
+        let mut oper = OpVecDomTime::default();
+        oper.dom_id = dom_id;
+        oper.vel_id = vel_id;
+        oper.den_id = den_id;
+
+        Ok(oper)
+    }
+
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
+        // the LHS of the PDE is for the time derivative
+        // the RHS of the PDE is discretized into the LHS of Ax = b
+        // invert the sign to transfer the term to the LHS of Ax = b
+        // -rho * d(vel)/dt
+        //
+        // get surface integral
+        // int_surf -rho * d(vel)/dt dA
+        //
+        // discretize into centroid values
+        // -rho_c * d(vel_c)/dt * dA
+        //
+        // discretize using backward euler
+        // -rho_c * (vel_c - vel_prev)/dt * dA
+
+        // get objects
+        let dom = &vars.dom[self.dom_id];
+        let tri = &vars.tri[self.dom_id];
+        let vel_dom = &vars.vecdom[self.vel_id];
+        let den_dom = &vars.scldom[self.den_id];
+
+        // iterate through points
+        for vid_v in 0..dom.num_vert() {
+            // get geometry
+            let area = tri.vert_area[vid_v];
+            let offc = tri.vert_offc[vid_v];
+
+            // get centroid properties
+            let (velx_o, vely_o) = vel_dom.correct_vert(offc, vid_v);
+            let (velx_c_prev, vely_c_prev) = vel_dom.interp_vert_prev(offc, vid_v);
+            let den_c = den_dom.interp_vert(offc, vid_v);
+
+            // load into matrix
+            let coeff_v = -den_c * area / dt;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, coeff_v)?;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, coeff_v)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, coeff_v * (-velx_o + velx_c_prev))?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, coeff_v * (-vely_o + vely_c_prev))?;
+        }
+
+        Ok(())
+    }
+}
+
+impl OperatorBase for OpVecDomTime {
+    fn apply(&self, _vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
+        Err(VFVChemError::OperatorUseApplyTime {})
+    }
+}
