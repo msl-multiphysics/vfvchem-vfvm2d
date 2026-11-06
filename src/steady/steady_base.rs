@@ -46,14 +46,14 @@ pub trait SteadyBase {
 
         // load dirichlet values
         let time_2 = Instant::now();
-        Self::_update_func(vars, 0.0);  // update function-type variables
+        _update_func(vars, 0.0);  // update function-type variables
         self.initial_dirichlet(vars, mat_size)?;  // set dirichlet values
 
         // initial assembly of A and b
         // used for sparsity pattern and first iteration
-        Self::_unkn_to_solu(vars, &mut x_iter_vec);
-        Self::_update_func(vars, 0.0);
-        Self::_update_grad(vars);
+        _unkn_to_solu(vars, &mut x_iter_vec);
+        _update_func(vars, 0.0);
+        _update_grad(vars);
         self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
         lin.set_sparse(&a_triplet, mat_size)?;
         let num_triplet = a_triplet.len();
@@ -74,15 +74,15 @@ pub trait SteadyBase {
             // assemble A_{k+1} and b_{k+1} using x_{k+1}
             a_triplet = Vec::with_capacity(num_triplet);  // reset A
             b_vec = vec![0.0; mat_size];  // reset b
-            Self::_solu_to_unkn(vars, &x_damp_vec);
-            Self::_update_func(vars, 0.0);
-            Self::_update_grad(vars);
+            _solu_to_unkn(vars, &x_damp_vec);
+            _update_func(vars, 0.0);
+            _update_grad(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
             let time_i2 = Instant::now();
             time_asm += time_i2 - time_i1;
 
             // compute tolerance
-            let res = Self::_solu_res(vars, &a_triplet, &b_vec, &x_damp_vec);
+            let res = _solu_res(vars, &a_triplet, &b_vec, &x_damp_vec);
             println!("Iteration: {iter}; Residual: {res:.4e}");
 
             // error if diverged
@@ -121,173 +121,172 @@ pub trait SteadyBase {
 
         Ok(())
     }
+}
 
-    fn _unkn_to_solu(vars: &Variables, x_vec: &mut Vec<f64>) {
-        // iterate through unknown scalars
-        for scldom in &vars.scldom {
-            match scldom.scldom_type {
-                SclDomType::Unknown { start } => {
-                    // iterate through points
-                    for (vid, &value) in scldom.value.iter().enumerate() {
-                        let xid = start + vid;
-                        x_vec[xid] = value;
-                    }
+fn _unkn_to_solu(vars: &Variables, x_vec: &mut Vec<f64>) {
+    // iterate through unknown scalars
+    for scldom in &vars.scldom {
+        match scldom.scldom_type {
+            SclDomType::Unknown { start } => {
+                // iterate through points
+                for (vid, &value) in scldom.value.iter().enumerate() {
+                    let xid = start + vid;
+                    x_vec[xid] = value;
                 }
-                _ => {continue;}  // skip if not unknown
             }
-        }
-
-        // iterate through unknown vectors
-        for vecdom in &vars.vecdom {
-            match vecdom.vecdom_type {
-                VecDomType::Unknown { start } => {
-                    // iterate through points
-                    let num_tot = vecdom.value.len();
-                    for (vid, &value) in vecdom.value.iter().enumerate() {
-                        let xid_x = start + vid;
-                        let xid_y = start + num_tot + vid;
-                        let (value_x, value_y) = value;
-                        x_vec[xid_x] = value_x;
-                        x_vec[xid_y] = value_y;
-                    }
-                }
-                _ => {continue;}  // skip if not unknown
-            }
-        }
-
-    }
-
-    fn _solu_res(vars: &Variables, a_triplet: &Vec<(usize, usize, f64)>, b_vec: &Vec<f64>, x_vec: &Vec<f64>) -> f64 {
-        // computes the normalized residual of each field
-        // res_fld = |b - A * x|_L1 / (|A * x - A * x_ave|_L1 + |b - A * x_ave|_L1);
-        // res = max res_fld
-        //
-        // x_ave is the average of each unknown field (scalar or vector components)
-        // overall residual is the maximum res_fld
-        
-        // get index ranges of fields
-        let mut xid_range = Vec::new();
-        for scldom in vars.scldom.iter() {
-            match scldom.scldom_type {
-                SclDomType::Unknown { start } => {
-                    let num_vert = scldom.value.len();
-                    xid_range.push((start, start + num_vert));
-                }
-                _ => { continue; }  // skip if not unknown
-            }
-        }
-        for vecdom in vars.vecdom.iter() {
-            match vecdom.vecdom_type {
-                VecDomType::Unknown { start } => {
-                    let num_vert = vecdom.value.len();
-                    xid_range.push((start, start + num_vert));
-                    xid_range.push((start + num_vert, start + 2*num_vert));
-                }
-                _ => { continue; }  // skip if not unknown
-            }
-        }
-
-        // compute x_ave
-        let mat_size = x_vec.len();
-        let mut x_ave: Vec<f64> = vec![0.0; mat_size];
-        for &(xid_lb, xid_ub) in xid_range.iter() {
-            let ave = x_vec[xid_lb..xid_ub].iter().sum::<f64>() / ((xid_ub - xid_lb) as f64);
-            for xid in xid_lb..xid_ub {
-                x_ave[xid] = ave;
-            }
-        }
-
-        // compute A * x and A * x_ave
-        let mut ax_vec: Vec<f64> = vec![0.0; mat_size];
-        let mut ax_ave: Vec<f64> = vec![0.0; mat_size];
-        for &(r, c, v) in a_triplet.iter() {
-            ax_vec[r] += v * x_vec[c];
-            ax_ave[r] += v * x_ave[c];
-        }
-
-        // compute residual of each field
-        let mut res: f64 = 0.0;
-        for &(xid_lb, xid_ub) in xid_range.iter() {
-            let mut sum_res = 0.0;
-            let mut sum_norm = 0.0;
-            for xid in xid_lb..xid_ub {
-                sum_res += (b_vec[xid] - ax_vec[xid]).abs();
-                sum_norm += (ax_vec[xid] - ax_ave[xid]).abs() + (b_vec[xid] - ax_ave[xid]).abs();
-            }
-            let res_fld = sum_res / (sum_norm + 1e-10);
-            if res_fld > res || res_fld.is_nan() {
-                res = res_fld;  // keep NaN so that a diverged field fails the tolerance check
-            }
-        }
-
-        res
-    }
-
-    fn _solu_to_unkn(vars: &mut Variables, x_vec: &Vec<f64>) {
-        // iterate through unknown scalars
-        for scldom in &mut vars.scldom {
-            match scldom.scldom_type {
-                SclDomType::Unknown { start } => {
-                    // iterate through points
-                    let num_tot = scldom.value.len();
-                    for vid in 0..num_tot {
-                        let xid = start + vid;
-                        let value = x_vec[xid];
-                        scldom.value[vid] = value;
-                    }
-                }
-                _ => {continue;}  // skip if not unknown
-            }
-        }
-
-        // iterate through unknown vectors
-        for vecdom in &mut vars.vecdom {
-            match vecdom.vecdom_type {
-                VecDomType::Unknown { start } => {
-                    // iterate through points
-                    let num_tot = vecdom.value.len();
-                    for vid in 0..num_tot {
-                        let xid_x = start + vid;
-                        let xid_y = start + num_tot + vid;
-                        let value_x = x_vec[xid_x];
-                        let value_y = x_vec[xid_y];
-                        vecdom.value[vid] = (value_x, value_y);
-                    }
-                }
-                _ => {continue;}  // skip if not unknown
-            }
-        }
-
-    }
-
-    fn _update_func(vars: &mut Variables, t: f64) {
-        for scldom_id in 0..vars.scldom.len() {
-            ScalarDomain::update_func(vars, scldom_id, t);
-        }
-        for sclbnd_id in 0..vars.sclbnd.len() {
-            ScalarBoundary::update_func(vars, sclbnd_id, t);
-        }
-        for sclitf_id in 0..vars.sclitf.len() {
-            ScalarInterface::update_func(vars, sclitf_id, t);
-        }
-        for vecdom_id in 0..vars.vecdom.len() {
-            VectorDomain::update_func(vars, vecdom_id, t);
-        }
-        for vecbnd_id in 0..vars.vecbnd.len() {
-            VectorBoundary::update_func(vars, vecbnd_id, t);
-        }
-        for vecitf_id in 0..vars.vecitf.len() {
-            VectorInterface::update_func(vars, vecitf_id, t);
+            _ => {continue;}  // skip if not unknown
         }
     }
 
-    fn _update_grad(vars: &mut Variables) {
-        for scldom in vars.scldom.iter_mut() {
-            scldom.update_grad(&vars.tri[scldom.dom_id]);
-        }
-        for vecdom in vars.vecdom.iter_mut() {
-            vecdom.update_grad(&vars.tri[vecdom.dom_id]);
+    // iterate through unknown vectors
+    for vecdom in &vars.vecdom {
+        match vecdom.vecdom_type {
+            VecDomType::Unknown { start } => {
+                // iterate through points
+                let num_tot = vecdom.value.len();
+                for (vid, &value) in vecdom.value.iter().enumerate() {
+                    let xid_x = start + vid;
+                    let xid_y = start + num_tot + vid;
+                    let (value_x, value_y) = value;
+                    x_vec[xid_x] = value_x;
+                    x_vec[xid_y] = value_y;
+                }
+            }
+            _ => {continue;}  // skip if not unknown
         }
     }
 
+}
+
+fn _solu_res(vars: &Variables, a_triplet: &Vec<(usize, usize, f64)>, b_vec: &Vec<f64>, x_vec: &Vec<f64>) -> f64 {
+    // computes the normalized residual of each field
+    // res_fld = |b - A * x|_L1 / (|A * x - A * x_ave|_L1 + |b - A * x_ave|_L1);
+    // res = max res_fld
+    //
+    // x_ave is the average of each unknown field (scalar or vector components)
+    // overall residual is the maximum res_fld
+    
+    // get index ranges of fields
+    let mut xid_range = Vec::new();
+    for scldom in vars.scldom.iter() {
+        match scldom.scldom_type {
+            SclDomType::Unknown { start } => {
+                let num_vert = scldom.value.len();
+                xid_range.push((start, start + num_vert));
+            }
+            _ => { continue; }  // skip if not unknown
+        }
+    }
+    for vecdom in vars.vecdom.iter() {
+        match vecdom.vecdom_type {
+            VecDomType::Unknown { start } => {
+                let num_vert = vecdom.value.len();
+                xid_range.push((start, start + num_vert));
+                xid_range.push((start + num_vert, start + 2*num_vert));
+            }
+            _ => { continue; }  // skip if not unknown
+        }
+    }
+
+    // compute x_ave
+    let mat_size = x_vec.len();
+    let mut x_ave: Vec<f64> = vec![0.0; mat_size];
+    for &(xid_lb, xid_ub) in xid_range.iter() {
+        let ave = x_vec[xid_lb..xid_ub].iter().sum::<f64>() / ((xid_ub - xid_lb) as f64);
+        for xid in xid_lb..xid_ub {
+            x_ave[xid] = ave;
+        }
+    }
+
+    // compute A * x and A * x_ave
+    let mut ax_vec: Vec<f64> = vec![0.0; mat_size];
+    let mut ax_ave: Vec<f64> = vec![0.0; mat_size];
+    for &(r, c, v) in a_triplet.iter() {
+        ax_vec[r] += v * x_vec[c];
+        ax_ave[r] += v * x_ave[c];
+    }
+
+    // compute residual of each field
+    let mut res: f64 = 0.0;
+    for &(xid_lb, xid_ub) in xid_range.iter() {
+        let mut sum_res = 0.0;
+        let mut sum_norm = 0.0;
+        for xid in xid_lb..xid_ub {
+            sum_res += (b_vec[xid] - ax_vec[xid]).abs();
+            sum_norm += (ax_vec[xid] - ax_ave[xid]).abs() + (b_vec[xid] - ax_ave[xid]).abs();
+        }
+        let res_fld = sum_res / (sum_norm + 1e-10);
+        if res_fld > res || res_fld.is_nan() {
+            res = res_fld;  // keep NaN so that a diverged field fails the tolerance check
+        }
+    }
+
+    res
+}
+
+fn _solu_to_unkn(vars: &mut Variables, x_vec: &Vec<f64>) {
+    // iterate through unknown scalars
+    for scldom in &mut vars.scldom {
+        match scldom.scldom_type {
+            SclDomType::Unknown { start } => {
+                // iterate through points
+                let num_tot = scldom.value.len();
+                for vid in 0..num_tot {
+                    let xid = start + vid;
+                    let value = x_vec[xid];
+                    scldom.value[vid] = value;
+                }
+            }
+            _ => {continue;}  // skip if not unknown
+        }
+    }
+
+    // iterate through unknown vectors
+    for vecdom in &mut vars.vecdom {
+        match vecdom.vecdom_type {
+            VecDomType::Unknown { start } => {
+                // iterate through points
+                let num_tot = vecdom.value.len();
+                for vid in 0..num_tot {
+                    let xid_x = start + vid;
+                    let xid_y = start + num_tot + vid;
+                    let value_x = x_vec[xid_x];
+                    let value_y = x_vec[xid_y];
+                    vecdom.value[vid] = (value_x, value_y);
+                }
+            }
+            _ => {continue;}  // skip if not unknown
+        }
+    }
+
+}
+
+fn _update_func(vars: &mut Variables, t: f64) {
+    for scldom_id in 0..vars.scldom.len() {
+        ScalarDomain::update_func(vars, scldom_id, t);
+    }
+    for sclbnd_id in 0..vars.sclbnd.len() {
+        ScalarBoundary::update_func(vars, sclbnd_id, t);
+    }
+    for sclitf_id in 0..vars.sclitf.len() {
+        ScalarInterface::update_func(vars, sclitf_id, t);
+    }
+    for vecdom_id in 0..vars.vecdom.len() {
+        VectorDomain::update_func(vars, vecdom_id, t);
+    }
+    for vecbnd_id in 0..vars.vecbnd.len() {
+        VectorBoundary::update_func(vars, vecbnd_id, t);
+    }
+    for vecitf_id in 0..vars.vecitf.len() {
+        VectorInterface::update_func(vars, vecitf_id, t);
+    }
+}
+
+fn _update_grad(vars: &mut Variables) {
+    for scldom in vars.scldom.iter_mut() {
+        scldom.update_grad(&vars.tri[scldom.dom_id]);
+    }
+    for vecdom in vars.vecdom.iter_mut() {
+        vecdom.update_grad(&vars.tri[vecdom.dom_id]);
+    }
 }
