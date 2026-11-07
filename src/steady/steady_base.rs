@@ -19,39 +19,36 @@ pub trait SteadyBase {
         if tol.is_nan() || tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
         if damp.is_nan() || damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
 
-        // start solver
-        let time_start = Instant::now();
-        println!("Starting steady-state solver.");
-
         // initialize time measurement
+        println!("Starting steady-state solver.");
+        let time_start = Instant::now();
         let mut time_asm = Duration::ZERO;  // matrix assembly, value updating, etc.
         let mut time_lin = Duration::ZERO;  // linear solve
         let mut time_wrt = Duration::ZERO;  // file writing
 
-        // write groups file
-        let time_0 = Instant::now();
+        // write groups
+        let time_0  = Instant::now();
         write_group_vtu(vars)?;
-        let time_1 = Instant::now();
+        let time_1  = Instant::now();
         time_wrt += time_1 - time_0;
 
-        // initialize operators
-        let mat_size = self.initial_start(vars)?;
-        self.initial_operator(vars)?;
-
         // initialize matrices
+        let mat_size = self.initial_start(vars)?;
         let mut a_triplet: Vec<(usize, usize, f64)> = Vec::new();
         let mut b_vec: Vec<f64> = vec![0.0; mat_size];
-        let mut x_udmp_vec: Vec<f64>;  // undamped result
-        let mut x_iter_vec: Vec<f64> = vec![0.0; mat_size];  // damped result
+        let mut x_iter_vec: Vec<f64> = vec![0.0; mat_size];
 
-        // load dirichlet values
-        let time_2 = Instant::now();
+        // initialize operators
+        self.initial_operator(vars)?;
+
+        // load dirichlet values into unknown fields
         _update_func(vars, 0.0);  // update function-type variables
         self.initial_dirichlet(vars, mat_size)?;  // set dirichlet values
 
         // initial assembly of A and b
         // used for sparsity pattern and first iteration
-        _unkn_to_solu(vars, &mut x_iter_vec);
+        let time_2 = Instant::now();
+        _unkn_to_solu(vars, &mut x_iter_vec);  // unknown fields -> solution vector
         _update_func(vars, 0.0);
         _update_grad(vars);
         self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
@@ -63,23 +60,27 @@ pub trait SteadyBase {
         // iterate to convergence
         let mut is_conv = false;
         for iter in 0..max_iter {
-            // solve for x_udmp in A_k * x_udmp = b_k
-            // solve for x_{k+1} in x_damp = (1 - damp) * x_k + damp * x_udmp
+            // solve for undamped solution
+            // x_udmp in A_k * x_udmp = b_k
             let time_i0 = Instant::now();
-            x_udmp_vec = lin.solve(&a_triplet, &b_vec, &x_iter_vec)?;
+            let x_udmp_vec = lin.solve(&a_triplet, &b_vec, &x_iter_vec)?;
             let time_i1 = Instant::now();
-            let x_damp_vec: Vec<f64> = (0..mat_size).map(|i| (1.0 - damp) * x_iter_vec[i] + damp * x_udmp_vec[i]).collect();
             time_lin += time_i1 - time_i0;
 
-            // assemble A_{k+1} and b_{k+1} using x_{k+1}
+            // solve for damped solution
+            // x_(k+1) in x_damp = (1 - damp) * x_k + damp * x_udmp
+            let x_damp_vec: Vec<f64> = (0..mat_size).map(|i| (1.0 - damp) * x_iter_vec[i] + damp * x_udmp_vec[i]).collect();
+            
+            // assemble A_(k+1) and b_(k+1) using x_(k+1)
+            let time_i2 = Instant::now();
             a_triplet = Vec::with_capacity(num_triplet);  // reset A
             b_vec = vec![0.0; mat_size];  // reset b
             _solu_to_unkn(vars, &x_damp_vec);
             _update_func(vars, 0.0);
             _update_grad(vars);
             self.assemble_matrix(vars, &mut a_triplet, &mut b_vec)?;
-            let time_i2 = Instant::now();
-            time_asm += time_i2 - time_i1;
+            let time_i3 = Instant::now();
+            time_asm += time_i3 - time_i2;
 
             // compute tolerance
             let res = _solu_res(vars, &a_triplet, &b_vec, &x_damp_vec);
