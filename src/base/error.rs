@@ -237,9 +237,9 @@ pub enum VFVChemError {
     SolverInvalidGrowthMaximum {
         grow_max: f64,
     },
-    #[error("Solver: Growth factor rate `grow_rate` must be greater than one. Got grow_rate = {grow_rate}.")]
-    SolverInvalidGrowthRate {
-        grow_rate: f64,
+    #[error("Solver: Nonlinear failure growth factor `grow_fail` must be in (0, 1]. Got grow_fail = {grow_fail}.")]
+    SolverInvalidGrowthFail {
+        grow_fail: f64,
     },
     #[error("Solver: Adaptive solver did not converge at minimum timestep {dt_min}.")]
     SolverAdaptiveDidNotConverge {

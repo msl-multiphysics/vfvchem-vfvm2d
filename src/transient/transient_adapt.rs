@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 const GROWTH_MIN: f64 = 0.25;
 const GROWTH_MAX: f64 = 4.00;
-const GROWTH_RATE: f64 = 2.00;
+const GROWTH_FAIL: f64 = 0.50;
 
 pub trait TransientAdaptive: TransientBase {
     // adaptive solver with default options
@@ -24,7 +24,7 @@ pub trait TransientAdaptive: TransientBase {
         // run adaptive solver
         self.solve_adaptive_options(
             vars, lin, max_iter, tol, damp, dt_init, dt_min, dt_max,
-            t_out, GROWTH_MIN, GROWTH_MAX, GROWTH_RATE,
+            t_out, GROWTH_MIN, GROWTH_MAX, GROWTH_FAIL,
         )?;
 
         Ok(())
@@ -34,7 +34,7 @@ pub trait TransientAdaptive: TransientBase {
     fn solve_adaptive_options(
         &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
         max_iter: usize, tol: f64, damp: f64, dt_init: f64, dt_min: f64, dt_max: f64,
-        t_out: Vec<f64>, grow_min: f64, grow_max: f64, grow_rate: f64
+        t_out: Vec<f64>, grow_min: f64, grow_max: f64, grow_fail: f64
     ) -> Result<(), VFVChemError> {
         // error handling
         if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
@@ -45,7 +45,7 @@ pub trait TransientAdaptive: TransientBase {
         if dt_max <= dt_min { return Err(VFVChemError::SolverInvalidMaximumStepSize { dt_max }) };
         if grow_min <= 0.0 || grow_min > 1.0 { return Err(VFVChemError::SolverInvalidGrowthMinimum { grow_min }) };
         if grow_max <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthMaximum { grow_max }) };
-        if grow_rate <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthRate { grow_rate }) };
+        if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidGrowthFail { grow_fail }) };
 
         // error handling of t_out
         if t_out.is_empty() { return Err(VFVChemError::SolverAdaptiveInvalidOutputTime {}); }  // t_out empty
@@ -195,7 +195,7 @@ pub trait TransientAdaptive: TransientBase {
 
                 // if not converged, then shrink step size
                 if !is_conv {
-                    dt /= grow_rate;
+                    dt = (dt * grow_fail).max(dt_min);
                     println!("Nonlinear solver did not converge. Reducing step size to {dt:.4e}.");
                     break;
                 }
@@ -222,8 +222,9 @@ pub trait TransientAdaptive: TransientBase {
                 // if error is too large, then shrink step size
                 if err > 1.0 {
                     is_accept = false;
-                    let shrink = (0.9 * err.powf(-0.5)).max(grow_min);
-                    dt = (dt * shrink).max(dt_min);
+                    let grow = 0.9 * err.powf(-0.5);
+                    let grow = grow.max(grow_min);  // limit to grow_min
+                    dt = (dt * grow).max(dt_min);
                     _solu_to_unkn(vars, &x_n1_vec);
                     x_iter_vec = x_n1_vec.clone();
                     println!("Predictor error too large. Reducing step size to {dt:.4e}.");
@@ -239,6 +240,7 @@ pub trait TransientAdaptive: TransientBase {
 
                 // update step size
                 let grow = 0.9 * err.max(1e-10).powf(-0.35) * err_prev.max(1e-10).powf(0.2);
+                let grow = grow.min(grow_max);  // limit to grow_max
                 dt = (dt * grow).clamp(dt_min, dt_max);
                 err_prev = err.max(1e-10);
 
