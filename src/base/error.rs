@@ -100,6 +100,12 @@ pub enum VFVChemError {
         #[source]
         source: std::io::Error,
     },
+    #[error("WriteCsv: Could not write file '{path}': {source}")]
+    WriteCsvError {
+        path: std::path::PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
 
     // linear
     #[error("Linear: Number of threads `num_thread` must be positive. Got num_thread = {num_thread}")]
@@ -211,12 +217,16 @@ pub enum VFVChemError {
     SolverNonPositiveWriteFrequency {
         num_ts_write: usize,
     },
-    #[error("Solver: Minimum time step `dt_min` must be greater than zero. Got dt_min = {dt_min}.")]
-    SolverNonPositiveMinimumTimeStep {
+    #[error("Solver: Initial time step `dt_init` must be greater than zero. Got dt_init = {dt_init}.")]
+    SolverNonPositiveInitialStepSize {
+        dt_init: f64,
+    },
+    #[error("Solver: Minimum time step `dt_min` must be greater than the initial timestep. Got dt_min = {dt_min}.")]
+    SolverInvalidMinimumStepSize {
         dt_min: f64,
     },
     #[error("Solver: Maximum time step `dt_max` must be greater than the minimum timestep. Got dt_max = {dt_max}.")]
-    SolverInvalidMaximumTimeStep {
+    SolverInvalidMaximumStepSize {
         dt_max: f64,
     },
     #[error("Solver: Minimum growth factor `grow_min` must be in (0, 1]. Got grow_min = {grow_min}.")]
@@ -235,4 +245,6 @@ pub enum VFVChemError {
     SolverAdaptiveDidNotConverge {
         dt_min: f64,
     },
+    #[error("Solver: Output times must be non-negative and monotonically increasing, and the first step must be greater than dt_init.")]
+    SolverAdaptiveInvalidOutputTime {},
 }

@@ -1,6 +1,9 @@
 use crate::base::prelude::*;
 use crate::linear::prelude::*;
 use crate::transient::prelude::*;
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 const GROWTH_MIN: f64 = 0.25;
@@ -11,7 +14,7 @@ pub trait TransientAdaptive: TransientBase {
     // adaptive solver with default options
     fn solve_adaptive(
         &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
-        max_iter: usize, tol: f64, damp: f64, dt_start: f64, dt_min: f64, dt_max: f64,
+        max_iter: usize, tol: f64, damp: f64, dt_init: f64, dt_min: f64, dt_max: f64,
         t_end: f64, num_step: usize,
     ) -> Result<(), VFVChemError> {
         // create output times
@@ -20,7 +23,7 @@ pub trait TransientAdaptive: TransientBase {
 
         // run adaptive solver
         self.solve_adaptive_options(
-            vars, lin, max_iter, tol, damp, dt_start, dt_min, dt_max,
+            vars, lin, max_iter, tol, damp, dt_init, dt_min, dt_max,
             t_out, GROWTH_MIN, GROWTH_MAX, GROWTH_RATE,
         )?;
 
@@ -30,18 +33,29 @@ pub trait TransientAdaptive: TransientBase {
     // adaptive solver with complete options
     fn solve_adaptive_options(
         &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
-        max_iter: usize, tol: f64, damp: f64, dt_start: f64, dt_min: f64, dt_max: f64,
+        max_iter: usize, tol: f64, damp: f64, dt_init: f64, dt_min: f64, dt_max: f64,
         t_out: Vec<f64>, grow_min: f64, grow_max: f64, grow_rate: f64
     ) -> Result<(), VFVChemError> {
         // error handling
         if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
         if tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
         if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
-        if dt_min <= 0.0 { return Err(VFVChemError::SolverNonPositiveMinimumTimeStep { dt_min }) };
-        if dt_max <= dt_min { return Err(VFVChemError::SolverInvalidMaximumTimeStep { dt_max }) };
+        if dt_init <= 0.0 { return Err(VFVChemError::SolverNonPositiveInitialStepSize { dt_init }) };
+        if dt_init < dt_min { return Err(VFVChemError::SolverInvalidMinimumStepSize { dt_min }) };
+        if dt_max <= dt_min { return Err(VFVChemError::SolverInvalidMaximumStepSize { dt_max }) };
         if grow_min <= 0.0 || grow_min > 1.0 { return Err(VFVChemError::SolverInvalidGrowthMinimum { grow_min }) };
         if grow_max <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthMaximum { grow_max }) };
         if grow_rate <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthRate { grow_rate }) };
+
+        // error handling of t_out
+        if t_out.is_empty() { return Err(VFVChemError::SolverAdaptiveInvalidOutputTime {}); }  // t_out empty
+        for i in 0..t_out.len() - 1 {
+            if !(t_out[i] >= 0.0) || (t_out[i] >= t_out[i + 1]) {  // t_out positive and monotonically increasing
+                return Err(VFVChemError::SolverAdaptiveInvalidOutputTime {});
+            }
+        }
+        let t_start = t_out.iter().copied().find(|&t| t > 0.0).unwrap_or(0.0);
+        if t_start < dt_init { return Err(VFVChemError::SolverAdaptiveInvalidOutputTime {}); };  // first t_out less than dt_init
 
         // initialize time measurement
         println!("Starting transient solver.");
@@ -76,29 +90,33 @@ pub trait TransientAdaptive: TransientBase {
         _update_func(vars, 0.0);
         _update_grad(vars);
         _update_prev(vars);
-        self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_start)?;
+        self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_init)?;
         lin.set_sparse(&a_triplet, mat_size)?;
         let num_triplet = a_triplet.len();
         let time_3 = Instant::now();
         time_asm += time_3 - time_2;
 
-        // write initial state
-        write_vars_vtu(vars, 0)?;
-        let time_4 = Instant::now();
-        time_wrt += time_4 - time_3;
+        // write initial state if needed
+        let mut num_write = 0;  // number of written output files
+        if t_out[0] == 0.0 {
+            let time_t0 = Instant::now();
+            write_vars_vtu(vars, 0)?;
+            let time_t1 = Instant::now();
+            time_wrt += time_t1 - time_t0;
+            num_write += 1;
+        }
 
         // initialize for adaptive time stepping
         let mut t = 0.0;  // current time
-        let mut dt = dt_start;  // current timestep;
-        let t_end = t_out[t_out.len() - 1];  // final timestep
-        let mut dt_prev=  0.0;  // timestep between x_n and x_(n+1)
+        let mut dt = dt_init;  // current step size
+        let t_end = t_out[t_out.len() - 1];  // final time
+        let mut dt_prev=  0.0;  // step size between x_n and x_(n+1)
         let mut x_n1_vec = x_iter_vec.clone();  // x_n
         let mut x_n2_vec = x_iter_vec.clone();  // x_(n-1)
         let mut err_prev: f64 = 1.0;  // local error of the previous accepted step
-        let mut num_write = 1;  // number of written output files
         let mut t_write = t_out.iter().copied().find(|&ti| ti > t).unwrap(); // next time to write output
 
-        // iterate until final timestep
+        // iterate until final time
         while t < t_end {
             // repeat until next solution is acceptable
             let mut is_accept = false;
@@ -110,7 +128,7 @@ pub trait TransientAdaptive: TransientBase {
                     t_try = t_write;
                 }
 
-                // attempt a solution with timestep dt
+                // attempt a solution with step size dt
                 
                 // assembly of A and b at time t
                 // used for first iteration
@@ -150,7 +168,7 @@ pub trait TransientAdaptive: TransientBase {
 
                     // compute tolerance
                     let res = _solu_res(vars, &a_triplet, &b_vec, &x_damp_vec);
-                    println!("Time: {t:.4e}; Timestep: {dt:.4e}; Iteration: {iter}; Residual: {res:.4e}");
+                    println!("Time: {t:.4e}; Step size: {dt:.4e}; Iteration: {iter}; Residual: {res:.4e}");
 
                     // reject if diverged
                     if !res.is_finite() {
@@ -175,36 +193,40 @@ pub trait TransientAdaptive: TransientBase {
                     return Err(VFVChemError::SolverAdaptiveDidNotConverge { dt_min });
                 }
 
-                // if not converged, then shrink timestep
+                // if not converged, then shrink step size
                 if !is_conv {
                     dt /= grow_rate;
-                    println!("Nonlinear solver did not converge. Reducing timestep to {dt:.4e}.");
+                    println!("Nonlinear solver did not converge. Reducing step size to {dt:.4e}.");
                     break;
                 }
 
-                // if converged, adjust timestep based on predictor
+                // if converged, adjust step size based on predictor
 
                 // local error from the linear extrapolation predictor
                 // x_pred = x_n + (dt / dt_prev) * (x_n - x_(n-1))
                 // trunc_err = dt / (2 * dt + dt_prev) * |x_iter - x_pred| / (tol * scale)
                 // scale is the field scale over x_n and x_iter
-                let err_fac = dt / (2.0 * dt + dt_prev);
-                let scale_vec = _solu_scale(vars, &x_n1_vec, &x_iter_vec);
-                let mut err: f64 = 0.0;
-                for xid in 0..mat_size {
-                    let x_pred = x_n1_vec[xid] + (dt / dt_prev) * (x_n1_vec[xid] - x_n2_vec[xid]);
-                    let w = 1e-10 + tol * scale_vec[xid];
-                    err = err.max(err_fac * (x_iter_vec[xid] - x_pred).abs() / w);
+                // the first step has no previous step size, so accept it
+                let mut err: f64 = 1.0;
+                if dt_prev > 0.0 {
+                    let err_fac = dt / (2.0 * dt + dt_prev);
+                    let scale_vec = _solu_scale(vars, &x_n1_vec, &x_iter_vec);
+                    err = 0.0;
+                    for xid in 0..mat_size {
+                        let x_pred = x_n1_vec[xid] + (dt / dt_prev) * (x_n1_vec[xid] - x_n2_vec[xid]);
+                        let w = 1e-10 + tol * scale_vec[xid];
+                        err = err.max(err_fac * (x_iter_vec[xid] - x_pred).abs() / w);
+                    }
                 }
 
-                // if error is too large, then shrink timestep
+                // if error is too large, then shrink step size
                 if err > 1.0 {
                     is_accept = false;
                     let shrink = (0.9 * err.powf(-0.5)).max(grow_min);
                     dt = (dt * shrink).max(dt_min);
                     _solu_to_unkn(vars, &x_n1_vec);
                     x_iter_vec = x_n1_vec.clone();
-                    println!("Predictor error too large. Reducing timestep to {dt:.4e}.");
+                    println!("Predictor error too large. Reducing step size to {dt:.4e}.");
                     continue;
                 }
 
@@ -215,7 +237,7 @@ pub trait TransientAdaptive: TransientBase {
                 dt_prev = dt;
                 t += dt;
 
-                // update timestep
+                // update step size
                 let grow = 0.9 * err.max(1e-10).powf(-0.35) * err_prev.max(1e-10).powf(0.2);
                 dt = (dt * grow).clamp(dt_min, dt_max);
                 err_prev = err.max(1e-10);
@@ -227,15 +249,20 @@ pub trait TransientAdaptive: TransientBase {
                     let time_w1 = Instant::now();
                     time_wrt += time_w1 - time_w0;
                     num_write += 1;
-                    t_write = t_out.iter().copied().find(|&ti| ti > t_try).unwrap()
+                    if let Some(ti) = t_out.iter().copied().find(|&ti| ti > t_try) {
+                        t_write = ti;
+                    }
                 }
 
             }
 
-            // update for next timestep
+            // update for next step
             _update_prev(vars);
 
         }
+
+        // write list of times
+        _write_time_csv(&vars.folder, &t_out)?;
 
         // output time measurement
         let time_end = Instant::now();
@@ -249,6 +276,8 @@ pub trait TransientAdaptive: TransientBase {
         Ok(())
     }
 }
+
+impl<T: TransientBase> TransientAdaptive for T {}
 
 fn _unkn_to_solu(vars: &Variables, x_vec: &mut Vec<f64>) {
     // iterate through unknown scalars
@@ -481,4 +510,28 @@ fn _update_prev(vars: &mut Variables) {
     for vecitf in &mut vars.vecitf {
         vecitf.update_prev();
     }
+}
+
+fn _write_time_csv(folder: &str, t_out: &[f64]) -> Result<(), VFVChemError> {
+    // initialize writer
+    let path = Path::new(folder).join("time.csv");
+    let file = File::create(&path).map_err(|e| _csv_err(&path, e))?;
+    let mut w = BufWriter::new(file);
+
+    // write header
+    writeln!(w, "step,time").map_err(|e| _csv_err(&path, e))?;
+
+    // write remaining times
+    for (step, &time) in t_out.iter().enumerate() {
+        writeln!(w, "{step},{time}").map_err(|e| _csv_err(&path, e))?;
+    }
+
+    // flush
+    w.flush().map_err(|e| _csv_err(&path, e))?;
+
+    Ok(())
+}
+
+fn _csv_err(path: &PathBuf, source: std::io::Error) -> VFVChemError {
+    VFVChemError::WriteCsvError { path: path.to_path_buf(), source }
 }
