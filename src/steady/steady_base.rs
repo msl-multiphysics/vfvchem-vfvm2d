@@ -16,8 +16,8 @@ pub trait SteadyBase {
     ) -> Result<(), VFVChemError> {
         // error handling
         if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
-        if tol.is_nan() || tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
-        if damp.is_nan() || damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
+        if tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
+        if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
 
         // initialize time measurement
         println!("Starting steady-state solver.");

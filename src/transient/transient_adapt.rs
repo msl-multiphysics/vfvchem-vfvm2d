@@ -1,26 +1,47 @@
 use crate::base::prelude::*;
 use crate::linear::prelude::*;
+use crate::transient::prelude::*;
 use std::time::{Duration, Instant};
 
-pub trait TransientBase {
-    // to implement in specific solvers
-    fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError>;  // set start indices and compute matrix sizes
-    fn initial_dirichlet(&mut self, vars: &mut Variables, mat_size: usize) -> Result<(), VFVChemError>;  // load dirichlet values into unknown-type variables
-    fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError>;  // initialize operators
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError>;  // assemble global matrix
+const GROWTH_MIN: f64 = 0.25;
+const GROWTH_MAX: f64 = 4.00;
+const GROWTH_RATE: f64 = 2.00;
 
-    // default solver loop
-    fn solve(
+pub trait TransientAdaptive: TransientBase {
+    // adaptive solver with default options
+    fn solve_adaptive(
         &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
-        dt: f64, num_ts: usize, num_ts_write: usize, max_iter: usize, tol: f64, damp: f64
+        max_iter: usize, tol: f64, damp: f64, dt_start: f64, dt_min: f64, dt_max: f64,
+        t_end: f64, num_step: usize,
+    ) -> Result<(), VFVChemError> {
+        // create output times
+        let dt = t_end / (num_step as f64);
+        let t_out: Vec<f64> = (0..num_step + 1).map(|i| dt * (i as f64)).collect();
+
+        // run adaptive solver
+        self.solve_adaptive_options(
+            vars, lin, max_iter, tol, damp, dt_start, dt_min, dt_max,
+            t_out, GROWTH_MIN, GROWTH_MAX, GROWTH_RATE,
+        )?;
+
+        Ok(())
+    }
+    
+    // adaptive solver with complete options
+    fn solve_adaptive_options(
+        &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
+        max_iter: usize, tol: f64, damp: f64, dt_start: f64, dt_min: f64, dt_max: f64,
+        t_out: Vec<f64>, grow_min: f64, grow_max: f64, grow_rate: f64
     ) -> Result<(), VFVChemError> {
         // error handling
-        if dt.is_nan() || dt <= 0.0 { return Err(VFVChemError::SolverNonPositiveTimeStep { dt }); }
-        if num_ts == 0 { return Err(VFVChemError::SolverNonPositiveNumTimeSteps { num_ts }); }
-        if num_ts_write == 0 { return Err(VFVChemError::SolverNonPositiveWriteFrequency { num_ts_write }); }
         if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
-        if tol.is_nan() || tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
-        if damp.is_nan() || damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
+        if tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
+        if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
+        if dt_min <= 0.0 { return Err(VFVChemError::SolverNonPositiveMinimumTimeStep { dt_min }) };
+        if dt_max <= dt_min { return Err(VFVChemError::SolverInvalidMaximumTimeStep { dt_max }) };
+        if grow_min <= 0.0 || grow_min > 1.0 { return Err(VFVChemError::SolverInvalidGrowthMinimum { grow_min }) };
+        if grow_max <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthMaximum { grow_max }) };
+        if grow_rate <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthRate { grow_rate }) };
 
         // initialize time measurement
         println!("Starting transient solver.");
@@ -55,7 +76,7 @@ pub trait TransientBase {
         _update_func(vars, 0.0);
         _update_grad(vars);
         _update_prev(vars);
-        self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
+        self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt_start)?;
         lin.set_sparse(&a_triplet, mat_size)?;
         let num_triplet = a_triplet.len();
         let time_3 = Instant::now();
@@ -66,80 +87,154 @@ pub trait TransientBase {
         let time_4 = Instant::now();
         time_wrt += time_4 - time_3;
 
-        // iterate over time steps
-        for ts in 0..num_ts {
-            // assembly of A and b at timestep ts
-            // used for first iteration
-            let time_t0 = Instant::now();
-            let t = dt * ((ts + 1) as f64);
-            a_triplet = Vec::with_capacity(num_triplet);  // reset A
-            b_vec = vec![0.0; mat_size];  // reset b
-            _update_func(vars, t);
-            _update_grad(vars);
-            self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
-            let time_t1 = Instant::now();
-            time_asm += time_t1 - time_t0;
+        // initialize for adaptive time stepping
+        let mut t = 0.0;  // current time
+        let mut dt = dt_start;  // current timestep;
+        let t_end = t_out[t_out.len() - 1];  // final timestep
+        let mut dt_prev=  0.0;  // timestep between x_n and x_(n+1)
+        let mut x_n1_vec = x_iter_vec.clone();  // x_n
+        let mut x_n2_vec = x_iter_vec.clone();  // x_(n-1)
+        let mut err_prev: f64 = 1.0;  // local error of the previous accepted step
+        let mut num_write = 1;  // number of written output files
+        let mut t_write = t_out.iter().copied().find(|&ti| ti > t).unwrap(); // next time to write output
 
-            // iterate to convergence
-            // backward euler solves for timestep ts + 1
-            let mut is_conv = false;
-            for iter in 0..max_iter {
-                // solve for undamped solution
-                // x_udmp in A_k * x_udmp = b_k
-                let time_i0 = Instant::now();
-                let x_udmp_vec = lin.solve(&a_triplet, &b_vec, &x_iter_vec)?;
-                let time_i1 = Instant::now();
-                time_lin += time_i1 - time_i0;
+        // iterate until final timestep
+        while t < t_end {
+            // repeat until next solution is acceptable
+            let mut is_accept = false;
+            while !is_accept {
+                // adjust dt based on t_out
+                let mut t_try = t + dt;
+                if t_try > t_write {
+                    dt = t_write - t;
+                    t_try = t_write;
+                }
 
-                // solve for damped solution
-                // x_(k+1) in x_damp = (1 - damp) * x_k + damp * x_udmp
-                let x_damp_vec: Vec<f64> = (0..mat_size).map(|i| (1.0 - damp) * x_iter_vec[i] + damp * x_udmp_vec[i]).collect();
+                // attempt a solution with timestep dt
                 
-                // assemble A_(k+1) and b_(k+1) using x_(k+1)
-                let time_i2 = Instant::now();
+                // assembly of A and b at time t
+                // used for first iteration
+                let time_t0 = Instant::now();
                 a_triplet = Vec::with_capacity(num_triplet);  // reset A
                 b_vec = vec![0.0; mat_size];  // reset b
-                _solu_to_unkn(vars, &x_damp_vec);
-                _update_func(vars, t);
+                _update_func(vars, t_try);
                 _update_grad(vars);
                 self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
-                let time_i3 = Instant::now();
-                time_asm += time_i3 - time_i2;
+                let time_t1 = Instant::now();
+                time_asm += time_t1 - time_t0;
 
-                // compute tolerance
-                let res = _solu_res(vars, &a_triplet, &b_vec, &x_damp_vec);
-                println!("Timestep: {ts}; Iteration: {iter}; Residual: {res:.4e}");
+                // iterate to convergence
+                let mut is_conv = false;
+                for iter in 0..max_iter {
+                    // solve for undamped solution
+                    // x_udmp in A_k * x_udmp = b_k
+                    let time_i0 = Instant::now();
+                    let x_udmp_vec = lin.solve(&a_triplet, &b_vec, &x_iter_vec)?;
+                    let time_i1 = Instant::now();
+                    time_lin += time_i1 - time_i0;
 
-                // error if diverged
-                if !res.is_finite() {
-                    return Err(VFVChemError::SolverNonFiniteResidual { });
+                    // solve for damped solution
+                    // x_(k+1) in x_damp = (1 - damp) * x_k + damp * x_udmp
+                    let x_damp_vec: Vec<f64> = (0..mat_size).map(|i| (1.0 - damp) * x_iter_vec[i] + damp * x_udmp_vec[i]).collect();
+                    
+                    // assemble A_(k+1) and b_(k+1) using x_(k+1)
+                    let time_i2 = Instant::now();
+                    a_triplet = Vec::with_capacity(num_triplet);  // reset A
+                    b_vec = vec![0.0; mat_size];  // reset b
+                    _solu_to_unkn(vars, &x_damp_vec);
+                    _update_func(vars, t_try);
+                    _update_grad(vars);
+                    self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
+                    let time_i3 = Instant::now();
+                    time_asm += time_i3 - time_i2;
+
+                    // compute tolerance
+                    let res = _solu_res(vars, &a_triplet, &b_vec, &x_damp_vec);
+                    println!("Time: {t:.4e}; Timestep: {dt:.4e}; Iteration: {iter}; Residual: {res:.4e}");
+
+                    // reject if diverged
+                    if !res.is_finite() {
+                        is_conv = false;
+                        break;
+                    }
+
+                    // update iteration vector
+                    x_iter_vec = x_damp_vec;
+
+                    // tolerance check
+                    if res < tol {
+                        is_conv = true;
+                        break;
+                    }
                 }
 
-                // update iteration vector
-                x_iter_vec = x_damp_vec;
+                // adjust dt based on result
 
-                // tolerance check
-                if res < tol {
-                    is_conv = true;
+                // if not converged at dt_min, then raise error
+                if !is_conv && dt <= dt_min {
+                    return Err(VFVChemError::SolverAdaptiveDidNotConverge { dt_min });
+                }
+
+                // if not converged, then shrink timestep
+                if !is_conv {
+                    dt /= grow_rate;
+                    println!("Nonlinear solver did not converge. Reducing timestep to {dt:.4e}.");
                     break;
                 }
-            }
 
-            // error if not converged
-            if !is_conv {
-                return Err(VFVChemError::SolverDidNotConverge { max_iter });
-            }
+                // if converged, adjust timestep based on predictor
 
-            // write variables
-            if (ts + 1) % num_ts_write == 0 {
-                let time_w0 = Instant::now();
-                write_vars_vtu(vars, (ts + 1) / num_ts_write)?;
-                let time_w1 = Instant::now();
-                time_wrt += time_w1 - time_w0;
+                // local error from the linear extrapolation predictor
+                // x_pred = x_n + (dt / dt_prev) * (x_n - x_(n-1))
+                // trunc_err = dt / (2 * dt + dt_prev) * |x_iter - x_pred| / (tol * scale)
+                // scale is the field scale over x_n and x_iter
+                let err_fac = dt / (2.0 * dt + dt_prev);
+                let scale_vec = _solu_scale(vars, &x_n1_vec, &x_iter_vec);
+                let mut err: f64 = 0.0;
+                for xid in 0..mat_size {
+                    let x_pred = x_n1_vec[xid] + (dt / dt_prev) * (x_n1_vec[xid] - x_n2_vec[xid]);
+                    let w = 1e-10 + tol * scale_vec[xid];
+                    err = err.max(err_fac * (x_iter_vec[xid] - x_pred).abs() / w);
+                }
+
+                // if error is too large, then shrink timestep
+                if err > 1.0 {
+                    is_accept = false;
+                    let shrink = (0.9 * err.powf(-0.5)).max(grow_min);
+                    dt = (dt * shrink).max(dt_min);
+                    _solu_to_unkn(vars, &x_n1_vec);
+                    x_iter_vec = x_n1_vec.clone();
+                    println!("Predictor error too large. Reducing timestep to {dt:.4e}.");
+                    continue;
+                }
+
+                // update previous data
+                is_accept = true;
+                x_n2_vec = x_n1_vec;
+                x_n1_vec = x_iter_vec.clone();
+                dt_prev = dt;
+                t += dt;
+
+                // update timestep
+                let grow = 0.9 * err.max(1e-10).powf(-0.35) * err_prev.max(1e-10).powf(0.2);
+                dt = (dt * grow).clamp(dt_min, dt_max);
+                err_prev = err.max(1e-10);
+
+                // write variables
+                if t_try == t_write {
+                    let time_w0 = Instant::now();
+                    write_vars_vtu(vars, num_write)?;
+                    let time_w1 = Instant::now();
+                    time_wrt += time_w1 - time_w0;
+                    num_write += 1;
+                    t_write = t_out.iter().copied().find(|&ti| ti > t_try).unwrap()
+                }
+
             }
 
             // update for next timestep
             _update_prev(vars);
+
         }
 
         // output time measurement
@@ -188,6 +283,50 @@ fn _unkn_to_solu(vars: &Variables, x_vec: &mut Vec<f64>) {
         }
     }
 
+}
+
+fn _solu_scale(vars: &Variables, x_a_vec: &Vec<f64>, x_b_vec: &Vec<f64>) -> Vec<f64> {
+    // field scale of every unknown: max magnitude of its field over both solution vectors
+    // vector unknowns share one scale, the max of |(v_x, v_y)|
+    let mut scale_vec: Vec<f64> = vec![0.0; x_a_vec.len()];
+
+    for scldom in &vars.scldom {
+        match scldom.scldom_type {
+            SclDomType::Unknown { start } => {
+                let num_tot = scldom.value.len();
+                let mut scale: f64 = 0.0;
+                for x_vec in [x_a_vec, x_b_vec] {
+                    for vid in 0..num_tot {
+                        scale = scale.max(x_vec[start + vid].abs());
+                    }
+                }
+                for vid in 0..num_tot {
+                    scale_vec[start + vid] = scale;
+                }
+            }
+            _ => { continue; }
+        }
+    }
+
+    for vecdom in &vars.vecdom {
+        match vecdom.vecdom_type {
+            VecDomType::Unknown { start } => {
+                let num_tot = vecdom.value.len();
+                let mut scale: f64 = 0.0;
+                for x_vec in [x_a_vec, x_b_vec] {
+                    for vid in 0..num_tot {
+                        scale = scale.max(x_vec[start + vid].hypot(x_vec[start + num_tot + vid]));
+                    }
+                }
+                for vid in 0..2 * num_tot {
+                    scale_vec[start + vid] = scale;
+                }
+            }
+            _ => { continue; }
+        }
+    }
+
+    scale_vec
 }
 
 fn _solu_res(vars: &Variables, a_triplet: &Vec<(usize, usize, f64)>, b_vec: &Vec<f64>, x_vec: &Vec<f64>) -> f64 {

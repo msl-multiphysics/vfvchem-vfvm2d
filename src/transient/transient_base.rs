@@ -12,15 +12,15 @@ pub trait TransientBase {
     // default solver loop
     fn solve(
         &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
-        dt: f64, num_ts: usize, num_ts_write: usize, max_iter: usize, tol: f64, damp: f64
+        max_iter: usize, tol: f64, damp: f64, dt: f64, num_ts: usize, num_ts_write: usize,
     ) -> Result<(), VFVChemError> {
         // error handling
-        if dt.is_nan() || dt <= 0.0 { return Err(VFVChemError::SolverNonPositiveTimeStep { dt }); }
+        if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
+        if tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
+        if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
+        if dt <= 0.0 { return Err(VFVChemError::SolverNonPositiveTimeStep { dt }); }
         if num_ts == 0 { return Err(VFVChemError::SolverNonPositiveNumTimeSteps { num_ts }); }
         if num_ts_write == 0 { return Err(VFVChemError::SolverNonPositiveWriteFrequency { num_ts_write }); }
-        if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
-        if tol.is_nan() || tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
-        if damp.is_nan() || damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
 
         // initialize time measurement
         println!("Starting transient solver.");

@@ -181,6 +181,24 @@ pub enum VFVChemError {
     },
 
     // solvers
+    #[error("Solver: Maximum iterations `max_iter` must be greater than zero. Got max_iter = {max_iter}.")]
+    SolverNonPositiveMaxIter {
+        max_iter: usize,
+    },
+    #[error("Solver: Tolerance `tol` must be greater than zero. Got tol = {tol}.")]
+    SolverNonPositiveTolerance {
+        tol: f64,
+    },
+    #[error("Solver: Damping `damp` must be in (0, 1]. Got damp = {damp}.")]
+    SolverInvalidDamping {
+        damp: f64,
+    },
+    #[error("Solver: Nonlinear iteration diverged.")]
+    SolverNonFiniteResidual {},
+    #[error("Solver: Nonlinear iteration did not converge within {max_iter} iterations.")]
+    SolverDidNotConverge {
+        max_iter: usize,
+    },
     #[error("Solver: Time step `dt` must be greater than zero. Got dt = {dt}.")]
     SolverNonPositiveTimeStep {
         dt: f64,
@@ -193,22 +211,28 @@ pub enum VFVChemError {
     SolverNonPositiveWriteFrequency {
         num_ts_write: usize,
     },
-    #[error("Solver: Maximum iterations `max_iter` must be greater than zero. Got max_iter = {max_iter}.")]
-    SolverNonPositiveMaxIter {
-        max_iter: usize,
+    #[error("Solver: Minimum time step `dt_min` must be greater than zero. Got dt_min = {dt_min}.")]
+    SolverNonPositiveMinimumTimeStep {
+        dt_min: f64,
     },
-    #[error("Solver: Tolerance `tol` must be greater than zero. Got tol = {tol}.")]
-    SolverNonPositiveTolerance {
-        tol: f64,
+    #[error("Solver: Maximum time step `dt_max` must be greater than the minimum timestep. Got dt_max = {dt_max}.")]
+    SolverInvalidMaximumTimeStep {
+        dt_max: f64,
     },
-    #[error("Solver: Damping must be in (0, 1]. Got damp = {damp}.")]
-    SolverInvalidDamping {
-        damp: f64,
+    #[error("Solver: Minimum growth factor `grow_min` must be in (0, 1]. Got grow_min = {grow_min}.")]
+    SolverInvalidGrowthMinimum {
+        grow_min: f64,
     },
-    #[error("Solver: Nonlinear iteration diverged.")]
-    SolverNonFiniteResidual {},
-    #[error("Solver: Nonlinear iteration did not converge within {max_iter} iterations.")]
-    SolverDidNotConverge {
-        max_iter: usize,
+    #[error("Solver: Maximum growth factor `grow_max` must be greater than one. Got grow_max = {grow_max}.")]
+    SolverInvalidGrowthMaximum {
+        grow_max: f64,
+    },
+    #[error("Solver: Growth factor rate `grow_rate` must be greater than one. Got grow_rate = {grow_rate}.")]
+    SolverInvalidGrowthRate {
+        grow_rate: f64,
+    },
+    #[error("Solver: Adaptive solver did not converge at minimum timestep {dt_min}.")]
+    SolverAdaptiveDidNotConverge {
+        dt_min: f64,
     },
 }
