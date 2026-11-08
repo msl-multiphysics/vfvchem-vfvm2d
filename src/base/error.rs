@@ -237,7 +237,7 @@ pub enum VFVChemError {
     SolverInvalidGrowthMaximum {
         grow_max: f64,
     },
-    #[error("Solver: Nonlinear failure growth factor `grow_fail` must be in (0, 1]. Got grow_fail = {grow_fail}.")]
+    #[error("Solver: Nonlinear failure growth factor `grow_fail` must be in (0, 1). Got grow_fail = {grow_fail}.")]
     SolverInvalidGrowthFail {
         grow_fail: f64,
     },

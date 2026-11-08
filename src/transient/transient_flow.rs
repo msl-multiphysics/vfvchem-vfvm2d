@@ -205,7 +205,7 @@ impl TransientBase for TransientFlow {
 
         // rhie-chow stabilization
         for oper_rc in self.oper_dom_rc.iter() {
-            oper_rc.apply(vars, a_triplet, b_vec)?;
+            oper_rc.apply_time(vars, a_triplet, b_vec, dt)?;
         }
 
         // continuity

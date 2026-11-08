@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 const GROWTH_MIN: f64 = 0.25;
 const GROWTH_MAX: f64 = 4.00;
 const GROWTH_FAIL: f64 = 0.50;
+const TOL_TIME: f64 = 100.0;
 
 pub trait TransientAdaptive: TransientBase {
     // adaptive solver with default options
@@ -23,7 +24,7 @@ pub trait TransientAdaptive: TransientBase {
 
         // run adaptive solver
         self.solve_adaptive_options(
-            vars, lin, max_iter, tol, damp, dt_init, dt_min, dt_max,
+            vars, lin, max_iter, tol, damp, TOL_TIME * tol, dt_init, dt_min, dt_max,
             t_out, GROWTH_MIN, GROWTH_MAX, GROWTH_FAIL,
         )?;
 
@@ -31,21 +32,24 @@ pub trait TransientAdaptive: TransientBase {
     }
     
     // adaptive solver with complete options
+    // tol_iter is the nonlinear tolerance; tol_time is the local error tolerance
+    // tol_iter should be well below tol_time; otherwise the nonlinear error is mistaken for local error
     fn solve_adaptive_options(
         &mut self, vars: &mut Variables, lin: &mut Box<dyn LinearBase>,
-        max_iter: usize, tol: f64, damp: f64, dt_init: f64, dt_min: f64, dt_max: f64,
+        max_iter: usize, tol_iter: f64, damp: f64, tol_time: f64, dt_init: f64, dt_min: f64, dt_max: f64,
         t_out: Vec<f64>, grow_min: f64, grow_max: f64, grow_fail: f64
     ) -> Result<(), VFVChemError> {
         // error handling
         if max_iter == 0 { return Err(VFVChemError::SolverNonPositiveMaxIter { max_iter }); }
-        if tol <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol }); }
+        if tol_iter <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol: tol_iter }); }
+        if tol_time <= 0.0 { return Err(VFVChemError::SolverNonPositiveTolerance { tol: tol_time }); }
         if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidDamping { damp }); }
         if dt_init <= 0.0 { return Err(VFVChemError::SolverNonPositiveInitialStepSize { dt_init }) };
         if dt_init < dt_min { return Err(VFVChemError::SolverInvalidMinimumStepSize { dt_min }) };
         if dt_max <= dt_min { return Err(VFVChemError::SolverInvalidMaximumStepSize { dt_max }) };
         if grow_min <= 0.0 || grow_min > 1.0 { return Err(VFVChemError::SolverInvalidGrowthMinimum { grow_min }) };
         if grow_max <= 1.0 { return Err(VFVChemError::SolverInvalidGrowthMaximum { grow_max }) };
-        if damp <= 0.0 || damp > 1.0 { return Err(VFVChemError::SolverInvalidGrowthFail { grow_fail }) };
+        if grow_fail <= 0.0 || grow_fail >= 1.0 { return Err(VFVChemError::SolverInvalidGrowthFail { grow_fail }) };
 
         // error handling of t_out
         if t_out.is_empty() { return Err(VFVChemError::SolverAdaptiveInvalidOutputTime {}); }  // t_out empty
@@ -180,7 +184,7 @@ pub trait TransientAdaptive: TransientBase {
                     x_iter_vec = x_damp_vec;
 
                     // tolerance check
-                    if res < tol {
+                    if res < tol_iter {
                         is_conv = true;
                         break;
                     }
@@ -196,15 +200,17 @@ pub trait TransientAdaptive: TransientBase {
                 // if not converged, then shrink step size
                 if !is_conv {
                     dt = (dt * grow_fail).max(dt_min);
+                    _solu_to_unkn(vars, &x_n1_vec);
+                    x_iter_vec = x_n1_vec.clone();
                     println!("Nonlinear solver did not converge. Reducing step size to {dt:.4e}.");
-                    break;
+                    continue;
                 }
 
                 // if converged, adjust step size based on predictor
 
                 // local error from the linear extrapolation predictor
                 // x_pred = x_n + (dt / dt_prev) * (x_n - x_(n-1))
-                // trunc_err = dt / (2 * dt + dt_prev) * |x_iter - x_pred| / (tol * scale)
+                // trunc_err = dt / (2 * dt + dt_prev) * |x_iter - x_pred| / (tol_time * scale)
                 // scale is the field scale over x_n and x_iter
                 // the first step has no previous step size, so accept it
                 let mut err: f64 = 1.0;
@@ -214,13 +220,14 @@ pub trait TransientAdaptive: TransientBase {
                     err = 0.0;
                     for xid in 0..mat_size {
                         let x_pred = x_n1_vec[xid] + (dt / dt_prev) * (x_n1_vec[xid] - x_n2_vec[xid]);
-                        let w = 1e-10 + tol * scale_vec[xid];
+                        let w = 1e-10 + tol_time * scale_vec[xid];
                         err = err.max(err_fac * (x_iter_vec[xid] - x_pred).abs() / w);
                     }
                 }
 
                 // if error is too large, then shrink step size
-                if err > 1.0 {
+                // accept anyway at dt_min, since retrying would repeat the same step
+                if err > 1.0 && dt > dt_min {
                     is_accept = false;
                     let grow = 0.9 * err.powf(-0.5);
                     let grow = grow.max(grow_min);  // limit to grow_min
