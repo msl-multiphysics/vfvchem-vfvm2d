@@ -75,10 +75,9 @@ impl OpSclDomRhieChow {
             let area = tri.vert_area[vid];
             let den_c = den_dom.interp_vert(tri.vert_offc[vid], vid);
             let coeff_t = -den_c * area / dt;  // a_t
-            let (dx, dy) = rc_vec[vid];
-            let dx_s = area / (area / dx - coeff_t);
-            let dy_s = area / (area / dy - coeff_t);
-            rcs_vec.push((dx_s, dy_s));
+            let rc = rc_vec[vid];
+            let rcs = area / (area / rc - coeff_t);
+            rcs_vec.push(rcs);
         }
 
         // iterate through points
@@ -91,7 +90,7 @@ impl OpSclDomRhieChow {
             let skew_n = &tri.face_skew[vid_v];
 
             // get vertex properties
-            let (dx_v, dy_v) = rcs_vec[vid_v];
+            let rcs_v = rcs_vec[vid_v];
 
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
@@ -102,25 +101,24 @@ impl OpSclDomRhieChow {
                 let skew = skew_n[loc];
 
                 // get neighbor properties
-                let (dx_n, dy_n) = rcs_vec[vid_n];
+                let rcs_n = rcs_vec[vid_n];
 
                 // get face properties
                 let den_f = den_dom.interp_face(skew, vid_v, vid_n);
-                let dx_f = 0.5 * (dx_v + dx_n);
-                let dy_f = 0.5 * (dy_v + dy_n);
+                let rcs_f = 0.5 * (rcs_v + rcs_n);
 
                 // load into matrix
-                let coeff_v = den_f * (dx_f * nx * nx + dy_f * ny * ny) * face / dist;  // -rho_f * d_f (p_n - p_v) / dn * dl
+                let coeff_v = den_f * rcs_f * face / dist;  // -rho_f * d_f (p_n - p_v) / dn * dl
                 self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_n, -coeff_v)?;
                 self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_v,  coeff_v)?;
 
                 // load gradient term into matrix; implicit to avoid lagging behind the difference term
                 // (d grad(p))_f = 0.5 * (d_v grad(p)_v + d_n grad(p)_n); grad(p)_w = sum_m wgt_m (p_m - p_w)
                 for vid_w in [vid_v, vid_n] {
-                    let (dx_w, dy_w) = rcs_vec[vid_w];
+                    let rcs_w = rcs_vec[vid_w];
                     for (loc_w, &vid_m) in tri.ngh_vid[vid_w].iter().enumerate() {
                         let (wgt_x, wgt_y) = tri.grad_wgt[vid_w][loc_w];
-                        let coeff_g = 0.5 * den_f * (dx_w * wgt_x * nx + dy_w * wgt_y * ny) * face;  // rho_f * (d grad(p) . n)_f * dl
+                        let coeff_g = 0.5 * den_f * rcs_w * (wgt_x * nx + wgt_y * ny) * face;  // rho_f * (d grad(p) . n)_f * dl
                         self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_m,  coeff_g)?;
                         self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_w, -coeff_g)?;
                     }
@@ -161,7 +159,7 @@ impl OperatorBase for OpSclDomRhieChow {
         // rho_f * (d grad(p) . n)_f * dl - rho_f * d_f (p_n - p_v) / dn * dl
         //
         // notes:
-        // d has x and y components (diagonal tensor); use d_f = n^T d_f in the pressure difference term
+        // d is scalar because the x and y momentum equations have the same coefficients
         // grad(p) is implicit; a lagged grad(p) does not cancel the implicit difference term, and the iteration diverges
         
         // get objects
@@ -183,7 +181,7 @@ impl OperatorBase for OpSclDomRhieChow {
             let skew_n = &tri.face_skew[vid_v];
 
             // get vertex properties
-            let (dx_v, dy_v) = rc_vec[vid_v];
+            let rc_v = rc_vec[vid_v];
 
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
@@ -194,25 +192,24 @@ impl OperatorBase for OpSclDomRhieChow {
                 let skew = skew_n[loc];
 
                 // get neighbor properties
-                let (dx_n, dy_n) = rc_vec[vid_n];
+                let rc_n = rc_vec[vid_n];
 
                 // get face properties
                 let den_f = den_dom.interp_face(skew, vid_v, vid_n);
-                let dx_f = 0.5 * (dx_v + dx_n);
-                let dy_f = 0.5 * (dy_v + dy_n);
+                let rc_f = 0.5 * (rc_v + rc_n);
 
                 // load into matrix
-                let coeff_v = den_f * (dx_f * nx * nx + dy_f * ny * ny) * face / dist;  // -rho_f * d_f (p_n - p_v) / dn * dl
+                let coeff_v = den_f * rc_f * face / dist;  // -rho_f * d_f (p_n - p_v) / dn * dl
                 self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_n, -coeff_v)?;
                 self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_v,  coeff_v)?;
 
                 // load gradient term into matrix; implicit to avoid lagging behind the difference term
                 // (d grad(p))_f = 0.5 * (d_v grad(p)_v + d_n grad(p)_n); grad(p)_w = sum_m wgt_m (p_m - p_w)
                 for vid_w in [vid_v, vid_n] {
-                    let (dx_w, dy_w) = rc_vec[vid_w];
+                    let rc_w = rc_vec[vid_w];
                     for (loc_w, &vid_m) in tri.ngh_vid[vid_w].iter().enumerate() {
                         let (wgt_x, wgt_y) = tri.grad_wgt[vid_w][loc_w];
-                        let coeff_g = 0.5 * den_f * (dx_w * wgt_x * nx + dy_w * wgt_y * ny) * face;  // rho_f * (d grad(p) . n)_f * dl
+                        let coeff_g = 0.5 * den_f * rc_w * (wgt_x * nx + wgt_y * ny) * face;  // rho_f * (d grad(p) . n)_f * dl
                         self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_m,  coeff_g)?;
                         self.add_sclscl_a(vars, a_triplet, self.pres_id, vid_v, self.pres_id, vid_w, -coeff_g)?;
                     }
@@ -224,7 +221,7 @@ impl OperatorBase for OpSclDomRhieChow {
     }
 }
 
-fn _get_rc(dom: &Domain, tri: &Triangle, vel_dom: &VectorDomain, a_triplet: &Vec<(usize, usize, f64)>) -> Result<Vec<(f64, f64)>, VFVChemError> {
+fn _get_rc(dom: &Domain, tri: &Triangle, vel_dom: &VectorDomain, a_triplet: &Vec<(usize, usize, f64)>) -> Result<Vec<f64>, VFVChemError> {
     // get start indices
     let num_vert = dom.num_vert();
     let velx_start = match vel_dom.vecdom_type {
@@ -232,18 +229,15 @@ fn _get_rc(dom: &Domain, tri: &Triangle, vel_dom: &VectorDomain, a_triplet: &Vec
         _ => return Err(VFVChemError::OperatorNonUnknownInLinearSystem{}),
     };
     let vely_start = velx_start + num_vert;
-    let vely_end = vely_start + num_vert;
 
     // initialize coefficient vectors
-    let mut ax_vec = vec![0.0; num_vert];
-    let mut ay_vec = vec![0.0; num_vert];
+    let mut a_vec = vec![0.0; num_vert];
 
     // collect coefficients from triplets
+    // only collect coefficients of velx; vely has the same coefficients
     for &(r, c, v) in a_triplet.iter() {
         if r == c && velx_start <= r && r < vely_start {  // vecx on diagonal
-            ax_vec[r - velx_start] += v;
-        } else if r == c && vely_start <= r && r < vely_end {  // vecy on diagonal
-            ay_vec[r - vely_start] += v;
+            a_vec[r - velx_start] += v;
         }
     }
 
@@ -251,9 +245,8 @@ fn _get_rc(dom: &Domain, tri: &Triangle, vel_dom: &VectorDomain, a_triplet: &Vec
     let mut rc_vec = Vec::with_capacity(num_vert);
     for vid in 0..num_vert {
         let area = tri.vert_area[vid];
-        let dx = area / ax_vec[vid];
-        let dy = area / ay_vec[vid];
-        rc_vec.push((dx, dy));
+        let rc = area / a_vec[vid];
+        rc_vec.push(rc);
     }
 
     // return
