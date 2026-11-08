@@ -9,6 +9,7 @@ pub mod opscl_dom_lin;
 pub mod opscl_dom_src;
 pub mod opscl_dom_rc;
 pub mod opscl_dom_time;
+pub mod opscl_dom_tden;
 pub mod opscl_dom_twgt;
 
 // scalar boundary operators

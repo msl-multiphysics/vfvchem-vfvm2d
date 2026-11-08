@@ -29,7 +29,7 @@ pub struct TransientFlow {
     pub pref_pres: f64,   // reference pressure
 
     // operators
-    pub oper_dom_itr: Vec<(OpVecDomTime, OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence)>,
+    pub oper_dom_itr: Vec<(OpVecDomTime, OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomTimeDensity, OpSclDomDivergence)>,
     pub oper_dom_rc: Vec<OpSclDomRhieChow>,
     pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence)>,
     pub oper_bnd_pres: Vec<OpSclBndDirichlet>,
@@ -137,9 +137,10 @@ impl TransientBase for TransientFlow {
             let oper_dtrn = OpVecDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
             let oper_ddil = OpVecDomDilatatory::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
             let oper_src = OpVecDomSource::new(vars, dom_id, dom_vel_id, dom_fce_id)?;
+            let oper_tden = OpSclDomTimeDensity::new(vars, dom_id, dom_pres_id, dom_den_id)?;
             let oper_div = OpSclDomDivergence::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
             let oper_rc = OpSclDomRhieChow::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
-            self.oper_dom_itr.push((oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div));
+            self.oper_dom_itr.push((oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_tden, oper_div));
             self.oper_dom_rc.push(oper_rc);
         }
 
@@ -187,7 +188,7 @@ impl TransientBase for TransientFlow {
 
     fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
         // domain
-        for (oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div) in self.oper_dom_itr.iter() {
+        for (oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_tden, oper_div) in self.oper_dom_itr.iter() {
             oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_grad.apply(vars, a_triplet, b_vec)?;
@@ -195,6 +196,7 @@ impl TransientBase for TransientFlow {
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_tden.apply_time(vars, a_triplet, b_vec, dt)?;
             oper_div.apply(vars, a_triplet, b_vec)?;
         }
 

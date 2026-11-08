@@ -8,6 +8,7 @@ pub use super::opscl_dom_lin::*;
 pub use super::opscl_dom_src::*;
 pub use super::opscl_dom_rc::*;
 pub use super::opscl_dom_time::*;
+pub use super::opscl_dom_tden::*;
 pub use super::opscl_dom_twgt::*;
 
 // scalar boundary operators
