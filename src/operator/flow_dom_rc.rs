@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomRhieChow {
+pub struct FlowDomRhieChow {
     // domain
     pub dom_id: usize,
 
@@ -14,8 +14,8 @@ pub struct OpSclDomRhieChow {
     pub den_id: usize,   // density (rho)
 }
 
-impl OpSclDomRhieChow {
-    pub fn new(vars: &Variables, dom_id: usize, pres_id: usize, vel_id: usize, den_id: usize) -> Result<OpSclDomRhieChow, VFVChemError> {
+impl FlowDomRhieChow {
+    pub fn new(vars: &Variables, dom_id: usize, pres_id: usize, vel_id: usize, den_id: usize) -> Result<FlowDomRhieChow, VFVChemError> {
         // adds the rhie-chow correction to the continuity equation face velocities
         // must be applied before dirichlet boundaries and pressure point
 
@@ -25,7 +25,7 @@ impl OpSclDomRhieChow {
         check_dom_scldom(vars, dom_id, den_id)?;
 
         // create struct
-        let mut oper = OpSclDomRhieChow::default();
+        let mut oper = FlowDomRhieChow::default();
         oper.dom_id = dom_id;
         oper.pres_id = pres_id;
         oper.vel_id = vel_id;
@@ -130,7 +130,7 @@ impl OpSclDomRhieChow {
     }
 }
 
-impl OperatorBase for OpSclDomRhieChow {
+impl OperatorBase for FlowDomRhieChow {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // start with discretized equations
         // a and b are coefficients of vel_v and grad(p); mom are the other terms

@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomDiffusion {
+pub struct HeatDomDiffusion {
     // domain
     pub dom_id: usize,
 
@@ -14,8 +14,8 @@ pub struct OpSclDomDiffusion {
     pub drv_id: usize,   // driving scalar (c_j)
 }
 
-impl OpSclDomDiffusion {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<OpSclDomDiffusion, VFVChemError> {
+impl HeatDomDiffusion {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<HeatDomDiffusion, VFVChemError> {
         // adds the diffusion term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                                           ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ impl OpSclDomDiffusion {
         check_dom_scldom(vars, dom_id, drv_id)?;
 
         // create struct
-        let mut oper = OpSclDomDiffusion::default();
+        let mut oper = HeatDomDiffusion::default();
         oper.dom_id = dom_id;
         oper.unk_id = unk_id;
         oper.diff_id = diff_id;
@@ -36,7 +36,7 @@ impl OpSclDomDiffusion {
     }
 }
 
-impl OperatorBase for OpSclDomDiffusion {
+impl OperatorBase for HeatDomDiffusion {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_surf -div( -D * grad(c) ) dA

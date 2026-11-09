@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomDivergence {
+pub struct FlowDomDivergence {
     // domain
     pub dom_id: usize,
 
@@ -14,8 +14,8 @@ pub struct OpSclDomDivergence {
     pub den_id: usize,  // density (rho)
 }
 
-impl OpSclDomDivergence {
-    pub fn new(vars: &Variables, dom_id: usize, pres_id: usize, vel_id: usize, den_id: usize) -> Result<OpSclDomDivergence, VFVChemError> {
+impl FlowDomDivergence {
+    pub fn new(vars: &Variables, dom_id: usize, pres_id: usize, vel_id: usize, den_id: usize) -> Result<FlowDomDivergence, VFVChemError> {
         // adds the divergence term to the continuity equation
         // d(rho)/dt = -div(rho * vel)
         //             ^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ impl OpSclDomDivergence {
         check_dom_scldom(vars, dom_id, den_id)?;
         
         // create struct
-        let mut oper = OpSclDomDivergence::default();
+        let mut oper = FlowDomDivergence::default();
         oper.dom_id = dom_id;
         oper.pres_id = pres_id;
         oper.vel_id = vel_id;
@@ -36,7 +36,7 @@ impl OpSclDomDivergence {
     }
 }
 
-impl OperatorBase for OpSclDomDivergence {
+impl OperatorBase for FlowDomDivergence {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_surf -div(rho * vel) dA

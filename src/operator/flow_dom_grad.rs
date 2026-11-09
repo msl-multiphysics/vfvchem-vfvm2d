@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpVecDomGradient {
+pub struct FlowDomGradient {
     // domain
     pub dom_id: usize,
 
@@ -13,8 +13,8 @@ pub struct OpVecDomGradient {
     pub pres_id: usize,  // pressure (p)
 }
 
-impl OpVecDomGradient {
-    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, pres_id: usize) -> Result<OpVecDomGradient, VFVChemError> {
+impl FlowDomGradient {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, pres_id: usize) -> Result<FlowDomGradient, VFVChemError> {
         // adds the advection term to the Navier-Stokes equation
         // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         //                                           ^^^^^^^^
@@ -24,7 +24,7 @@ impl OpVecDomGradient {
         check_dom_scldom(vars, dom_id, pres_id)?;
 
         // create struct
-        let mut oper = OpVecDomGradient::default();
+        let mut oper = FlowDomGradient::default();
         oper.dom_id = dom_id;
         oper.vel_id = vel_id;
         oper.pres_id = pres_id;
@@ -33,7 +33,7 @@ impl OpVecDomGradient {
     }
 }
 
-impl OperatorBase for OpVecDomGradient {
+impl OperatorBase for FlowDomGradient {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {  
         // get surface integral
         // int_surf -grad(p) dA

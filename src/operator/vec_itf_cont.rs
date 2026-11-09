@@ -4,7 +4,7 @@ use crate::operator::prelude::*;
 const INVALID: usize = usize::MAX;
 
 #[derive(Default)]
-pub struct OpVecItfContinuity {
+pub struct VecItfContinuity {
     // interface
     pub itf_id: usize,
 
@@ -17,8 +17,8 @@ pub struct OpVecItfContinuity {
     pub row_pair: Vec<(usize, usize)>,  // (row a, row b)
 }
 
-impl OpVecItfContinuity {
-    pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, unk_b_id: usize) -> Result<OpVecItfContinuity, VFVChemError> {
+impl VecItfContinuity {
+    pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, unk_b_id: usize) -> Result<VecItfContinuity, VFVChemError> {
         // sets a continuous value and flux across an interface for each component
         // vel_i^a = vel_i^b
         // R^a + R^b = 0
@@ -27,7 +27,7 @@ impl OpVecItfContinuity {
         check_itf_vecdom(vars, itf_id, unk_a_id, unk_b_id)?;
 
         // create struct
-        let mut oper = OpVecItfContinuity::default();
+        let mut oper = VecItfContinuity::default();
         oper.itf_id = itf_id;
         oper.unk_a_id = unk_a_id;
         oper.unk_b_id = unk_b_id;
@@ -75,7 +75,7 @@ impl OpVecItfContinuity {
     }
 }
 
-impl OperatorBase for OpVecItfContinuity {
+impl OperatorBase for VecItfContinuity {
     fn apply(&self, _vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // outline:
         // add entries in row a to row b (flux continuity)

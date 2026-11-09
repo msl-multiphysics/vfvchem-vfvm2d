@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpVecDomAdvection {
+pub struct FlowDomAdvection {
     // domain
     pub dom_id: usize,
 
@@ -14,8 +14,8 @@ pub struct OpVecDomAdvection {
     pub visc_id: usize,  // viscosity (mu)
 }
 
-impl OpVecDomAdvection {
-    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, visc_id: usize) -> Result<OpVecDomAdvection, VFVChemError> {
+impl FlowDomAdvection {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, visc_id: usize) -> Result<FlowDomAdvection, VFVChemError> {
         // adds the advection term to the Navier-Stokes equation
         // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         //                   ^^^^^^^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ impl OpVecDomAdvection {
         check_dom_scldom(vars, dom_id, visc_id)?;
 
         // create struct
-        let mut oper = OpVecDomAdvection::default();
+        let mut oper = FlowDomAdvection::default();
         oper.dom_id = dom_id;
         oper.vel_id = vel_id;
         oper.den_id = den_id;
@@ -36,7 +36,7 @@ impl OpVecDomAdvection {
     }
 }
 
-impl OperatorBase for OpVecDomAdvection {
+impl OperatorBase for FlowDomAdvection {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b

@@ -23,10 +23,10 @@ pub struct SteadyMole {
     pub ncnt_itf: Vec<Vec<usize>>,              // comp_id -> interface with continuity
 
     // operators
-    pub oper_dom_mole: Vec<(OpSclDomDiffusion, OpSclDomLinear, OpSclDomSource)>,
-    pub oper_bnd_conc: Vec<OpSclBndDirichlet>,
-    pub oper_bnd_nflx: Vec<OpSclBndNeumann>,
-    pub oper_itf_ncnt: Vec<OpSclItfContinuity>,
+    pub oper_dom_mole: Vec<(HeatDomDiffusion, SclDomLinear, SclDomSource)>,
+    pub oper_bnd_conc: Vec<SclBndDirichlet>,
+    pub oper_bnd_nflx: Vec<SclBndNeumann>,
+    pub oper_itf_ncnt: Vec<SclItfContinuity>,
 }
 
 impl SteadyMole {
@@ -122,9 +122,9 @@ impl SteadyBase for SteadyMole {
             let dom_diff_id = self.mole_diff[comp_id][&dom_id];
             let dom_nlin_id = self.mole_nlin[comp_id][&dom_id];
             let dom_nsrc_id = self.mole_nsrc[comp_id][&dom_id];
-            let oper_diff = OpSclDomDiffusion::new(vars, dom_id, dom_conc_id, dom_diff_id, dom_conc_id)?;
-            let oper_lin = OpSclDomLinear::new(vars, dom_id, dom_conc_id, dom_nlin_id)?;
-            let oper_src = OpSclDomSource::new(vars, dom_id, dom_conc_id, dom_nsrc_id)?;
+            let oper_diff = HeatDomDiffusion::new(vars, dom_id, dom_conc_id, dom_diff_id, dom_conc_id)?;
+            let oper_lin = SclDomLinear::new(vars, dom_id, dom_conc_id, dom_nlin_id)?;
+            let oper_src = SclDomSource::new(vars, dom_id, dom_conc_id, dom_nsrc_id)?;
             self.oper_dom_mole.push((oper_diff, oper_lin, oper_src));
         }}
 
@@ -134,7 +134,7 @@ impl SteadyBase for SteadyMole {
             let dom_id = vars.bnd[bnd_id].dom_id;
             let dom_conc_id = self.mole_conc[comp_id][&dom_id];
             let bnd_nflx_id = self.nflx_nflx[comp_id][&bnd_id];
-            let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_conc_id, bnd_nflx_id)?;
+            let oper_neu = SclBndNeumann::new(vars, bnd_id, dom_conc_id, bnd_nflx_id)?;
             self.oper_bnd_nflx.push(oper_neu);
         }}
 
@@ -145,7 +145,7 @@ impl SteadyBase for SteadyMole {
             let dom_b_id = vars.itf[itf_id].dom_b_id;
             let dom_conc_a_id = self.mole_conc[comp_id][&dom_a_id];
             let dom_conc_b_id = self.mole_conc[comp_id][&dom_b_id];
-            let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
+            let oper_cont = SclItfContinuity::new(vars, itf_id, dom_conc_a_id, dom_conc_b_id)?;
             self.oper_itf_ncnt.push(oper_cont);
         }}
 
@@ -155,7 +155,7 @@ impl SteadyBase for SteadyMole {
             let dom_id = vars.bnd[bnd_id].dom_id;
             let dom_conc_id = self.mole_conc[comp_id][&dom_id];
             let bnd_conc_id = self.conc_conc[comp_id][&bnd_id];
-            let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_conc_id, bnd_conc_id)?;
+            let oper_dir = SclBndDirichlet::new(vars, bnd_id, dom_conc_id, bnd_conc_id)?;
             self.oper_bnd_conc.push(oper_dir);
         }}
 

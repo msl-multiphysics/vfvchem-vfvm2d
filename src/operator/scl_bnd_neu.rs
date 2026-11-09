@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclBndNeumann {
+pub struct SclBndNeumann {
     // boundary
     pub bnd_id: usize,
 
@@ -13,8 +13,8 @@ pub struct OpSclBndNeumann {
     pub flux_id: usize,  // flux (N_set)
 }
 
-impl OpSclBndNeumann {
-    pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, flux_id: usize) -> Result<OpSclBndNeumann, VFVChemError> {
+impl SclBndNeumann {
+    pub fn new(vars: &Variables, bnd_id: usize, unk_id: usize, flux_id: usize) -> Result<SclBndNeumann, VFVChemError> {
         // sets the outward boundary flux
         // N_i . n = N_set
 
@@ -23,7 +23,7 @@ impl OpSclBndNeumann {
         check_bnd_sclbnd(vars, bnd_id, flux_id)?;
         
         // create struct
-        let mut oper = OpSclBndNeumann::default();
+        let mut oper = SclBndNeumann::default();
         oper.bnd_id = bnd_id;
         oper.unk_id = unk_id;
         oper.flux_id = flux_id;
@@ -32,7 +32,7 @@ impl OpSclBndNeumann {
     }
 }
 
-impl OperatorBase for OpSclBndNeumann {
+impl OperatorBase for SclBndNeumann {
     fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_bnd N . n dl

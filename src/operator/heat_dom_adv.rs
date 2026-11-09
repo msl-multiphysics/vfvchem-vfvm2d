@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomAdvectionWeight {
+pub struct HeatDomAdvection {
     // domain
     pub dom_id: usize,
 
@@ -16,8 +16,8 @@ pub struct OpSclDomAdvectionWeight {
     pub wgt_id: usize,  // weight (m)
 }
 
-impl OpSclDomAdvectionWeight {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, vel_id: usize, den_id: usize, diff_id: usize, wgt_id: usize) -> Result<OpSclDomAdvectionWeight, VFVChemError> {
+impl HeatDomAdvection {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, vel_id: usize, den_id: usize, diff_id: usize, wgt_id: usize) -> Result<HeatDomAdvection, VFVChemError> {
         // adds the weighted advection term to the scalar transport equations
         // rho * m * d(c_i)/dt + rho * m * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                       ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -30,7 +30,7 @@ impl OpSclDomAdvectionWeight {
         check_dom_scldom(vars, dom_id, wgt_id)?;
 
         // create struct
-        let mut oper = OpSclDomAdvectionWeight::default();
+        let mut oper = HeatDomAdvection::default();
         oper.dom_id = dom_id;
         oper.unk_id = unk_id;
         oper.vel_id = vel_id;
@@ -42,7 +42,7 @@ impl OpSclDomAdvectionWeight {
     }
 }
 
-impl OperatorBase for OpSclDomAdvectionWeight {
+impl OperatorBase for HeatDomAdvection {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b

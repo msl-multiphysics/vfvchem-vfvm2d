@@ -4,7 +4,7 @@ use crate::operator::prelude::*;
 const NEG_FRAC_TWO_THREE: f64 = -2.0/3.0;
 
 #[derive(Default)]
-pub struct OpVecDomDilatatory {
+pub struct FlowDomDilatatory {
     // domain
     pub dom_id: usize,
 
@@ -15,8 +15,8 @@ pub struct OpVecDomDilatatory {
     pub visc_id: usize,  // viscosity (mu)
 }
 
-impl OpVecDomDilatatory {
-    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, visc_id: usize) -> Result<OpVecDomDilatatory, VFVChemError> {
+impl FlowDomDilatatory {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, visc_id: usize) -> Result<FlowDomDilatatory, VFVChemError> {
         // adds the advection term to the Navier-Stokes equation
         // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         //                                                      ^^^^^^^^^                               ^^^^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ impl OpVecDomDilatatory {
         check_dom_scldom(vars, dom_id, visc_id)?;
 
         // create struct
-        let mut oper = OpVecDomDilatatory::default();
+        let mut oper = FlowDomDilatatory::default();
         oper.dom_id = dom_id;
         oper.vel_id = vel_id;
         oper.visc_id = visc_id;
@@ -35,7 +35,7 @@ impl OpVecDomDilatatory {
     }
 }
 
-impl OperatorBase for OpVecDomDilatatory {
+impl OperatorBase for FlowDomDilatatory {
     fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_surf div( lam * div(vel) * I ) dA

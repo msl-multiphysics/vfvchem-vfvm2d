@@ -29,12 +29,12 @@ pub struct SteadyFlow {
     pub pref_pres: f64,   // reference pressure
 
     // operators
-    pub oper_dom_flow: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence)>,
-    pub oper_dom_rc: Vec<OpSclDomRhieChow>,
-    pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence)>,
-    pub oper_bnd_pres: Vec<OpSclBndDirichlet>,
-    pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity)>,
-    pub oper_pts_ref: OpSclPtsReference,
+    pub oper_dom_flow: Vec<(FlowDomAdvection, FlowDomGradient, FlowDomDiffusion, FlowDomTranspose, FlowDomDilatatory, VecDomSource, FlowDomDivergence)>,
+    pub oper_dom_rc: Vec<FlowDomRhieChow>,
+    pub oper_bnd_vel: Vec<(VecBndDirichlet, FlowBndDivergence)>,
+    pub oper_bnd_pres: Vec<SclBndDirichlet>,
+    pub oper_itf_fcnt: Vec<(VecItfContinuity, SclItfContinuity)>,
+    pub oper_pts_ref: FlowNdsReference,
 }
 
 impl SteadyFlow {
@@ -130,14 +130,14 @@ impl SteadyBase for SteadyFlow {
             let dom_den_id = self.flow_den[&dom_id];
             let dom_visc_id = self.flow_visc[&dom_id];
             let dom_fce_id = self.flow_fce[&dom_id];
-            let oper_adv = OpVecDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id, dom_visc_id)?;
-            let oper_grad = OpVecDomGradient::new(vars, dom_id, dom_vel_id, dom_pres_id)?;
-            let oper_diff = OpVecDomDiffusion::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
-            let oper_dtrn = OpVecDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
-            let oper_ddil = OpVecDomDilatatory::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
-            let oper_src = OpVecDomSource::new(vars, dom_id, dom_vel_id, dom_fce_id)?;
-            let oper_div = OpSclDomDivergence::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
-            let oper_rc = OpSclDomRhieChow::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
+            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id, dom_visc_id)?;
+            let oper_grad = FlowDomGradient::new(vars, dom_id, dom_vel_id, dom_pres_id)?;
+            let oper_diff = FlowDomDiffusion::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
+            let oper_dtrn = FlowDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = FlowDomDilatatory::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
+            let oper_src = VecDomSource::new(vars, dom_id, dom_vel_id, dom_fce_id)?;
+            let oper_div = FlowDomDivergence::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
+            let oper_rc = FlowDomRhieChow::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
             self.oper_dom_flow.push((oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div));
             self.oper_dom_rc.push(oper_rc);
         }
@@ -150,8 +150,8 @@ impl SteadyBase for SteadyFlow {
             let dom_vel_b_id = self.flow_vel[&dom_b_id];
             let dom_pres_a_id = self.flow_pres[&dom_a_id];
             let dom_pres_b_id = self.flow_pres[&dom_b_id];
-            let oper_vcnt = OpVecItfContinuity::new(vars, itf_id, dom_vel_a_id, dom_vel_b_id)?;
-            let oper_pcnt = OpSclItfContinuity::new(vars, itf_id, dom_pres_a_id, dom_pres_b_id)?;
+            let oper_vcnt = VecItfContinuity::new(vars, itf_id, dom_vel_a_id, dom_vel_b_id)?;
+            let oper_pcnt = SclItfContinuity::new(vars, itf_id, dom_pres_a_id, dom_pres_b_id)?;
             self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt));
         }
 
@@ -162,15 +162,15 @@ impl SteadyBase for SteadyFlow {
             let dom_pres_id = self.flow_pres[&dom_id];
             let dom_den_id = self.flow_den[&dom_id];
             let bnd_vel_id = self.vel_vel[&bnd_id];
-            let oper_dir = OpVecBndDirichlet::new(vars, bnd_id, dom_vel_id, bnd_vel_id)?;
-            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_pres_id)?;
+            let oper_dir = VecBndDirichlet::new(vars, bnd_id, dom_vel_id, bnd_vel_id)?;
+            let oper_div = FlowBndDivergence::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_pres_id)?;
             self.oper_bnd_vel.push((oper_dir, oper_div));
         }
         for &bnd_id in self.pres_bnd.iter() {
             let dom_id = vars.bnd[bnd_id].dom_id;
             let dom_pres_id = self.flow_pres[&dom_id];
             let bnd_pres_id = self.pres_pres[&bnd_id];
-            let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
+            let oper_dir = SclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
             self.oper_bnd_pres.push(oper_dir);
         }
 
@@ -178,7 +178,7 @@ impl SteadyBase for SteadyFlow {
         if self.pref_use {
             let dom_id = self.pref_dom;
             let unk_id = self.flow_pres[&dom_id];
-            self.oper_pts_ref = OpSclPtsReference::new(vars, dom_id, unk_id, self.pref_nid, self.pref_pres)?;
+            self.oper_pts_ref = FlowNdsReference::new(vars, dom_id, unk_id, self.pref_nid, self.pref_pres)?;
         }
 
         Ok(())

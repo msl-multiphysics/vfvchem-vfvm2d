@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclBndDivergence {
+pub struct FlowBndDivergence {
     // boundary
     pub bnd_id: usize,
 
@@ -14,8 +14,8 @@ pub struct OpSclBndDivergence {
     pub pres_id: usize,  // pressure (p)
 }
 
-impl OpSclBndDivergence {
-    pub fn new(vars: &Variables, bnd_id: usize, vel_id: usize, den_id: usize, pres_id: usize) -> Result<OpSclBndDivergence, VFVChemError> {
+impl FlowBndDivergence {
+    pub fn new(vars: &Variables, bnd_id: usize, vel_id: usize, den_id: usize, pres_id: usize) -> Result<FlowBndDivergence, VFVChemError> {
         // adds the divergence term to the continuity equation
         // d(rho)/dt = -div(rho * vel)
         //             ^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ impl OpSclBndDivergence {
         check_bnd_scldom(vars, bnd_id, pres_id)?;
 
         // create struct
-        let mut oper = OpSclBndDivergence::default();
+        let mut oper = FlowBndDivergence::default();
         oper.bnd_id = bnd_id;
         oper.vel_id = vel_id;
         oper.den_id = den_id;
@@ -36,7 +36,7 @@ impl OpSclBndDivergence {
     }
 }
 
-impl OperatorBase for OpSclBndDivergence {
+impl OperatorBase for FlowBndDivergence {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_surf -div(rho * vel) dA

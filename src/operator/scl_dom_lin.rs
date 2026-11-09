@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomLinear {
+pub struct SclDomLinear {
     // domain
     pub dom_id: usize,
 
@@ -13,8 +13,8 @@ pub struct OpSclDomLinear {
     pub lin_id: usize,  // source coefficient (L_i)
 }
 
-impl OpSclDomLinear {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, lin_id: usize) -> Result<OpSclDomLinear, VFVChemError> {
+impl SclDomLinear {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, lin_id: usize) -> Result<SclDomLinear, VFVChemError> {
         // adds the linear source term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                                                                       ^^^^^^^
@@ -24,7 +24,7 @@ impl OpSclDomLinear {
         check_dom_scldom(vars, dom_id, lin_id)?;
 
         // create struct
-        let mut oper = OpSclDomLinear::default();
+        let mut oper = SclDomLinear::default();
         oper.dom_id = dom_id;
         oper.unk_id = unk_id;
         oper.lin_id = lin_id;
@@ -33,7 +33,7 @@ impl OpSclDomLinear {
     }
 }
 
-impl OperatorBase for OpSclDomLinear {
+impl OperatorBase for SclDomLinear {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_surf L c dA

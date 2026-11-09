@@ -2,40 +2,36 @@
 pub mod prelude;
 pub mod operator_base;
 
-// scalar domain operators
-pub mod opscl_dom_adv;
-pub mod opscl_dom_awgt;
-pub mod opscl_dom_diff;
-pub mod opscl_dom_div;
-pub mod opscl_dom_lin;
-pub mod opscl_dom_src;
-pub mod opscl_dom_rc;
-pub mod opscl_dom_time;
-pub mod opscl_dom_tden;
-pub mod opscl_dom_twgt;
+// generic scalar operators
+pub mod scl_dom_lin;
+pub mod scl_dom_src;
+pub mod scl_bnd_dir;
+pub mod scl_bnd_neu;
+pub mod scl_itf_cont;
 
-// scalar boundary operators
-pub mod opscl_bnd_dir;
-pub mod opscl_bnd_div;
-pub mod opscl_bnd_neu;
+// generic vector operators
+pub mod vec_dom_src;
+pub mod vec_bnd_dir;
+pub mod vec_itf_cont;
 
-// scalar interface operators
-pub mod opscl_itf_cont;
+// heat transfer operators
+pub mod heat_dom_adv;
+pub mod heat_dom_diff;
+pub mod heat_dom_time;
 
-// scalar point operators
-pub mod opscl_pts_ref;
+// mass transfer operators
+pub mod mole_dom_adv;
+pub mod mole_dom_time;
 
-// vector domain operators
-pub mod opvec_dom_adv;
-pub mod opvec_dom_ddil;
-pub mod opvec_dom_diff;
-pub mod opvec_dom_dtrn;
-pub mod opvec_dom_grad;
-pub mod opvec_dom_src;
-pub mod opvec_dom_time;
-
-// vector boundary operators
-pub mod opvec_bnd_dir;
-
-// vector interface operators
-pub mod opvec_itf_cont;
+// momentum transfer operators
+pub mod flow_dom_adv;
+pub mod flow_dom_ddil;
+pub mod flow_dom_diff;
+pub mod flow_dom_div;
+pub mod flow_dom_dtrn;
+pub mod flow_dom_grad;
+pub mod flow_dom_rc;
+pub mod flow_dom_tcon;
+pub mod flow_dom_time;
+pub mod flow_bnd_div;
+pub mod flow_nds_ref;

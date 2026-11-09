@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomSource {
+pub struct SclDomSource {
     // domain
     pub dom_id: usize,
 
@@ -13,8 +13,8 @@ pub struct OpSclDomSource {
     pub src_id: usize,  // source (R_i)
 }
 
-impl OpSclDomSource {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, src_id: usize) -> Result<OpSclDomSource, VFVChemError> {
+impl SclDomSource {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, src_id: usize) -> Result<SclDomSource, VFVChemError> {
         // adds the source term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                                                                                 ^^^
@@ -24,7 +24,7 @@ impl OpSclDomSource {
         check_dom_scldom(vars, dom_id, src_id)?;
 
         // create struct
-        let mut oper = OpSclDomSource::default();
+        let mut oper = SclDomSource::default();
         oper.dom_id = dom_id;
         oper.unk_id = unk_id;
         oper.src_id = src_id;
@@ -33,7 +33,7 @@ impl OpSclDomSource {
     }
 }
 
-impl OperatorBase for OpSclDomSource {
+impl OperatorBase for SclDomSource {
     fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
         // int_surf R dA

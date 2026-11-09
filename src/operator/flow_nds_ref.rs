@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclPtsReference {
+pub struct FlowNdsReference {
     // domain
     pub dom_id: usize,
 
@@ -14,8 +14,8 @@ pub struct OpSclPtsReference {
     pub value: f64,
 }
 
-impl OpSclPtsReference {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, nid: usize, value: f64) -> Result<OpSclPtsReference, VFVChemError> {
+impl FlowNdsReference {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, nid: usize, value: f64) -> Result<FlowNdsReference, VFVChemError> {
         // sets the boundary value
         // c_i = c_set
 
@@ -23,7 +23,7 @@ impl OpSclPtsReference {
         check_dom_scldom(vars, dom_id, unk_id)?;
 
         // create struct
-        let mut oper = OpSclPtsReference::default();
+        let mut oper = FlowNdsReference::default();
         oper.dom_id = dom_id;
         oper.unk_id = unk_id;
         oper.nid = nid;
@@ -33,7 +33,7 @@ impl OpSclPtsReference {
     }
 }
 
-impl OperatorBase for OpSclPtsReference {
+impl OperatorBase for FlowNdsReference {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get objects
         let dom = &vars.dom[self.dom_id];

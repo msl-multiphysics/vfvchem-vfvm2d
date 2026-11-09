@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomTimeDensity {
+pub struct FlowDomTimeContinuity {
     // domain
     pub dom_id: usize,
 
@@ -13,8 +13,8 @@ pub struct OpSclDomTimeDensity {
     pub den_id: usize,  // density (rho)
 }
 
-impl OpSclDomTimeDensity {
-    pub fn new(vars: &Variables, dom_id: usize, pres_id: usize, den_id: usize) -> Result<OpSclDomTimeDensity, VFVChemError> {
+impl FlowDomTimeContinuity {
+    pub fn new(vars: &Variables, dom_id: usize, pres_id: usize, den_id: usize) -> Result<FlowDomTimeContinuity, VFVChemError> {
         // adds the time derivative term to the continuity equation
         // d(rho)/dt = -div(rho * vel)
         // ^^^^^^^^^
@@ -24,7 +24,7 @@ impl OpSclDomTimeDensity {
         check_dom_scldom(vars, dom_id, den_id)?;
 
         // create struct
-        let mut oper = OpSclDomTimeDensity::default();
+        let mut oper = FlowDomTimeContinuity::default();
         oper.dom_id = dom_id;
         oper.pres_id = pres_id;
         oper.den_id = den_id;
@@ -70,7 +70,7 @@ impl OpSclDomTimeDensity {
     }
 }
 
-impl OperatorBase for OpSclDomTimeDensity {
+impl OperatorBase for FlowDomTimeContinuity {
     fn apply(&self, _vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         Err(VFVChemError::OperatorUseApplyTime {})
     }

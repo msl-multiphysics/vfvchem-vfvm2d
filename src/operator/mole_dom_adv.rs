@@ -2,7 +2,7 @@ use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
 #[derive(Default)]
-pub struct OpSclDomAdvection {
+pub struct MoleDomAdvection {
     // domain
     pub dom_id: usize,
 
@@ -15,8 +15,8 @@ pub struct OpSclDomAdvection {
     pub diff_id: usize,  // diffusion coefficient (D_ij)
 }
 
-impl OpSclDomAdvection {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, vel_id: usize, den_id: usize, diff_id: usize) -> Result<OpSclDomAdvection, VFVChemError> {
+impl MoleDomAdvection {
+    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, vel_id: usize, den_id: usize, diff_id: usize) -> Result<MoleDomAdvection, VFVChemError> {
         // adds the advection term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                   ^^^^^^^^^^^^^^^^^^^^^
@@ -28,7 +28,7 @@ impl OpSclDomAdvection {
         check_dom_scldom(vars, dom_id, diff_id)?;
 
         // create struct
-        let mut oper = OpSclDomAdvection::default();
+        let mut oper = MoleDomAdvection::default();
         oper.dom_id = dom_id;
         oper.unk_id = unk_id;
         oper.vel_id = vel_id;
@@ -39,7 +39,7 @@ impl OpSclDomAdvection {
     }
 }
 
-impl OperatorBase for OpSclDomAdvection {
+impl OperatorBase for MoleDomAdvection {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
