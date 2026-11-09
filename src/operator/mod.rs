@@ -3,6 +3,8 @@ pub mod prelude;
 pub mod operator_base;
 
 // scalar domain operators
+pub mod opscl_dom_adv;
+pub mod opscl_dom_awgt;
 pub mod opscl_dom_diff;
 pub mod opscl_dom_div;
 pub mod opscl_dom_lin;

@@ -15,7 +15,7 @@ pub struct OpSclDomSource {
 
 impl OpSclDomSource {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, src_id: usize) -> Result<OpSclDomSource, VFVChemError> {
-        // adds the source term to scalar transport equations
+        // adds the source term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                                                                                 ^^^
 

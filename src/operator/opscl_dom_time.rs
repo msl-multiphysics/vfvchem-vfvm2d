@@ -15,7 +15,7 @@ pub struct OpSclDomTime {
 
 impl OpSclDomTime {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, den_id: usize) -> Result<OpSclDomTime, VFVChemError> {
-        // adds the time derivative term to scalar transport equations
+        // adds the time derivative term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         // ^^^^^^^^^^^^^^^
 

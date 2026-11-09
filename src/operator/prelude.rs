@@ -2,6 +2,8 @@
 pub use super::operator_base::*;
 
 // scalar domain operators
+pub use super::opscl_dom_adv::*;
+pub use super::opscl_dom_awgt::*;
 pub use super::opscl_dom_diff::*;
 pub use super::opscl_dom_div::*;
 pub use super::opscl_dom_lin::*;

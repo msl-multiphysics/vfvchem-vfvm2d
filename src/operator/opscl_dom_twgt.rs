@@ -16,7 +16,7 @@ pub struct OpSclDomTimeWeight {
 
 impl OpSclDomTimeWeight {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, den_id: usize, wgt_id: usize) -> Result<OpSclDomTimeWeight, VFVChemError> {
-        // adds the weighted time derivative term to scalar transport equations
+        // adds the weighted time derivative term to the scalar transport equations
         // rho * m * d(c_i)/dt + rho * m * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         // ^^^^^^^^^^^^^^^^^^^
 

@@ -16,7 +16,7 @@ pub struct OpSclDomDiffusion {
 
 impl OpSclDomDiffusion {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<OpSclDomDiffusion, VFVChemError> {
-        // adds the diffusion term to scalar transport equations
+        // adds the diffusion term to the scalar transport equations
         // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
         //                                           ^^^^^^^^^^^^^^^^^^^^^^^^^
 

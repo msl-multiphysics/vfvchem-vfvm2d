@@ -55,7 +55,7 @@ impl OperatorBase for OpVecDomAdvection {
         // sum_ngh (rho * vel * vel - mu * grad(vel))_f . n dl
         //
         // apply power law scheme
-        // let F = rho * vel . n * dl; G = mu * dl / dn; Pe = F / G; A = max(0, (1 - 0.1 * Pe)^5)
+        // let F = rho * vel . n * dl; G = mu * dl / dn; Pe = F / G; A = max(0, (1 - 0.1 * |Pe|)^5)
         // sum_ngh (F_f vel_f - G_f * (vel_n - vel_v))
         // sum_ngh ((G_f A_f + max(F_f, 0)) vel_v - (G_f A_f + max(-F_f, 0)) vel_n) -> 1st term
         //
