@@ -247,4 +247,8 @@ pub enum VFVChemError {
     },
     #[error("Solver: Output times must be non-negative and monotonically increasing, and the first step must be greater than dt_init.")]
     SolverAdaptiveInvalidOutputTime {},
+
+    // physics
+    #[error("Mole: Number of components `num_comp` must be positive.")]
+    MoleNonPositiveComponents {},
 }
