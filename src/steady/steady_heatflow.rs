@@ -1,0 +1,380 @@
+use crate::base::prelude::*;
+use crate::operator::prelude::*;
+use crate::steady::prelude::*;
+use std::collections::HashMap;
+
+#[derive(Default)]
+pub struct SteadyHeatFlow {
+    // heat transfer data
+    
+    // domain data
+    pub hitr_dom: Vec<usize>,              // domain
+    pub hitr_temp: HashMap<usize, usize>,  // temperature
+    pub hitr_den: HashMap<usize, usize>,   // density
+    pub hitr_hcap: HashMap<usize, usize>,  // heat capacity
+    pub hitr_vel: HashMap<usize, usize>,   // velocity
+    pub hitr_cond: HashMap<usize, usize>,  // thermal conductivity
+    pub hitr_hlin: HashMap<usize, usize>,  // linear heat source
+    pub hitr_hsrc: HashMap<usize, usize>,  // heat source
+
+    // boundary data
+    pub temp_bnd: Vec<usize>,              // boundary with temperature BC
+    pub temp_temp: HashMap<usize, usize>,  // temperature
+    pub hflx_bnd: Vec<usize>,              // boundary with heat flux BC
+    pub hflx_hflx: HashMap<usize, usize>,  // heat flux
+
+    // interface data
+    pub hcnt_itf: Vec<usize>,              // interface with continuity
+
+    // operators
+    pub oper_dom_hitr: Vec<(OpSclDomAdvectionWeight, OpSclDomDiffusion, OpSclDomLinear, OpSclDomSource)>,
+    pub oper_bnd_temp: Vec<OpSclBndDirichlet>,
+    pub oper_bnd_hflx: Vec<OpSclBndNeumann>,
+    pub oper_itf_hcnt: Vec<OpSclItfContinuity>,
+
+    // momentum transfer data
+
+    // domain data
+    pub fitr_dom: Vec<usize>,              // domain
+    pub fitr_vel: HashMap<usize, usize>,   // velocity
+    pub fitr_pres: HashMap<usize, usize>,  // pressure
+    pub fitr_den: HashMap<usize, usize>,   // density
+    pub fitr_visc: HashMap<usize, usize>,  // viscosity
+    pub fitr_fce: HashMap<usize, usize>,   // body force
+
+    // boundary data
+    pub vel_bnd: Vec<usize>,              // boundary with velocity BC
+    pub vel_vel: HashMap<usize, usize>,   // velocity
+    pub pres_bnd: Vec<usize>,             // boundary with pressure BC
+    pub pres_pres: HashMap<usize, usize>, // pressure
+
+    // interface data
+    pub fcnt_itf: Vec<usize>,             // interface with continuity
+
+    // reference pressure
+    pub pref_use: bool,  // true -> set reference pressure
+    pub pref_dom: usize,  // domain with reference pressure
+    pub pref_nid: usize,  // node with reference pressure
+    pub pref_pres: f64,   // reference pressure
+
+    // operators
+    pub oper_dom_fitr: Vec<(OpVecDomAdvection, OpVecDomGradient, OpVecDomDiffusion, OpVecDomTranspose, OpVecDomDilatatory, OpVecDomSource, OpSclDomDivergence)>,
+    pub oper_dom_rc: Vec<OpSclDomRhieChow>,
+    pub oper_bnd_vel: Vec<(OpVecBndDirichlet, OpSclBndDivergence)>,
+    pub oper_bnd_pres: Vec<OpSclBndDirichlet>,
+    pub oper_itf_fcnt: Vec<(OpVecItfContinuity, OpSclItfContinuity)>,
+    pub oper_pts_ref: OpSclPtsReference,
+}
+
+impl SteadyHeatFlow {
+    pub fn new() -> Result<SteadyHeatFlow, VFVChemError> {
+        let phys = SteadyHeatFlow::default();
+        Ok(phys)
+    }
+
+    // heat transfer data
+    pub fn add_heat_dom(&mut self, dom_id: usize, temp_id: usize, den_id: usize, hcap_id: usize, vel_id: usize, cond_id: usize, hlin_id: usize, hsrc_id: usize) -> Result<(), VFVChemError> {
+        self.hitr_dom.push(dom_id);
+        self.hitr_temp.insert(dom_id, temp_id);
+        self.hitr_den.insert(dom_id, den_id);
+        self.hitr_hcap.insert(dom_id, hcap_id);
+        self.hitr_vel.insert(dom_id, vel_id);
+        self.hitr_cond.insert(dom_id, cond_id);
+        self.hitr_hlin.insert(dom_id, hlin_id);
+        self.hitr_hsrc.insert(dom_id, hsrc_id);
+        Ok(())
+    }
+
+    pub fn add_temp_bnd(&mut self, bnd_id: usize, temp_id: usize) -> Result<(), VFVChemError> {
+        self.temp_bnd.push(bnd_id);
+        self.temp_temp.insert(bnd_id, temp_id);
+        Ok(())
+    }
+
+    pub fn add_hflx_bnd(&mut self, bnd_id: usize, hflx_id: usize) -> Result<(), VFVChemError> {
+        self.hflx_bnd.push(bnd_id);
+        self.hflx_hflx.insert(bnd_id, hflx_id);
+        Ok(())
+    }
+
+    pub fn add_hcnt_itf(&mut self, itf_id: usize) -> Result<(), VFVChemError> {
+        self.hcnt_itf.push(itf_id);
+        Ok(())
+    }
+
+    // momentum transfer data
+    pub fn add_flow_dom(&mut self, dom_id: usize, vel_id: usize, pres_id: usize, den_id: usize, visc_id: usize, fce_id: usize) -> Result<(), VFVChemError> {
+        self.fitr_dom.push(dom_id);
+        self.fitr_vel.insert(dom_id, vel_id);
+        self.fitr_pres.insert(dom_id, pres_id);
+        self.fitr_den.insert(dom_id, den_id);
+        self.fitr_visc.insert(dom_id, visc_id);
+        self.fitr_fce.insert(dom_id, fce_id);
+        Ok(())
+    }
+
+    pub fn add_vel_bnd(&mut self, bnd_id: usize, vel_id: usize) -> Result<(), VFVChemError> {
+        self.vel_bnd.push(bnd_id);
+        self.vel_vel.insert(bnd_id, vel_id);
+        Ok(())
+    }
+
+    pub fn add_pres_bnd(&mut self, bnd_id: usize, pres_id: usize) -> Result<(), VFVChemError> {
+        self.pres_bnd.push(bnd_id);
+        self.pres_pres.insert(bnd_id, pres_id);
+        Ok(())
+    }
+
+    pub fn add_fcnt_itf(&mut self, itf_id: usize) -> Result<(), VFVChemError> {
+        self.fcnt_itf.push(itf_id);
+        Ok(())
+    }
+
+    pub fn set_pres_ref(&mut self, dom_id: usize, nid: usize, pres: f64) -> Result<(), VFVChemError> {
+        self.pref_use = true;
+        self.pref_dom = dom_id;
+        self.pref_nid = nid;
+        self.pref_pres = pres;
+        Ok(())
+    }
+}
+
+impl SteadyBase for SteadyHeatFlow {
+    fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError> {
+        // iterate over unknowns
+        let mut xid = 0;  // index in solution vector
+        for (&dom_id, &temp_id) in self.hitr_temp.iter() {
+            vars.scldom[temp_id].scldom_type = SclDomType::Unknown { start: xid };
+            xid += vars.dom[dom_id].num_vert();
+        }
+        for (&dom_id, &vel_id) in self.fitr_vel.iter() {
+            vars.vecdom[vel_id].vecdom_type = VecDomType::Unknown { start: xid };
+            xid += 2 * vars.dom[dom_id].num_vert();
+        }
+        for (&dom_id, &pres_id) in self.fitr_pres.iter() {
+            vars.scldom[pres_id].scldom_type = SclDomType::Unknown { start: xid };
+            xid += vars.dom[dom_id].num_vert();
+        }
+
+        // last xid is the matrix size
+        Ok(xid)
+    }
+
+    fn initial_dirichlet(&mut self, vars: &mut Variables, mat_size: usize) -> Result<(), VFVChemError> {
+        // iterate over dirichlet boundaries
+        for oper_dir in self.oper_bnd_temp.iter_mut() {
+            oper_dir.apply_initial(vars, mat_size)?;
+        }
+        for (oper_dir, _) in self.oper_bnd_vel.iter_mut() {
+            oper_dir.apply_initial(vars, mat_size)?;
+        }
+        for oper_dir in self.oper_bnd_pres.iter_mut() {
+            oper_dir.apply_initial(vars, mat_size)?;
+        }
+
+        // iterate over continuity interfaces
+        for oper_cont in self.oper_itf_hcnt.iter_mut() {
+            oper_cont.apply_initial(vars, mat_size)?;
+        }
+        for (oper_vcnt, oper_pcnt) in self.oper_itf_fcnt.iter_mut() {
+            oper_vcnt.apply_initial(vars, mat_size)?;
+            oper_pcnt.apply_initial(vars, mat_size)?;
+        }
+
+        Ok(())
+    }
+
+    fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError> {
+        // heat transfer data
+       
+        // clear operators from a previous solve
+        self.oper_dom_hitr.clear();
+        self.oper_bnd_temp.clear();
+        self.oper_bnd_hflx.clear();
+        self.oper_itf_hcnt.clear();
+
+        // domain
+        for &dom_id in self.hitr_dom.iter() {
+            let dom_temp_id = self.hitr_temp[&dom_id];
+            let dom_den_id = self.hitr_den[&dom_id];
+            let dom_hcap_id = self.hitr_hcap[&dom_id];
+            let dom_vel_id = self.hitr_vel[&dom_id];
+            let dom_cond_id = self.hitr_cond[&dom_id];
+            let dom_hlin_id = self.hitr_hlin[&dom_id];
+            let dom_hsrc_id = self.hitr_hsrc[&dom_id];
+            let oper_awgt = OpSclDomAdvectionWeight::new(vars, dom_id, dom_temp_id, dom_vel_id, dom_den_id, dom_cond_id, dom_hcap_id)?;
+            let oper_diff = OpSclDomDiffusion::new(vars, dom_id, dom_temp_id, dom_cond_id, dom_temp_id)?;
+            let oper_lin = OpSclDomLinear::new(vars, dom_id, dom_temp_id, dom_hlin_id)?;
+            let oper_src = OpSclDomSource::new(vars, dom_id, dom_temp_id, dom_hsrc_id)?;
+            self.oper_dom_hitr.push((oper_awgt, oper_diff, oper_lin, oper_src));
+        }
+
+        // boundary
+        for &bnd_id in self.hflx_bnd.iter() {
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_temp_id = self.hitr_temp[&dom_id];
+            let bnd_hflx_id = self.hflx_hflx[&bnd_id];
+            let oper_neu = OpSclBndNeumann::new(vars, bnd_id, dom_temp_id, bnd_hflx_id)?;
+            self.oper_bnd_hflx.push(oper_neu);
+        }
+
+        // interface
+        for &itf_id in self.hcnt_itf.iter() {
+            let dom_a_id = vars.itf[itf_id].dom_a_id;
+            let dom_b_id = vars.itf[itf_id].dom_b_id;
+            let dom_temp_a_id = self.hitr_temp[&dom_a_id];
+            let dom_temp_b_id = self.hitr_temp[&dom_b_id];
+            let oper_cont = OpSclItfContinuity::new(vars, itf_id, dom_temp_a_id, dom_temp_b_id)?;
+            self.oper_itf_hcnt.push(oper_cont);
+        }
+
+        // dirichlet
+        for &bnd_id in self.temp_bnd.iter() {
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_temp_id = self.hitr_temp[&dom_id];
+            let bnd_temp_id = self.temp_temp[&bnd_id];
+            let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_temp_id, bnd_temp_id)?;
+            self.oper_bnd_temp.push(oper_dir);
+        }
+
+        // momentum transfer data
+
+        // clear operators from a previous solve
+        self.oper_dom_fitr.clear();
+        self.oper_dom_rc.clear();
+        self.oper_bnd_vel.clear();
+        self.oper_bnd_pres.clear();
+        self.oper_itf_fcnt.clear();
+        
+        // domain
+        for &dom_id in self.fitr_dom.iter() {
+            let dom_vel_id = self.fitr_vel[&dom_id];
+            let dom_pres_id = self.fitr_pres[&dom_id];
+            let dom_den_id = self.fitr_den[&dom_id];
+            let dom_visc_id = self.fitr_visc[&dom_id];
+            let dom_fce_id = self.fitr_fce[&dom_id];
+            let oper_adv = OpVecDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id, dom_visc_id)?;
+            let oper_grad = OpVecDomGradient::new(vars, dom_id, dom_vel_id, dom_pres_id)?;
+            let oper_diff = OpVecDomDiffusion::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
+            let oper_dtrn = OpVecDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = OpVecDomDilatatory::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
+            let oper_src = OpVecDomSource::new(vars, dom_id, dom_vel_id, dom_fce_id)?;
+            let oper_div = OpSclDomDivergence::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
+            let oper_rc = OpSclDomRhieChow::new(vars, dom_id, dom_pres_id, dom_vel_id, dom_den_id)?;
+            self.oper_dom_fitr.push((oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div));
+            self.oper_dom_rc.push(oper_rc);
+        }
+
+        // interface
+        for &itf_id in self.fcnt_itf.iter() {
+            let dom_a_id = vars.itf[itf_id].dom_a_id;
+            let dom_b_id = vars.itf[itf_id].dom_b_id;
+            let dom_vel_a_id = self.fitr_vel[&dom_a_id];
+            let dom_vel_b_id = self.fitr_vel[&dom_b_id];
+            let dom_pres_a_id = self.fitr_pres[&dom_a_id];
+            let dom_pres_b_id = self.fitr_pres[&dom_b_id];
+            let oper_vcnt = OpVecItfContinuity::new(vars, itf_id, dom_vel_a_id, dom_vel_b_id)?;
+            let oper_pcnt = OpSclItfContinuity::new(vars, itf_id, dom_pres_a_id, dom_pres_b_id)?;
+            self.oper_itf_fcnt.push((oper_vcnt, oper_pcnt));
+        }
+
+        // dirichlet
+        for &bnd_id in self.vel_bnd.iter() {
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_vel_id = self.fitr_vel[&dom_id];
+            let dom_pres_id = self.fitr_pres[&dom_id];
+            let dom_den_id = self.fitr_den[&dom_id];
+            let bnd_vel_id = self.vel_vel[&bnd_id];
+            let oper_dir = OpVecBndDirichlet::new(vars, bnd_id, dom_vel_id, bnd_vel_id)?;
+            let oper_div = OpSclBndDivergence::new(vars, bnd_id, dom_vel_id, dom_den_id, dom_pres_id)?;
+            self.oper_bnd_vel.push((oper_dir, oper_div));
+        }
+        for &bnd_id in self.pres_bnd.iter() {
+            let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_pres_id = self.fitr_pres[&dom_id];
+            let bnd_pres_id = self.pres_pres[&bnd_id];
+            let oper_dir = OpSclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
+            self.oper_bnd_pres.push(oper_dir);
+        }
+
+        // reference pressure
+        if self.pref_use {
+            let dom_id = self.pref_dom;
+            let unk_id = self.fitr_pres[&dom_id];
+            self.oper_pts_ref = OpSclPtsReference::new(vars, dom_id, unk_id, self.pref_nid, self.pref_pres)?;
+        }
+
+        Ok(())
+    }
+
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
+        // heat transfer data
+        
+        // domain
+        for (oper_awgt, oper_diff, oper_lin, oper_src) in self.oper_dom_hitr.iter() {
+            oper_awgt.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_lin.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // boundary
+        for oper_neu in self.oper_bnd_hflx.iter() {
+            oper_neu.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // continuity
+        for oper_cont in self.oper_itf_hcnt.iter() {
+            oper_cont.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // dirichlet
+        for oper_dir in self.oper_bnd_temp.iter() {
+            oper_dir.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // momentum transfer data
+
+        // domain
+        for (oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_div) in self.oper_dom_fitr.iter() {
+            oper_adv.apply(vars, a_triplet, b_vec)?;
+            oper_grad.apply(vars, a_triplet, b_vec)?;
+            oper_diff.apply(vars, a_triplet, b_vec)?;
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+            oper_src.apply(vars, a_triplet, b_vec)?;
+            oper_div.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // boundary
+        for (_, oper_div) in self.oper_bnd_vel.iter() {
+            oper_div.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // rhie-chow stabilization
+        for oper_rc in self.oper_dom_rc.iter() {
+            oper_rc.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // continuity
+        for (oper_vcnt, oper_pcnt) in self.oper_itf_fcnt.iter() {
+            oper_vcnt.apply(vars, a_triplet, b_vec)?;
+            oper_pcnt.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // dirichlet
+        for (oper_dir, _) in self.oper_bnd_vel.iter() {
+            oper_dir.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_dir in self.oper_bnd_pres.iter() {
+            oper_dir.apply(vars, a_triplet, b_vec)?;
+        }
+
+        // reference pressure
+        if self.pref_use {
+            self.oper_pts_ref.apply(vars, a_triplet, b_vec)?;
+        }
+
+        Ok(())
+    }
+}
