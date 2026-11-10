@@ -15,7 +15,7 @@ pub struct VecDomSource {
 
 impl VecDomSource {
     pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, fce_id: usize) -> Result<VecDomSource, VFVChemError> {
-        // adds the advection term to the Navier-Stokes equation
+        // adds the source term to the Navier-Stokes equation
         // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         //                                                                                                                     ^^^
 

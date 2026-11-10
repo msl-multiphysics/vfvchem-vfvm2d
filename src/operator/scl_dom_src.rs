@@ -15,9 +15,9 @@ pub struct SclDomSource {
 
 impl SclDomSource {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, src_id: usize) -> Result<SclDomSource, VFVChemError> {
-        // adds the source term to the scalar transport equations
-        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
-        //                                                                                 ^^^
+        // adds the source term to the scalar transport equation
+        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -rho * D_ij * grad(c_j) ) + L_i * c_i + R_i
+        //                                                                                         ^^^
 
         // input checking
         check_dom_scldom(vars, dom_id, unk_id)?;

@@ -7,26 +7,26 @@ pub struct MoleDomTime {
     pub dom_id: usize,
 
     // unknowns
-    pub unk_id: usize,  // unknown scalar (c_i)
+    pub conc_id: usize,   // concentration (c_i); mole solute per mass solvent
 
     // others
     pub den_id: usize,  // density (rho)
 }
 
 impl MoleDomTime {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, den_id: usize) -> Result<MoleDomTime, VFVChemError> {
-        // adds the time derivative term to the scalar transport equations
-        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
+    pub fn new(vars: &Variables, dom_id: usize, conc_id: usize, den_id: usize) -> Result<MoleDomTime, VFVChemError> {
+        // adds the time derivative term to the mass transfer equation
+        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -rho * D_ij * grad(c_j) ) + L_i * c_i + R_i
         // ^^^^^^^^^^^^^^^
 
         // input checking
-        check_dom_scldom(vars, dom_id, unk_id)?;
+        check_dom_scldom(vars, dom_id, conc_id)?;
         check_dom_scldom(vars, dom_id, den_id)?;
 
         // create struct
         let mut oper = MoleDomTime::default();
         oper.dom_id = dom_id;
-        oper.unk_id = unk_id;
+        oper.conc_id = conc_id;
         oper.den_id = den_id;
 
         Ok(oper)
@@ -50,7 +50,7 @@ impl MoleDomTime {
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
-        let unk_dom = &vars.scldom[self.unk_id];
+        let conc_dom = &vars.scldom[self.conc_id];
         let den_dom = &vars.scldom[self.den_id];
 
         // iterate through points
@@ -60,14 +60,14 @@ impl MoleDomTime {
             let offc = tri.vert_offc[vid_v];
 
             // get centroid properties
-            let unk_o = unk_dom.correct_vert(offc, vid_v);
-            let unk_c_prev = unk_dom.interp_vert_prev(offc, vid_v);
+            let conc_o = conc_dom.correct_vert(offc, vid_v);
+            let conc_c_prev = conc_dom.interp_vert_prev(offc, vid_v);
             let den_c = den_dom.interp_vert(offc, vid_v);
 
             // load into matrix
             let coeff_v = -den_c * area / dt;
-            self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v, coeff_v)?;
-            self.add_scl_b(vars, b_vec, self.unk_id, vid_v, coeff_v * (-unk_o + unk_c_prev))?;
+            self.add_sclscl_a(vars, a_triplet, self.conc_id, vid_v, self.conc_id, vid_v, coeff_v)?;
+            self.add_scl_b(vars, b_vec, self.conc_id, vid_v, coeff_v * (-conc_o + conc_c_prev))?;
         }
 
         Ok(())

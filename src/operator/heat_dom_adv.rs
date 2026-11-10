@@ -7,36 +7,36 @@ pub struct HeatDomAdvection {
     pub dom_id: usize,
 
     // unknowns
-    pub unk_id: usize,   // unknown scalar (c_i)
+    pub temp_id: usize,   // temperature (T)
 
     // others
-    pub vel_id: usize,  // velocity (vel)
-    pub den_id: usize,  // density (rho)
-    pub diff_id: usize,  // diffusion coefficient (D_ij)
-    pub wgt_id: usize,  // weight (m)
+    pub vel_id: usize,   // velocity (vel)
+    pub cond_id: usize,  // thermal conductivity (k)
+    pub den_id: usize,   // density (rho)
+    pub hcap_id: usize,  // heat capacity (cp)
 }
 
 impl HeatDomAdvection {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, vel_id: usize, den_id: usize, diff_id: usize, wgt_id: usize) -> Result<HeatDomAdvection, VFVChemError> {
-        // adds the weighted advection term to the scalar transport equations
-        // rho * m * d(c_i)/dt + rho * m * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
-        //                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+    pub fn new(vars: &Variables, dom_id: usize, temp_id: usize, vel_id: usize, cond_id: usize, den_id: usize, hcap_id: usize) -> Result<HeatDomAdvection, VFVChemError> {
+        // adds the advection term to the heat transfer equation
+        // rho * cp * d(T)/dt + rho * cp * vel . grad(T) = -div( -k * grad(T) ) + L * T + R
+        //                      ^^^^^^^^^^^^^^^^^^^^^^^^
 
         // input checking
-        check_dom_scldom(vars, dom_id, unk_id)?;
+        check_dom_scldom(vars, dom_id, temp_id)?;
         check_dom_vecdom(vars, dom_id, vel_id)?;
+        check_dom_scldom(vars, dom_id, cond_id)?;
         check_dom_scldom(vars, dom_id, den_id)?;
-        check_dom_scldom(vars, dom_id, diff_id)?;
-        check_dom_scldom(vars, dom_id, wgt_id)?;
+        check_dom_scldom(vars, dom_id, hcap_id)?;
 
         // create struct
         let mut oper = HeatDomAdvection::default();
         oper.dom_id = dom_id;
-        oper.unk_id = unk_id;
+        oper.temp_id = temp_id;
         oper.vel_id = vel_id;
+        oper.cond_id = cond_id;
         oper.den_id = den_id;
-        oper.diff_id = diff_id;
-        oper.wgt_id = wgt_id;
+        oper.hcap_id = hcap_id;
 
         Ok(oper)
     }
@@ -47,58 +47,58 @@ impl OperatorBase for HeatDomAdvection {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the RHS of the PDE
-        // -rho * m * vel . grad(c)
+        // -rho * cp * vel . grad(T)
         //
         // rewrite advection term
-        // -rho * m * vel . grad(c)
-        // -div(rho * m * vel * c) + c * div(rho * m * vel)
-        // -div(rho * m * vel * c) + c * div(rho * m * vel) + div(D * grad(c)) - div(D * grad(c))
-        // -div(rho * m * vel * c - D * grad(c)) + c * div(rho * m * vel) - div(D * grad(c))
+        // -rho * cp * vel . grad(T)
+        // -div(rho * cp * vel * T) + T * div(rho * cp * vel)
+        // -div(rho * cp * vel * T) + T * div(rho * cp * vel) + div(k * grad(T)) - div(k * grad(T))
+        // -div(rho * cp * vel * T - k * grad(T)) + T * div(rho * cp * vel) - div(k * grad(T))
         //
         // get surface integral of 1st term
-        // int_surf div(rho * m * vel * c - D * grad(c)) dA
-        // int_lin (rho * m * vel * c - D * grad(c)) . n dl
-        // sum_ngh (rho * m * vel * c - D * grad(c))_f . n dl
+        // int_surf -div(rho * cp * vel * T - k * grad(T)) dA
+        // int_lin (-rho * cp * vel * T + k * grad(T)) . n dl
+        // sum_ngh (-rho * cp * vel * T + k * grad(T))_f . n dl
         //
         // apply power law scheme
-        // let F = rho * m * vel . n * dl; G = D * dl / dn; Pe = F / G; A = max(0, (1 - 0.1 * |Pe|)^5)
-        // sum_ngh (F_f c_f - G_f * (c_n - c_v))
-        // sum_ngh ((G_f A_f + max(F_f, 0)) c_v - (G_f A_f + max(-F_f, 0)) c_n) -> 1st term
+        // let F = rho * cp * vel . n * dl; G = k * dl / dn; Pe = F / G; A = max(0, (1 - 0.1 * |Pe|)^5)
+        // sum_ngh (-F_f T_f + G_f * (T_n - T_v))
+        // sum_ngh (-(G_f A_f + max(F_f, 0)) T_v + (G_f A_f + max(-F_f, 0)) T_n) -> 1st term
         //
         // get surface integral of 2nd term
-        // int_surf c * div(rho * m * vel) dA
-        // c_c * div(rho * m * vel)_c dA
+        // int_surf T * div(rho * cp * vel) dA
+        // T_c * div(rho * cp * vel)_c dA
         //
         // approximate divergence using divergence theorem
-        // div(rho * m * vel)_c = (1/dA) sum_ngh (rho * m * vel)_f . n dl
-        // c_c * sum_ngh (rho * m * vel)_f . n dl
-        // c_c * sum_ngh F_f
+        // div(rho * cp * vel)_c = (1/dA) sum_ngh (rho * cp * vel)_f . n dl
+        // T_c * sum_ngh (rho * cp * vel)_f . n dl
+        // T_c * sum_ngh F_f
         // 
         // apply off-center correction
-        // c_c = c_v + c_o 
-        // (c_v + c_o) * sum_ngh F_f -> 2nd term
+        // T_c = T_v + T_o 
+        // (T_v + T_o) * sum_ngh F_f -> 2nd term
         //
         // get surface integral of 3rd term
-        // int_surf div(D * grad(c)) dA
-        // int_lin D * grad(c) . n dl
-        // sum_ngh D * (c_n - c_v) / dn * dl
-        // sum_ngh G_f * (c_n - c_v) -> 3rd term
+        // int_surf -div(k * grad(T)) dA
+        // int_lin -k * grad(T) . n dl
+        // sum_ngh -k * (T_n - T_v) / dn * dl
+        // sum_ngh -G_f * (T_n - T_v) -> 3rd term
         // 
         // add the terms
-        // sum_ngh (-(G_f A_f + max(F_f, 0)) c_v + (G_f A_f + max(-F_f, 0)) c_n + (c_v + c_o) * F_f - G_f * (c_n - c_v))
-        // sum_ngh ((G_f A_f + max(-F_f, 0) - G_f) * c_n + (-G_f A_f - max(F_f, 0) + F_f + G_f) * c_v + F_f * c_o)
-        // sum_ngh ((G_f A_f + max(-F_f, 0) - G_f) * c_n - (G_f A_f + max(-F_f, 0) - G_f) * c_v + F_f * c_o)
-        // sum_ngh ((G_f (A_f - 1) + max(-F_f, 0)) * c_n - (G_f (A_f - 1) + max(-F_f, 0)) * c_v + F_f * c_o)
-        // sum_ngh ((G_f (A_f - 1) + max(-F_f, 0)) * (c_n - c_v) + F_f * c_o)
+        // sum_ngh (-(G_f A_f + max(F_f, 0)) T_v + (G_f A_f + max(-F_f, 0)) T_n + (T_v + T_o) * F_f - G_f * (T_n - T_v))
+        // sum_ngh ((G_f A_f + max(-F_f, 0) - G_f) * T_n + (-G_f A_f - max(F_f, 0) + F_f + G_f) * T_v + F_f * T_o)
+        // sum_ngh ((G_f A_f + max(-F_f, 0) - G_f) * T_n - (G_f A_f + max(-F_f, 0) - G_f) * T_v + F_f * T_o)
+        // sum_ngh ((G_f (A_f - 1) + max(-F_f, 0)) * T_n - (G_f (A_f - 1) + max(-F_f, 0)) * T_v + F_f * T_o)
+        // sum_ngh ((G_f (A_f - 1) + max(-F_f, 0)) * (T_n - T_v) + F_f * T_o)
 
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
-        let unk_dom = &vars.scldom[self.unk_id];
+        let temp_dom = &vars.scldom[self.temp_id];
         let vel_dom = &vars.vecdom[self.vel_id];
+        let cond_dom = &vars.scldom[self.cond_id];
         let den_dom = &vars.scldom[self.den_id];
-        let diff_dom = &vars.scldom[self.diff_id];
-        let wgt_dom = &vars.scldom[self.wgt_id];
+        let hcap_dom = &vars.scldom[self.hcap_id];
         
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -111,7 +111,7 @@ impl OperatorBase for HeatDomAdvection {
             let skew_n = &tri.face_skew[vid_v];
 
             // get centroid properties
-            let unk_o = unk_dom.correct_vert(offc, vid_v);
+            let temp_o = temp_dom.correct_vert(offc, vid_v);
 
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {
@@ -124,20 +124,20 @@ impl OperatorBase for HeatDomAdvection {
                 // get face properties
                 let (velx_f, vely_f) = vel_dom.interp_face(skew, vid_v, vid_n);
                 let den_f = den_dom.interp_face(skew, vid_v, vid_n);
-                let diff_f = diff_dom.interp_face_harmonic(skew, vid_v, vid_n);
-                let wgt_f = wgt_dom.interp_face(skew, vid_v, vid_n);
+                let cond_f = cond_dom.interp_face_harmonic(skew, vid_v, vid_n);
+                let hcap_f = hcap_dom.interp_face(skew, vid_v, vid_n);
                 
                 // get power law term
-                let diff = diff_f * face / dist;
-                let flux = den_f * wgt_f * (velx_f * nx + vely_f * ny) * face;
+                let diff = cond_f * face / dist;
+                let flux = den_f * hcap_f * (velx_f * nx + vely_f * ny) * face;
                 let peclet = flux / diff;
                 let powlaw = (1.0 - 0.1 * peclet.abs()).max(0.0).powi(5);
 
                 // load into matrix
                 let coeff_v = -diff * (powlaw - 1.0) - (-flux).max(0.0);
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_n, -coeff_v)?;
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.unk_id, vid_v,  coeff_v)?;
-                self.add_scl_b(vars, b_vec, self.unk_id, vid_v, -flux * unk_o)?;
+                self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_n, -coeff_v)?;
+                self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_v,  coeff_v)?;
+                self.add_scl_b(vars, b_vec, self.temp_id, vid_v, -flux * temp_o)?;
             }
         }
 

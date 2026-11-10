@@ -20,6 +20,7 @@ pub use super::heat_dom_time::*;
 
 // mass transfer operators
 pub use super::mole_dom_adv::*;
+pub use super::mole_dom_diff::*;
 pub use super::mole_dom_time::*;
 
 // momentum transfer operators

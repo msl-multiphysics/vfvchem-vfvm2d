@@ -9,6 +9,7 @@ pub struct SteadyMole {
     pub num_comp: usize,                   // number of components
     pub mole_dom: Vec<Vec<usize>>,              // comp_id -> domain
     pub mole_conc: Vec<HashMap<usize, usize>>,  // comp_id -> concentration
+    pub mole_den: Vec<HashMap<usize, usize>>,   // comp_id -> density
     pub mole_diff: Vec<HashMap<usize, usize>>,  // comp_id -> diffusion coefficient
     pub mole_nlin: Vec<HashMap<usize, usize>>,  // comp_id -> linear molar source
     pub mole_nsrc: Vec<HashMap<usize, usize>>,  // comp_id -> molar source
@@ -23,7 +24,7 @@ pub struct SteadyMole {
     pub ncnt_itf: Vec<Vec<usize>>,              // comp_id -> interface with continuity
 
     // operators
-    pub oper_dom_mole: Vec<(HeatDomDiffusion, SclDomLinear, SclDomSource)>,
+    pub oper_dom_mole: Vec<(MoleDomDiffusion, SclDomLinear, SclDomSource)>,
     pub oper_bnd_conc: Vec<SclBndDirichlet>,
     pub oper_bnd_nflx: Vec<SclBndNeumann>,
     pub oper_itf_ncnt: Vec<SclItfContinuity>,
@@ -41,6 +42,7 @@ impl SteadyMole {
         // initialize fields
         phys.mole_dom = vec![Vec::new(); num_comp];
         phys.mole_conc = vec![HashMap::new(); num_comp];
+        phys.mole_den = vec![HashMap::new(); num_comp];
         phys.mole_diff = vec![HashMap::new(); num_comp];
         phys.mole_nlin = vec![HashMap::new(); num_comp];
         phys.mole_nsrc = vec![HashMap::new(); num_comp];
@@ -53,9 +55,10 @@ impl SteadyMole {
         Ok(phys)
     }
 
-    pub fn add_mole_dom(&mut self, comp_id: usize, dom_id: usize, conc_id: usize, diff_id: usize, nlin_id: usize, nsrc_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_mole_dom(&mut self, comp_id: usize, dom_id: usize, conc_id: usize, den_id: usize, diff_id: usize, nlin_id: usize, nsrc_id: usize) -> Result<(), VFVChemError> {
         self.mole_dom[comp_id].push(dom_id);
         self.mole_conc[comp_id].insert(dom_id, conc_id);
+        self.mole_den[comp_id].insert(dom_id, den_id);
         self.mole_diff[comp_id].insert(dom_id, diff_id);
         self.mole_nlin[comp_id].insert(dom_id, nlin_id);
         self.mole_nsrc[comp_id].insert(dom_id, nsrc_id);
@@ -119,10 +122,11 @@ impl SteadyBase for SteadyMole {
         for comp_id in 0..self.num_comp {
         for &dom_id in self.mole_dom[comp_id].iter() {
             let dom_conc_id = self.mole_conc[comp_id][&dom_id];
+            let dom_den_id = self.mole_den[comp_id][&dom_id];
             let dom_diff_id = self.mole_diff[comp_id][&dom_id];
             let dom_nlin_id = self.mole_nlin[comp_id][&dom_id];
             let dom_nsrc_id = self.mole_nsrc[comp_id][&dom_id];
-            let oper_diff = HeatDomDiffusion::new(vars, dom_id, dom_conc_id, dom_diff_id, dom_conc_id)?;
+            let oper_diff = MoleDomDiffusion::new(vars, dom_id, dom_conc_id, dom_den_id, dom_diff_id, dom_conc_id)?;
             let oper_lin = SclDomLinear::new(vars, dom_id, dom_conc_id, dom_nlin_id)?;
             let oper_src = SclDomSource::new(vars, dom_id, dom_conc_id, dom_nsrc_id)?;
             self.oper_dom_mole.push((oper_diff, oper_lin, oper_src));

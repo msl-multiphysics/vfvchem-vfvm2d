@@ -21,6 +21,7 @@ pub mod heat_dom_time;
 
 // mass transfer operators
 pub mod mole_dom_adv;
+pub mod mole_dom_diff;
 pub mod mole_dom_time;
 
 // momentum transfer operators

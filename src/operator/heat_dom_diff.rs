@@ -7,30 +7,27 @@ pub struct HeatDomDiffusion {
     pub dom_id: usize,
 
     // unknowns
-    pub unk_id: usize,   // unknown scalar (c_i)
+    pub temp_id: usize,   // temperature (T)
 
     // others
-    pub diff_id: usize,  // diffusion coefficient (D_ij)
-    pub drv_id: usize,   // driving scalar (c_j)
+    pub cond_id: usize,  // thermal conductivity (k)
 }
 
 impl HeatDomDiffusion {
-    pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, diff_id: usize, drv_id: usize) -> Result<HeatDomDiffusion, VFVChemError> {
-        // adds the diffusion term to the scalar transport equations
-        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -D_ij * grad(c_j) ) + L_i c_i + R_i
-        //                                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    pub fn new(vars: &Variables, dom_id: usize, temp_id: usize, cond_id: usize) -> Result<HeatDomDiffusion, VFVChemError> {
+        // adds the diffusion term to the heat transfer equation
+        // rho * cp * d(T)/dt + rho * cp * vel . grad(T) = -div( -k * grad(T) ) + L * T + R
+        //                                                 ^^^^^^^^^^^^^^^^^^^^
 
         // input checking
-        check_dom_scldom(vars, dom_id, unk_id)?;
-        check_dom_scldom(vars, dom_id, diff_id)?;
-        check_dom_scldom(vars, dom_id, drv_id)?;
+        check_dom_scldom(vars, dom_id, temp_id)?;
+        check_dom_scldom(vars, dom_id, cond_id)?;
 
         // create struct
         let mut oper = HeatDomDiffusion::default();
         oper.dom_id = dom_id;
-        oper.unk_id = unk_id;
-        oper.diff_id = diff_id;
-        oper.drv_id = drv_id;
+        oper.temp_id = temp_id;
+        oper.cond_id = cond_id;
 
         Ok(oper)
     }
@@ -39,21 +36,21 @@ impl HeatDomDiffusion {
 impl OperatorBase for HeatDomDiffusion {
     fn apply(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
-        // int_surf -div( -D * grad(c) ) dA
+        // int_surf -div( -k * grad(T) ) dA
         //
         // apply divergence theorem
-        // int_lin D * grad(c) . n dl
+        // int_lin k * grad(T) . n dl
         //
         // discretize into sum over face values
-        // sum_ngh D_f * (grad(c) . n)_f dl
+        // sum_ngh k_f * (grad(T) . n)_f dl
         //
-        // for concentration gradient, use normal derivative
-        // (grad(c) . n)_f = (c_n - c_v) / dn
+        // for temperature gradient, use normal derivative
+        // (grad(T) . n)_f = (T_n - T_v) / dn
         
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
-        let diff_dom = &vars.scldom[self.diff_id];
+        let cond_dom = &vars.scldom[self.cond_id];
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -71,12 +68,12 @@ impl OperatorBase for HeatDomDiffusion {
                 let skew = skew_n[loc];
                 
                 // get face properties
-                let diff_f = diff_dom.interp_face_harmonic(skew, vid_v, vid_n);
+                let cond_f = cond_dom.interp_face_harmonic(skew, vid_v, vid_n);
 
                 // load into matrix
-                let coeff_v = -diff_f * face / dist;
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.drv_id, vid_n, -coeff_v)?;
-                self.add_sclscl_a(vars, a_triplet, self.unk_id, vid_v, self.drv_id, vid_v,  coeff_v)?;
+                let coeff_v = -cond_f * face / dist;
+                self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_n, -coeff_v)?;
+                self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_v,  coeff_v)?;
             }
         }
     
