@@ -22,6 +22,7 @@ pub struct SteadyHeatFlow {
     pub temp_temp: HashMap<usize, usize>,  // temperature
     pub hflx_bnd: Vec<usize>,              // boundary with heat flux BC
     pub hflx_hflx: HashMap<usize, usize>,  // heat flux
+    pub hout_bnd: Vec<usize>,              // boundary with outflow BC
 
     // interface data
     pub hcnt_itf: Vec<usize>,              // interface with continuity
@@ -30,6 +31,7 @@ pub struct SteadyHeatFlow {
     pub oper_dom_heat: Vec<(HeatDomAdvection, HeatDomDiffusion, SclDomLinear, SclDomSource)>,
     pub oper_bnd_temp: Vec<SclBndDirichlet>,
     pub oper_bnd_hflx: Vec<SclBndNeumann>,
+    pub oper_bnd_hout: Vec<SclBndOutflow>,
     pub oper_itf_hcnt: Vec<SclItfContinuity>,
 
     // momentum transfer
@@ -94,6 +96,11 @@ impl SteadyHeatFlow {
     pub fn add_hflx_bnd(&mut self, bnd_id: usize, hflx_id: usize) -> Result<(), VFVChemError> {
         self.hflx_bnd.push(bnd_id);
         self.hflx_hflx.insert(bnd_id, hflx_id);
+        Ok(())
+    }
+
+    pub fn add_hout_bnd(&mut self, bnd_id: usize) -> Result<(), VFVChemError> {
+        self.hout_bnd.push(bnd_id);
         Ok(())
     }
 
@@ -191,6 +198,7 @@ impl SteadyBase for SteadyHeatFlow {
         self.oper_dom_heat.clear();
         self.oper_bnd_temp.clear();
         self.oper_bnd_hflx.clear();
+        self.oper_bnd_hout.clear();
         self.oper_itf_hcnt.clear();
 
         // domain
@@ -216,6 +224,10 @@ impl SteadyBase for SteadyHeatFlow {
             let bnd_hflx_id = self.hflx_hflx[&bnd_id];
             let oper_neu = SclBndNeumann::new(vars, bnd_id, dom_temp_id, bnd_hflx_id)?;
             self.oper_bnd_hflx.push(oper_neu);
+        }
+        for &bnd_id in self.hout_bnd.iter() {
+            let oper_out = SclBndOutflow::new(vars, bnd_id)?;
+            self.oper_bnd_hout.push(oper_out);
         }
 
         // interface
@@ -321,6 +333,9 @@ impl SteadyBase for SteadyHeatFlow {
         // boundary
         for oper_neu in self.oper_bnd_hflx.iter() {
             oper_neu.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_out in self.oper_bnd_hout.iter() {
+            oper_out.apply(vars, a_triplet, b_vec)?;
         }
 
         // continuity

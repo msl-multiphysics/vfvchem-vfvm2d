@@ -6,6 +6,7 @@ pub use super::scl_dom_lin::*;
 pub use super::scl_dom_src::*;
 pub use super::scl_bnd_dir::*;
 pub use super::scl_bnd_neu::*;
+pub use super::scl_bnd_out::*;
 pub use super::scl_itf_cont::*;
 
 // generic vector operators

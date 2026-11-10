@@ -22,6 +22,7 @@ pub struct SteadyMoleFlow {
     pub conc_conc: Vec<HashMap<usize, usize>>,  // comp_id -> concentration
     pub nflx_bnd: Vec<Vec<usize>>,              // comp_id -> boundary with molar flux BC
     pub nflx_nflx: Vec<HashMap<usize, usize>>,  // comp_id -> molar flux
+    pub nout_bnd: Vec<Vec<usize>>,              // comp_id -> boundary with outflow BC
 
     // interface data
     pub ncnt_itf: Vec<Vec<usize>>,              // comp_id -> interface with continuity
@@ -30,6 +31,7 @@ pub struct SteadyMoleFlow {
     pub oper_dom_mole: Vec<(MoleDomAdvection, Vec<MoleDomDiffusion>, SclDomLinear, SclDomSource)>,
     pub oper_bnd_conc: Vec<SclBndDirichlet>,
     pub oper_bnd_nflx: Vec<SclBndNeumann>,
+    pub oper_bnd_nout: Vec<SclBndOutflow>,
     pub oper_itf_ncnt: Vec<SclItfContinuity>,
 
     // momentum transfer
@@ -87,6 +89,7 @@ impl SteadyMoleFlow {
         phys.conc_conc = vec![HashMap::new(); num_comp];
         phys.nflx_bnd = vec![Vec::new(); num_comp];
         phys.nflx_nflx = vec![HashMap::new(); num_comp];
+        phys.nout_bnd = vec![Vec::new(); num_comp];
         phys.ncnt_itf = vec![Vec::new(); num_comp];
 
         Ok(phys)
@@ -110,13 +113,18 @@ impl SteadyMoleFlow {
         Ok(())
     }
 
-    pub fn add_hflx_bnd(&mut self, comp_id: usize, bnd_id: usize, nflx_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_nflx_bnd(&mut self, comp_id: usize, bnd_id: usize, nflx_id: usize) -> Result<(), VFVChemError> {
         self.nflx_bnd[comp_id].push(bnd_id);
         self.nflx_nflx[comp_id].insert(bnd_id, nflx_id);
         Ok(())
     }
 
-    pub fn add_hcnt_itf(&mut self, comp_id: usize, itf_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_nout_bnd(&mut self, comp_id: usize, bnd_id: usize) -> Result<(), VFVChemError> {
+        self.nout_bnd[comp_id].push(bnd_id);
+        Ok(())
+    }
+
+    pub fn add_ncnt_itf(&mut self, comp_id: usize, itf_id: usize) -> Result<(), VFVChemError> {
         self.ncnt_itf[comp_id].push(itf_id);
         Ok(())
     }
@@ -211,6 +219,7 @@ impl SteadyBase for SteadyMoleFlow {
         self.oper_dom_mole.clear();
         self.oper_bnd_conc.clear();
         self.oper_bnd_nflx.clear();
+        self.oper_bnd_nout.clear();
         self.oper_itf_ncnt.clear();
 
         // domain
@@ -247,6 +256,11 @@ impl SteadyBase for SteadyMoleFlow {
             let bnd_nflx_id = self.nflx_nflx[comp_id][&bnd_id];
             let oper_neu = SclBndNeumann::new(vars, bnd_id, dom_conc_id, bnd_nflx_id)?;
             self.oper_bnd_nflx.push(oper_neu);
+        }}
+        for comp_id in 0..self.num_comp {
+        for &bnd_id in self.nout_bnd[comp_id].iter() {
+            let oper_out = SclBndOutflow::new(vars, bnd_id)?;
+            self.oper_bnd_nout.push(oper_out);
         }}
 
         // interface
@@ -359,6 +373,9 @@ impl SteadyBase for SteadyMoleFlow {
         // boundary
         for oper_neu in self.oper_bnd_nflx.iter() {
             oper_neu.apply(vars, a_triplet, b_vec)?;
+        }
+        for oper_out in self.oper_bnd_nout.iter() {
+            oper_out.apply(vars, a_triplet, b_vec)?;
         }
 
         // continuity

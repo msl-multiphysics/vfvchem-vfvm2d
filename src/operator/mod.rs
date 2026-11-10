@@ -7,6 +7,7 @@ pub mod scl_dom_lin;
 pub mod scl_dom_src;
 pub mod scl_bnd_dir;
 pub mod scl_bnd_neu;
+pub mod scl_bnd_out;
 pub mod scl_itf_cont;
 
 // generic vector operators
