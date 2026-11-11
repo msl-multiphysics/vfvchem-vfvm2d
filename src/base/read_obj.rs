@@ -4,11 +4,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::SplitWhitespace;
 
-const OFFSET_RATIO: f64 = 0.2;
-const REFINE_COUNT: f64 = 5.0;
-const REFINE_RATIO: f64 = 1.2;
-
-pub fn read_nds_obj(path: &str, h: f64) -> Result<Nodes, VFVChemError> {
+pub fn read_nds_obj(path: &str, nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Result<Nodes, VFVChemError> {
     // outline:
     // collect vertices, edges, and groupings
     // create nodes for each edge
@@ -66,7 +62,7 @@ pub fn read_nds_obj(path: &str, h: f64) -> Result<Nodes, VFVChemError> {
         // create nodes along edge
 
         // construct nodes
-        let node_add = _nodes_line(vert_pos[vid0], vert_pos[vid1], h);
+        let node_add = _nodes_line(vert_pos[vid0], vert_pos[vid1], nds_space, off_space, ref_space, ref_ratio);
         let mut node_id = Vec::new();
         for &pos in node_add.iter() {
             node_id.push(nds_pos.len());
@@ -78,7 +74,7 @@ pub fn read_nds_obj(path: &str, h: f64) -> Result<Nodes, VFVChemError> {
     // store in struct
     let mut nds = Nodes::default();
     nds.nds_pos = nds_pos;
-    nds.nds_space = h;
+    nds.nds_space = nds_space;
     nds.vert_pos = vert_pos;
     nds.edge_gvt = edge_gvt;
     nds.edge_gnd = edge_gnd;
@@ -149,7 +145,7 @@ fn _get_edge(iter: &mut SplitWhitespace, edge_gvt: &mut Vec<[usize; 2]>, gvt_edg
     Ok(())
 }
 
-fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), h: f64) -> Vec<(f64, f64)> {
+fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Vec<(f64, f64)> {
     // outline:
     // compute node spacing in 1D
     // place points on 2D line
@@ -167,12 +163,12 @@ fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), h: f64) -> Vec<(f64, f64)> {
     // compute corner refinement node positions
     // initial spacing is the corner offset
     let mut space_cnr = Vec::new();
-    let a = OFFSET_RATIO * h;
-    let b = REFINE_COUNT * h;
-    let n = ((1.0 + (b - a) * (REFINE_RATIO - 1.0) / a).ln() / REFINE_RATIO.ln()) as i32;
+    let a = off_space * nds_space;
+    let b = ref_space * nds_space;
+    let n = ((1.0 + (b - a) * (ref_ratio - 1.0) / a).ln() / ref_ratio.ln()) as i32;
     let clear_cnr = 0.5 * len_s - a;  // available space for refinement
     for i in 0..=n {
-        let c = a + (b - a) * (REFINE_RATIO.powi(i) - 1.0) / (REFINE_RATIO.powi(n) - 1.0);
+        let c = a + (b - a) * (ref_ratio.powi(i) - 1.0) / (ref_ratio.powi(n) - 1.0);
         if c > clear_cnr { break; }
         space_cnr.push(c);
     }
@@ -180,7 +176,7 @@ fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), h: f64) -> Vec<(f64, f64)> {
 
     // compute regularly spaced node positions
     let clear_reg = len_s - 2.0 * b;  // amount of space for regular spacing
-    let num_reg = ((clear_reg / h) as usize).saturating_sub(1);  // number of regularly spaced points
+    let num_reg = ((clear_reg / nds_space) as usize).saturating_sub(1);  // number of regularly spaced points
     let ds = clear_reg / (num_reg as f64);
     let space_reg = (1..num_reg).map(|i| start_cnr + (i as f64) * ds);
 

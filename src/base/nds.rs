@@ -1,8 +1,8 @@
 use crate::base::prelude::*;
 use std::collections::HashMap;
 
-const OFFSET_RATIO: f64 = 0.2;
-const REFINE_COUNT: f64 = 5.0;
+const OFFSET_SPACE: f64 = 0.2;
+const REFINE_SPACE: f64 = 5.0;
 const REFINE_RATIO: f64 = 1.2;
 
 #[derive(Default)]
@@ -10,7 +10,6 @@ pub struct Nodes {
     // nodes
     // nodes are on boundaries and interfaces
     pub nds_pos: Vec<(f64, f64)>,  // gnd (global node id)
-    pub nds_space: f64,  // node spacing
 
     // edges
     // defines the geometry
@@ -26,15 +25,36 @@ pub struct Nodes {
     // 2d groups
     // defines domains (ccw winding -> interior)
     pub grp2d_eid: HashMap<String, Vec<usize>>, // grp2d_id -> [eid, ...]
+
+    // sampling
+    pub nds_space: f64,  // node spacing
+    pub off_space: f64,  // corner offset length to node spacing ratio
+    pub ref_space: f64,  // corner refinement length to node spacing ratio
+    pub ref_ratio: f64,  // geometric growth rate from corner offset length to node spacing
 }
 
 impl Nodes {
-    pub fn new_from_obj(path: &str, h: f64) -> Result<Nodes, VFVChemError> {
-        let nds = read_nds_obj(path, h)?;
+    pub fn new_obj(path: &str, nds_space: f64) -> Result<Nodes, VFVChemError> {
+        Self::new_obj_options(path, nds_space, OFFSET_SPACE, REFINE_SPACE, REFINE_RATIO)
+    }
+
+    pub fn new_obj_options(path: &str, nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Result<Nodes, VFVChemError> {
+        // input checking
+        if nds_space <= 0.0 { return Err(VFVChemError::NodesNonPositiveSpacing { nds_space }) }
+        if off_space <= 0.0 || off_space > 1.0 { return Err(VFVChemError::NodesInvalidOffset { off_space }) }
+        if ref_space <= 1.0 { return Err(VFVChemError::NodesInvalidRefineSpace { ref_space }) }
+        if ref_ratio <= 1.0 { return Err(VFVChemError::NodesInvalidRefineRatio { ref_ratio }) }
+        
+        // create struct
+        let nds = read_nds_obj(path, nds_space, off_space, ref_space, ref_ratio)?;
         Ok(nds)
     }
 
-    pub fn new_from_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, h: f64) -> Result<Nodes, VFVChemError> {
+    pub fn new_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64) -> Result<Nodes, VFVChemError> {
+        Self::new_bounds_options(x_min, y_min, x_max, y_max, nds_space, OFFSET_SPACE, REFINE_SPACE, REFINE_RATIO)
+    }
+    
+    pub fn new_bounds_options(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Result<Nodes, VFVChemError> {
         // create nodes spaced at least h apart around rectangle
         // no corner nodes are made; create nodes offset from corner by dh
         // no corner nodes prevents incompatible conditions and simplifies bookkeeping
@@ -42,17 +62,23 @@ impl Nodes {
         // input checking
         if x_max < x_min { return Err(VFVChemError::NodesInvalidBoundsX { x_min, x_max }) }
         if y_max < y_min { return Err(VFVChemError::NodesInvalidBoundsY { y_min, y_max }) }
-        if h <= 0.0 { return Err(VFVChemError::NodesNonPositiveSpacing { h }) }
+        if nds_space <= 0.0 { return Err(VFVChemError::NodesNonPositiveSpacing { nds_space }) }
+        if off_space <= 0.0 || off_space > 1.0 { return Err(VFVChemError::NodesInvalidOffset { off_space }) }
+        if ref_space <= 1.0 { return Err(VFVChemError::NodesInvalidRefineSpace { ref_space }) }
+        if ref_ratio <= 1.0 { return Err(VFVChemError::NodesInvalidRefineRatio { ref_ratio }) }
 
         // create struct
         let mut nds = Nodes::default();
-        nds.nds_space = h;
+        nds.nds_space = nds_space;
+        nds.off_space = off_space;
+        nds.ref_space = ref_space;
+        nds.ref_ratio = ref_ratio;
 
         // construct nodes
-        let nds_b = _nodes_line((x_min, y_min), (x_max, y_min), h);  // bottom
-        let nds_r = _nodes_line((x_max, y_min), (x_max, y_max), h);  // right
-        let nds_t = _nodes_line((x_max, y_max), (x_min, y_max), h);  // top
-        let nds_l = _nodes_line((x_min, y_max), (x_min, y_min), h);  // left
+        let nds_b = _nodes_line((x_min, y_min), (x_max, y_min), nds_space, off_space, ref_space, ref_ratio);  // bottom
+        let nds_r = _nodes_line((x_max, y_min), (x_max, y_max), nds_space, off_space, ref_space, ref_ratio);  // right
+        let nds_t = _nodes_line((x_max, y_max), (x_min, y_max), nds_space, off_space, ref_space, ref_ratio);  // top
+        let nds_l = _nodes_line((x_min, y_max), (x_min, y_min), nds_space, off_space, ref_space, ref_ratio);  // left
         let num_x = nds_b.len();
         let num_y = nds_r.len();
         nds.nds_pos.extend(nds_b);
@@ -88,7 +114,7 @@ impl Nodes {
     }
 }
 
-fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), h: f64) -> Vec<(f64, f64)> {
+fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Vec<(f64, f64)> {
     // outline:
     // compute node spacing in 1D
     // place points on 2D line
@@ -106,12 +132,12 @@ fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), h: f64) -> Vec<(f64, f64)> {
     // compute corner refinement node positions
     // initial spacing is the corner offset
     let mut space_cnr = Vec::new();
-    let a = OFFSET_RATIO * h;
-    let b = REFINE_COUNT * h;
-    let n = ((1.0 + (b - a) * (REFINE_RATIO - 1.0) / a).ln() / REFINE_RATIO.ln()) as i32;
+    let a = off_space * nds_space;
+    let b = ref_space * nds_space;
+    let n = ((1.0 + (b - a) * (ref_ratio - 1.0) / a).ln() / ref_ratio.ln()) as i32;
     let clear_cnr = 0.5 * len_s - a;  // available space for refinement
     for i in 0..=n {
-        let c = a + (b - a) * (REFINE_RATIO.powi(i) - 1.0) / (REFINE_RATIO.powi(n) - 1.0);
+        let c = a + (b - a) * (ref_ratio.powi(i) - 1.0) / (ref_ratio.powi(n) - 1.0);
         if c > clear_cnr { break; }
         space_cnr.push(c);
     }
@@ -119,7 +145,7 @@ fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), h: f64) -> Vec<(f64, f64)> {
 
     // compute regularly spaced node positions
     let clear_reg = len_s - 2.0 * b;  // amount of space for regular spacing
-    let num_reg = ((clear_reg / h) as usize).saturating_sub(1);  // number of regularly spaced points
+    let num_reg = ((clear_reg / nds_space) as usize).saturating_sub(1);  // number of regularly spaced points
     let ds = clear_reg / (num_reg as f64);
     let space_reg = (1..num_reg).map(|i| start_cnr + (i as f64) * ds);
 

@@ -8,9 +8,9 @@ pub enum VFVChemError {
     PointsNonPositiveAttempts {
         max_try: usize,
     },
-    #[error("Points: Spacing `h` must be finite and at least equal to the node spacing. Got h = {h}.")]
+    #[error("Points: Spacing `pts_space` must be finite and at least equal to the node spacing. Got pts_space = {pts_space}.")]
     PointsInvalidSpacing {
-        h: f64,
+        pts_space: f64,
     },
     #[error("Points: Ramp length `ramp` must be positive and finite. Got ramp = {ramp}.")]
     PointsNonPositiveRampLength {
@@ -26,9 +26,21 @@ pub enum VFVChemError {
         y_min: f64,
         y_max: f64,
     },
-    #[error("Nodes: Spacing `h` must be positive and finite. Got h = {h}.")]
+    #[error("Nodes: Spacing `nds_space` must be positive and finite. Got nds_space = {nds_space}.")]
     NodesNonPositiveSpacing {
-        h: f64,
+        nds_space: f64,
+    },
+    #[error("Nodes: Corner offset to spacing ratio `off_space` must be  in (0, 1]. Got off_space = {off_space}.")]
+    NodesInvalidOffset {
+        off_space: f64,
+    },
+    #[error("Nodes: Corner refinement length to spacing ratio `ref_space` must be greater than one. Got ref_space = {ref_space}.")]
+    NodesInvalidRefineSpace {
+        ref_space: f64,
+    },
+    #[error("Nodes: Corner refinement ratio `ref_ratio` must be greater than one. Got ref_ratio = {ref_ratio}.")]
+    NodesInvalidRefineRatio {
+        ref_ratio: f64,
     },
 
     // geometry
