@@ -3,10 +3,7 @@ use vfvchem_vfvm2d::*;
 // cargo run --release --example heat_tworeg
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj(
-        "examples/obj/obj_tworeg.obj", 0.02, 0.05, 0.20,
-        100, 42, "examples/output_heat_tworeg"
-    )?;
+    let mut vars = Variables::new_obj("examples/obj/obj_tworeg.obj", 0.02, 0.05, "examples/output_heat_tworeg")?;
 
     // geometry
     let dom_lo = vars.add_dom("dom_lo")?;

@@ -4,9 +4,10 @@ use rand::{Rng, SeedableRng};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
-// reject candidate point whose distance to the boundary is less than BOUNDARY_RATIO * local spacing
-// must be greater than 0.5 so that boundaries become delaunay edges
-const BOUNDARY_RATIO: f64 = 0.6;
+const BOUNDARY_RATIO: f64 = 1.2;
+const MAX_TRY: usize = 100;
+const SEED: u64 = 317;
+const DELAUNAY_RATIO: f64 = 0.6;  // must be greater than 0.5 so that boundaries become delaunay edges
 
 #[derive(Default)]
 pub struct Points {
@@ -20,25 +21,29 @@ pub struct Points {
 
     // spacing
     pub pts_space: f64,  // point spacing
-    pub pts_ramp: f64, // length of ramp from node to point spacing
+    pub bnd_ratio: f64,  // geometric growth rate from node spacing to point spacing
 }
 
 impl Points {
-    pub fn new(nds: &Nodes, pts_space: f64, ramp: f64, max_try: usize, seed: u64) -> Result<Points, VFVChemError> {
+    pub fn new(nds: &Nodes, pts_space: f64) -> Result<Points, VFVChemError> {
+        Points::new_options(nds, pts_space, BOUNDARY_RATIO, MAX_TRY, SEED)
+    }
+
+    pub fn new_options(nds: &Nodes, pts_space: f64, bnd_ratio: f64, max_try: usize, seed: u64) -> Result<Points, VFVChemError> {
         // input checking
         if max_try == 0 { return Err(VFVChemError::PointsNonPositiveAttempts { max_try }) }
         if !(pts_space >= nds.nds_space) { return Err(VFVChemError::PointsInvalidSpacing { pts_space }) }
-        if !(ramp > 0.0 && ramp.is_finite()) { return Err(VFVChemError::PointsNonPositiveRampLength { ramp }) }
+        if bnd_ratio <= 1.0 { return Err(VFVChemError::PointsInvalidBoundaryRatio { bnd_ratio }) }
 
         // default struct
         let mut pts = Points::default();
-        pts.pts_space = pts_space;
-        pts.pts_ramp = ramp;
+        pts.pts_space = pts_space;  // point spacing
+        pts.bnd_ratio = bnd_ratio;  // geometric growth rate from node spacing to point spacing
 
         // iterate through 2d groups
         for (grp2d_id, curve_eid) in nds.grp2d_eid.iter() {
             // create points
-            let pts_pos = _point_sample(nds, curve_eid, pts_space, ramp, max_try, seed)?;
+            let pts_pos = _point_sample(nds, curve_eid, pts_space, bnd_ratio, max_try, seed)?;
             
             // register points
             let mut pts_id = Vec::new();
@@ -59,7 +64,7 @@ impl Points {
     }
 }
 
-fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, ramp: f64, max_try: usize, seed: u64) -> Result<Vec<(f64, f64)>, VFVChemError> {
+fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, bnd_ratio: f64, max_try: usize, seed: u64) -> Result<Vec<(f64, f64)>, VFVChemError> {
     // outline:
     // create bounding box and grid
     // get initial sampling point
@@ -138,8 +143,8 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, ramp: f64,
     // get node spacing parameters
     let nds_space = nds.nds_space;
     let off_space = nds.off_space;
-    let ref_space = nds.ref_space;
-    let ref_ratio = nds.ref_ratio;
+    let crn_space = nds.crn_space;
+    let crn_ratio = nds.crn_ratio;
 
     // initialize active points (try creating more points around)
     let mut pts_act = Vec::new();  
@@ -153,8 +158,8 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, ramp: f64,
         // test point
         // rejects point if not feasible
         if !_point_inside(&curve_pos, xc, yc) { continue; };
-        let (hc, dc) = _point_space(&curve_pos, nds_space, off_space, ref_space, ref_ratio, pts_space, ramp, xc, yc);
-        if dc < BOUNDARY_RATIO * hc { continue; };  // reject if spacing is greater than distance to boundary
+        let (hc, dc) = _point_space(&curve_pos, nds_space, off_space, crn_space, crn_ratio, pts_space, bnd_ratio, xc, yc);
+        if dc < DELAUNAY_RATIO * hc { continue; };  // reject if spacing is greater than distance to boundary
         if !_point_far(&pts_pos, &grid, x_min, y_min, num_x, num_y, dh, hc, xc, yc) { continue; };
 
         // register point if feasible
@@ -196,8 +201,8 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, ramp: f64,
             // test point
             // rejects point if not feasible
             if !_point_inside(&curve_pos, xc, yc) { continue; };
-            let (hc, dc) = _point_space(&curve_pos, nds_space, off_space, ref_space, ref_ratio, pts_space, ramp, xc, yc);
-            if dc < BOUNDARY_RATIO * hc { continue; };
+            let (hc, dc) = _point_space(&curve_pos, nds_space, off_space, crn_space, crn_ratio, pts_space, bnd_ratio, xc, yc);
+            if dc < DELAUNAY_RATIO * hc { continue; };
             if !_point_far(&pts_pos, &grid, x_min, y_min, num_x, num_y, dh, hc, xc, yc) { continue; };
 
             // register point if feasible
@@ -255,7 +260,7 @@ fn _point_inside(curve_pos: &Vec<[(f64, f64); 2]>, xc: f64, yc: f64) -> bool {
     wind > 0
 }
 
-fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64, pts_space: f64, ramp: f64, xc: f64, yc: f64) -> (f64, f64) {
+fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64, crn_space: f64, crn_ratio: f64, pts_space: f64, bnd_ratio: f64, xc: f64, yc: f64) -> (f64, f64) {
     // outline
     // find shortest perpendicular distance to segments
     // find shortest distance to corners if within corner distance
@@ -264,16 +269,10 @@ fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64
     // return spacing and distance from segments
 
     // initialize minimum distances
-    let mut dist2_seg = f64::INFINITY;  // from segment
+    let mut dist2_bnd = f64::INFINITY;  // from boundary
     let mut dist2_crn = f64::INFINITY;  // from corner
 
-    // compute corner spacing
-    let a = off_space * nds_space;
-    let b = ref_space * nds_space;
-    let n = ((1.0 + (b - a) * (ref_ratio - 1.0) / a).ln() / ref_ratio.ln()) as i32;
-
     // find shortest perpendicular distance to segments
-
     // iterate through curves
     for &[(x0, y0), (x1, y1)] in curve_pos {
         // distance from segment
@@ -291,7 +290,7 @@ fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64
         let dist_x = xc - xp;
         let dist_y = yc - yp;
         let dist2 = dist_x * dist_x + dist_y * dist_y;
-        dist2_seg = dist2_seg.min(dist2);
+        dist2_bnd = dist2_bnd.min(dist2);
 
         // distance from corner
         
@@ -310,14 +309,20 @@ fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64
     }
 
     // compute spacing using corner refinement
-    let hc_ref = ref_ratio.ln() * ((b - a) / (ref_ratio.powi(n) - 1.0) + dist2_crn.sqrt() - a);
+    let a = off_space * nds_space;
+    let b = crn_space * nds_space;
+    let n = ((1.0 + (b - a) * (crn_ratio - 1.0) / a).ln() / crn_ratio.ln()) as i32;
+    let hc_crn = crn_ratio.ln() * ((b - a) / (crn_ratio.powi(n) - 1.0) + dist2_crn.sqrt() - a);
     
-    // compute spacing using ramp
-    let dist_seg = dist2_seg.sqrt();
-    let t = (dist_seg / ramp).min(1.0);
-    let hc_seg = nds_space + t * (pts_space - nds_space);
-
-    (hc_ref.min(hc_seg), dist_seg)
+    // compute spacing using boundary refinement
+    let p = nds_space;
+    let q = pts_space;
+    let m = ((1.0 + (q - p) * (bnd_ratio - 1.0) / p).ln() / bnd_ratio.ln()) as i32;
+    let dist_bnd = dist2_bnd.sqrt();
+    let hc_bnd = bnd_ratio.ln() * ((q - p) / (bnd_ratio.powi(m) - 1.0) + dist_bnd - p);
+    
+    // return
+    (hc_crn.min(hc_bnd), dist_bnd)
 }
 
 fn _point_far(pts_pos: &Vec<(f64, f64)>, grid: &Vec<Vec<usize>>, x_min: f64, y_min: f64, num_x: usize, num_y: usize, dh: f64, hc: f64, xc: f64, yc: f64) -> bool {

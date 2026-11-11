@@ -5,10 +5,7 @@ use std::collections::HashMap;
 // Steady diffusion with the analytical solution conc = 1 - x.
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(
-        0.0, 0.0, 1.0, 1.0, 0.02, 0.05, 0.10,
-        100, 42, "examples/output_mass_square"
-    )?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.02, 0.05, "examples/output_mass_square")?;
 
     // geometry
     let dom = vars.add_dom("dom")?;

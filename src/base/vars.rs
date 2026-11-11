@@ -29,24 +29,42 @@ pub struct Variables {
 
 impl Variables {
     // geometry
-    pub fn new_obj(obj_path: &str, h_min: f64, h_max: f64, ramp: f64, max_try: usize, seed: u64, folder: &str) -> Result<Variables, VFVChemError> {
+    pub fn new_obj(obj_path: &str, nds_space: f64, pts_space: f64, folder: &str) -> Result<Variables, VFVChemError> {
         create_dir_all(folder).unwrap();
         let mut vars = Variables::default();
         vars.folder = folder.to_string();
-        vars.nds = Nodes::new_from_obj(obj_path, h_min)?;
-        vars.pts = Points::new(&vars.nds, h_max, ramp, max_try, seed)?;
+        vars.nds = Nodes::new_obj(obj_path, nds_space)?;
+        vars.pts = Points::new(&vars.nds, pts_space)?;
         Ok(vars)
     }
 
-    pub fn new_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, h_min: f64, h_max: f64, ramp: f64, max_try: usize, seed: u64, folder: &str) -> Result<Variables, VFVChemError> {
+    pub fn new_obj_options(obj_path: &str, nds_space: f64, off_space: f64, crn_space: f64, crn_ratio: f64, pts_space: f64, bnd_ratio: f64, max_try: usize, seed: u64, folder: &str) -> Result<Variables, VFVChemError> {
         create_dir_all(folder).unwrap();
         let mut vars = Variables::default();
         vars.folder = folder.to_string();
-        vars.nds = Nodes::new_from_bounds(x_min, y_min, x_max, y_max, h_min)?;
-        vars.pts = Points::new(&vars.nds, h_max, ramp, max_try, seed)?;
+        vars.nds = Nodes::new_obj_options(obj_path, nds_space, off_space, crn_space, crn_ratio)?;
+        vars.pts = Points::new_options(&vars.nds, pts_space, bnd_ratio, max_try, seed)?;
         Ok(vars)
     }
 
+    pub fn new_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64, pts_space: f64, folder: &str) -> Result<Variables, VFVChemError> {
+        create_dir_all(folder).unwrap();
+        let mut vars = Variables::default();
+        vars.folder = folder.to_string();
+        vars.nds = Nodes::new_bounds(x_min, y_min, x_max, y_max, nds_space)?;
+        vars.pts = Points::new(&vars.nds, pts_space)?;
+        Ok(vars)
+    }
+
+    pub fn new_bounds_options(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64, off_space: f64, crn_space: f64, crn_ratio: f64, pts_space: f64, bnd_ratio: f64, max_try: usize, seed: u64, folder: &str) -> Result<Variables, VFVChemError> {
+        create_dir_all(folder).unwrap();
+        let mut vars = Variables::default();
+        vars.folder = folder.to_string();
+        vars.nds = Nodes::new_bounds_options(x_min, y_min, x_max, y_max, nds_space, off_space, crn_space, crn_ratio)?;
+        vars.pts = Points::new_options(&vars.nds, pts_space, bnd_ratio, max_try, seed)?;
+        Ok(vars)
+    }
+    
     // groupings
     pub fn add_dom(&mut self, grp2d_id: &str) -> Result<usize, VFVChemError> {
         let dom_id = self.dom.len();

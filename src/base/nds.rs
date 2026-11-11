@@ -2,8 +2,8 @@ use crate::base::prelude::*;
 use std::collections::HashMap;
 
 const OFFSET_SPACE: f64 = 0.2;
-const REFINE_SPACE: f64 = 5.0;
-const REFINE_RATIO: f64 = 1.2;
+const CORNER_SPACE: f64 = 5.0;
+const CORNER_RATIO: f64 = 1.2;
 
 #[derive(Default)]
 pub struct Nodes {
@@ -29,32 +29,32 @@ pub struct Nodes {
     // sampling
     pub nds_space: f64,  // node spacing
     pub off_space: f64,  // corner offset length to node spacing ratio
-    pub ref_space: f64,  // corner refinement length to node spacing ratio
-    pub ref_ratio: f64,  // geometric growth rate from corner offset length to node spacing
+    pub crn_space: f64,  // corner refinement length to node spacing ratio
+    pub crn_ratio: f64,  // geometric growth rate from corner offset length to node spacing
 }
 
 impl Nodes {
     pub fn new_obj(path: &str, nds_space: f64) -> Result<Nodes, VFVChemError> {
-        Self::new_obj_options(path, nds_space, OFFSET_SPACE, REFINE_SPACE, REFINE_RATIO)
+        Nodes::new_obj_options(path, nds_space, OFFSET_SPACE, CORNER_SPACE, CORNER_RATIO)
     }
 
-    pub fn new_obj_options(path: &str, nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Result<Nodes, VFVChemError> {
+    pub fn new_obj_options(path: &str, nds_space: f64, off_space: f64, crn_space: f64, crn_ratio: f64) -> Result<Nodes, VFVChemError> {
         // input checking
         if nds_space <= 0.0 { return Err(VFVChemError::NodesNonPositiveSpacing { nds_space }) }
         if off_space <= 0.0 || off_space > 1.0 { return Err(VFVChemError::NodesInvalidOffset { off_space }) }
-        if ref_space <= 1.0 { return Err(VFVChemError::NodesInvalidRefineSpace { ref_space }) }
-        if ref_ratio <= 1.0 { return Err(VFVChemError::NodesInvalidRefineRatio { ref_ratio }) }
+        if crn_space <= 1.0 { return Err(VFVChemError::NodesInvalidCornerSpace { crn_space }) }
+        if crn_ratio <= 1.0 { return Err(VFVChemError::NodesInvalidCornerRatio { crn_ratio }) }
         
         // create struct
-        let nds = read_nds_obj(path, nds_space, off_space, ref_space, ref_ratio)?;
+        let nds = read_nds_obj(path, nds_space, off_space, crn_space, crn_ratio)?;
         Ok(nds)
     }
 
     pub fn new_bounds(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64) -> Result<Nodes, VFVChemError> {
-        Self::new_bounds_options(x_min, y_min, x_max, y_max, nds_space, OFFSET_SPACE, REFINE_SPACE, REFINE_RATIO)
+        Nodes::new_bounds_options(x_min, y_min, x_max, y_max, nds_space, OFFSET_SPACE, CORNER_SPACE, CORNER_RATIO)
     }
     
-    pub fn new_bounds_options(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Result<Nodes, VFVChemError> {
+    pub fn new_bounds_options(x_min: f64, y_min: f64, x_max: f64, y_max: f64, nds_space: f64, off_space: f64, crn_space: f64, crn_ratio: f64) -> Result<Nodes, VFVChemError> {
         // create nodes spaced at least h apart around rectangle
         // no corner nodes are made; create nodes offset from corner by dh
         // no corner nodes prevents incompatible conditions and simplifies bookkeeping
@@ -64,21 +64,21 @@ impl Nodes {
         if y_max < y_min { return Err(VFVChemError::NodesInvalidBoundsY { y_min, y_max }) }
         if nds_space <= 0.0 { return Err(VFVChemError::NodesNonPositiveSpacing { nds_space }) }
         if off_space <= 0.0 || off_space > 1.0 { return Err(VFVChemError::NodesInvalidOffset { off_space }) }
-        if ref_space <= 1.0 { return Err(VFVChemError::NodesInvalidRefineSpace { ref_space }) }
-        if ref_ratio <= 1.0 { return Err(VFVChemError::NodesInvalidRefineRatio { ref_ratio }) }
+        if crn_space <= 1.0 { return Err(VFVChemError::NodesInvalidCornerSpace { crn_space }) }
+        if crn_ratio <= 1.0 { return Err(VFVChemError::NodesInvalidCornerRatio { crn_ratio }) }
 
         // create struct
         let mut nds = Nodes::default();
         nds.nds_space = nds_space;
         nds.off_space = off_space;
-        nds.ref_space = ref_space;
-        nds.ref_ratio = ref_ratio;
+        nds.crn_space = crn_space;
+        nds.crn_ratio = crn_ratio;
 
         // construct nodes
-        let nds_b = _nodes_line((x_min, y_min), (x_max, y_min), nds_space, off_space, ref_space, ref_ratio);  // bottom
-        let nds_r = _nodes_line((x_max, y_min), (x_max, y_max), nds_space, off_space, ref_space, ref_ratio);  // right
-        let nds_t = _nodes_line((x_max, y_max), (x_min, y_max), nds_space, off_space, ref_space, ref_ratio);  // top
-        let nds_l = _nodes_line((x_min, y_max), (x_min, y_min), nds_space, off_space, ref_space, ref_ratio);  // left
+        let nds_b = _nodes_line((x_min, y_min), (x_max, y_min), nds_space, off_space, crn_space, crn_ratio);  // bottom
+        let nds_r = _nodes_line((x_max, y_min), (x_max, y_max), nds_space, off_space, crn_space, crn_ratio);  // right
+        let nds_t = _nodes_line((x_max, y_max), (x_min, y_max), nds_space, off_space, crn_space, crn_ratio);  // top
+        let nds_l = _nodes_line((x_min, y_max), (x_min, y_min), nds_space, off_space, crn_space, crn_ratio);  // left
         let num_x = nds_b.len();
         let num_y = nds_r.len();
         nds.nds_pos.extend(nds_b);
@@ -114,7 +114,7 @@ impl Nodes {
     }
 }
 
-fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), nds_space: f64, off_space: f64, ref_space: f64, ref_ratio: f64) -> Vec<(f64, f64)> {
+fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), nds_space: f64, off_space: f64, crn_space: f64, crn_ratio: f64) -> Vec<(f64, f64)> {
     // outline:
     // compute node spacing in 1D
     // place points on 2D line
@@ -133,11 +133,11 @@ fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), nds_space: f64, off_space: f6
     // initial spacing is the corner offset
     let mut space_cnr = Vec::new();
     let a = off_space * nds_space;
-    let b = ref_space * nds_space;
-    let n = ((1.0 + (b - a) * (ref_ratio - 1.0) / a).ln() / ref_ratio.ln()) as i32;
+    let b = crn_space * nds_space;
+    let n = ((1.0 + (b - a) * (crn_ratio - 1.0) / a).ln() / crn_ratio.ln()) as i32;
     let clear_cnr = 0.5 * len_s - a;  // available space for refinement
     for i in 0..=n {
-        let c = a + (b - a) * (ref_ratio.powi(i) - 1.0) / (ref_ratio.powi(n) - 1.0);
+        let c = a + (b - a) * (crn_ratio.powi(i) - 1.0) / (crn_ratio.powi(n) - 1.0);
         if c > clear_cnr { break; }
         space_cnr.push(c);
     }

@@ -3,10 +3,7 @@ use vfvchem_vfvm2d::*;
 // cargo run --release --example flow_step
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj(
-        "examples/obj/obj_step.obj", 0.01, 0.02, 0.20,
-        100, 42, "examples/output_flow_step"
-    )?;
+    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.01, 0.02, "examples/output_flow_step")?;
 
     // geometry
     let dom = vars.add_dom("dom_f")?;

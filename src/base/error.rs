@@ -12,9 +12,9 @@ pub enum VFVChemError {
     PointsInvalidSpacing {
         pts_space: f64,
     },
-    #[error("Points: Ramp length `ramp` must be positive and finite. Got ramp = {ramp}.")]
-    PointsNonPositiveRampLength {
-        ramp: f64,
+    #[error("Points: Boundary refinement ratio `bnd_ratio` must be greater than one. Got bnd_ratio = {bnd_ratio}.")]
+    PointsInvalidBoundaryRatio {
+        bnd_ratio: f64,
     },
     #[error("Nodes: x_max must be greater than x_min. Got x_min = {x_min} and x_max = {x_max}.")]
     NodesInvalidBoundsX {
@@ -34,13 +34,13 @@ pub enum VFVChemError {
     NodesInvalidOffset {
         off_space: f64,
     },
-    #[error("Nodes: Corner refinement length to spacing ratio `ref_space` must be greater than one. Got ref_space = {ref_space}.")]
-    NodesInvalidRefineSpace {
-        ref_space: f64,
+    #[error("Nodes: Corner refinement length to spacing ratio `crn_space` must be greater than one. Got crn_space = {crn_space}.")]
+    NodesInvalidCornerSpace {
+        crn_space: f64,
     },
-    #[error("Nodes: Corner refinement ratio `ref_ratio` must be greater than one. Got ref_ratio = {ref_ratio}.")]
-    NodesInvalidRefineRatio {
-        ref_ratio: f64,
+    #[error("Nodes: Corner refinement ratio `crn_ratio` must be greater than one. Got crn_ratio = {crn_ratio}.")]
+    NodesInvalidCornerRatio {
+        crn_ratio: f64,
     },
 
     // geometry

@@ -3,10 +3,7 @@ use vfvchem_vfvm2d::*;
 // cargo run --release --example flow_lid
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(
-        0.0, 0.0, 1.0, 1.0, 0.01, 0.02, 0.10,
-        100, 42, "examples/output_flow_lid"
-    )?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.01, 0.02, "examples/output_flow_lid")?;
 
     // geometry
     let dom = vars.add_dom("dom")?;

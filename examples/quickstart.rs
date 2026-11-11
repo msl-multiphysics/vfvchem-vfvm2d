@@ -3,10 +3,7 @@ use vfvchem_vfvm2d::*;
 // cargo run --release --example quickstart
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(
-        0.0, 0.0, 1.0, 1.0, 0.02, 0.05, 0.10,
-        100, 42, "examples/output_quickstart"
-    )?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.02, 0.05, "examples/output_quickstart")?;
 
     // geometry
     let dom = vars.add_dom("dom")?;
