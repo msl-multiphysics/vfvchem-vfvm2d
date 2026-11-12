@@ -13,19 +13,19 @@ use vfvchem_vfvm2d::*;
 /// bnd_c - cylinder
 ///
 /// Domain Properties:
-/// dom - density (rho = 1.2 kg m-3)
-/// dom - viscosity (mu = 1.8e-5 Pa s)
+/// dom - density (rho = 1.0 kg m-3)
+/// dom - viscosity (mu = 1.0e-3 Pa s)
 /// dom - body force (fce = <0.0, 0.0> N m-3)
 ///
 /// Boundary Conditions:
-/// bnd_i - velocity (parabolic; average velocity = 0.06 m s-1)
+/// bnd_i - velocity (parabolic; average velocity = 1.0 m s-1)
 /// bnd_o - pressure (p = 0.0 Pa)
 /// bnd_w - no slip (vel = <0.0, 0.0> m s-1)
 /// bnd_c - no slip (vel = <0.0, 0.0> m s-1)
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj("examples/obj/obj_vortex.obj", 0.001, 0.002, "examples/output_flow_vortex")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_vortex.obj", 0.005, 0.01, "examples/output_flow_vortex")?;
 
     // geometry
     let dom_f = vars.add_dom("dom_f")?;  // flow channel
@@ -39,15 +39,15 @@ fn main() -> Result<(), VFVChemError> {
     let pres_f = vars.add_scldom_unkn(dom_f, 0.0, "pres")?;       // pressure (p)
 
     // domain values
-    let den_f = vars.add_scldom_cnst(dom_f, 1.2, "den")?;         // density (rho)
-    let visc_f = vars.add_scldom_cnst(dom_f, 1.8e-5, "visc")?;    // viscosity (mu)
+    let den_f = vars.add_scldom_cnst(dom_f, 1.0, "den")?;         // density (rho)
+    let visc_f = vars.add_scldom_cnst(dom_f, 1.0e-3, "visc")?;    // viscosity (mu)
     let fce_f = vars.add_vecdom_cnst(dom_f, (0.0, 0.0), "fce")?;  // body force (fce)
 
     // non-constant boundary values
     // define non-constant values with vars.add_vecbnd_func
     // function takes in time, position, and unknown scalars and returns the value at the boundary
     let vel_func: VecBndFunc = Box::new(|_t, (_x, y), _unkn| {  // t, (x, y), [unkn] -> (u, v)
-        let u = 0.09 * 4.0 * y * (0.1025 - y) / (0.1025 * 0.1025);
+        let u = 1.5 * 4.0 * y * (0.41 - y) / (0.41 * 0.41);
         (u, 0.0)
     });
     let vel_i = vars.add_vecbnd_func(bnd_i, vel_func, vec![])?;  // unkn_id is empty since unknown scalars are not used
@@ -67,7 +67,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // solver
     let mut lin = RslabLu::new(4)?;  // matrix solver
-    phys.solve(&mut vars, &mut lin, 50, 1e-3, 1.0, 0.01, 3000, 10)?;  // physics solver
+    phys.solve(&mut vars, &mut lin, 100, 1e-3, 1.0, 0.002, 2500, 5)?;  // physics solver
 
     Ok(())
 }

@@ -116,6 +116,12 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, bnd_ratio:
     let num_y = ((y_max - y_min) / dh).ceil() as usize;
     let mut grid = vec![vec![]; num_x * num_y];  // gid -> [pid, ...]
 
+    // get node spacing parameters
+    let nds_space = nds.nds_space;
+    let off_space = nds.off_space;
+    let crn_space = nds.crn_space;
+    let crn_ratio = nds.crn_ratio;
+
     // load nodes into grid
     for &eid in curve_eid.iter() {
     for &gnd in nds.edge_gnd[eid].iter() {
@@ -126,10 +132,13 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, bnd_ratio:
         let pid = pts_pos.len();
         let gid = i + j * num_x;
         
+        // get local spacing (includes corner refinement)
+        let (h, _) = _point_space(&curve_pos, nds_space, off_space, crn_space, crn_ratio, pts_space, bnd_ratio, x, y);
+
         // store point
         grid[gid].push(pid);
         pts_pos.push((x, y));
-        pts_h.push(nds.nds_space);
+        pts_h.push(h);
     }}
 
     // number of grid cells occupied by nodes
@@ -139,12 +148,6 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, bnd_ratio:
 
     // seed rng
     let mut rng = StdRng::seed_from_u64(seed);
-
-    // get node spacing parameters
-    let nds_space = nds.nds_space;
-    let off_space = nds.off_space;
-    let crn_space = nds.crn_space;
-    let crn_ratio = nds.crn_ratio;
 
     // initialize active points
     let mut pts_act: Vec<usize> = (0..num_nds).collect();
@@ -194,7 +197,7 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, bnd_ratio:
         for _ in 0..max_try {
             // candidate point
             let ang = rng.random_range(0.0..(2.0 * PI));
-            let rad = rng.random_range(ha..(2.0 * ha));
+            let rad = rng.random_range(0.0..(2.0 * ha));
             let xc = xa + rad * ang.cos();
             let yc = ya + rad * ang.sin();
 

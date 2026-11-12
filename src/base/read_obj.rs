@@ -75,6 +75,9 @@ pub fn read_nds_obj(path: &str, nds_space: f64, off_space: f64, ref_space: f64, 
     let mut nds = Nodes::default();
     nds.nds_pos = nds_pos;
     nds.nds_space = nds_space;
+    nds.off_space = off_space;
+    nds.crn_space = ref_space;
+    nds.crn_ratio = ref_ratio;
     nds.vert_pos = vert_pos;
     nds.edge_gvt = edge_gvt;
     nds.edge_gnd = edge_gnd;
