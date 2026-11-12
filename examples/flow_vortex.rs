@@ -67,7 +67,7 @@ fn main() -> Result<(), VFVChemError> {
 
     // solver
     let mut lin = RslabLu::new(4)?;  // matrix solver
-    phys.solve(&mut vars, &mut lin, 100, 1e-3, 1.0, 0.002, 2500, 5)?;  // physics solver
+    phys.solve(&mut vars, &mut lin, 100, 1e-3, 1.0, 0.01, 500, 1)?;  // physics solver
 
     Ok(())
 }

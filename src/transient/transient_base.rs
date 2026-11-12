@@ -45,7 +45,7 @@ pub trait TransientBase {
         self.initial_operator(vars)?;
 
         // time coefficients
-        // d(phi)/dt = tc0 * phi + tc1 * phi_prv1 + tc2 * phi_prv2
+        // du/dt = tc0 * u + tc1 * u_prv1 + tc2 * u_prv2
         // bdf1 for the first timestep; bdf2 afterward
         let tc_bdf1 = (1.0 / dt, -1.0 / dt, 0.0);
         let tc_bdf2 = (1.5 / dt, -2.0 / dt, 0.5 / dt);
