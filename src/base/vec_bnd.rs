@@ -22,7 +22,7 @@ pub struct VectorBoundary {
     // node data
     pub vecbnd_type: VecBndType,
     pub value: Vec<(f64, f64)>,  // idx -> value
-    pub value_prev: Vec<(f64, f64)>,
+    pub value_prv1: Vec<(f64, f64)>,
 }
 
 impl VectorBoundary {
@@ -35,7 +35,7 @@ impl VectorBoundary {
         // node data
         vecbnd.vecbnd_type = VecBndType::Constant;
         vecbnd.value = vec![value; bnd.num_nds()];
-        vecbnd.value_prev = vecbnd.value.clone();
+        vecbnd.value_prv1 = vecbnd.value.clone();
         
         Ok(vecbnd)
     }
@@ -57,13 +57,13 @@ impl VectorBoundary {
         // node data
         vecbnd.vecbnd_type = VecBndType::Function { func, unkn_id };
         vecbnd.value = vec![(f64::NAN, f64::NAN); bnd.num_nds()];  // placeholder
-        vecbnd.value_prev = vecbnd.value.clone();
+        vecbnd.value_prv1 = vecbnd.value.clone();
 
         Ok(vecbnd)
     }
 
     pub fn update_prev(&mut self) {
-        self.value_prev = self.value.clone();
+        self.value_prv1 = self.value.clone();
     }
 
     pub fn update_func(vars: &mut Variables, vecbnd_id: usize, t: f64) {

@@ -176,11 +176,11 @@ impl TransientBase for TransientMole {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // domain
         for (oper_time, oper_diff_vec, oper_lin, oper_src) in self.oper_dom_mole.iter() {
             // properties for comp_i
-            oper_time.apply_time(vars, a_triplet, b_vec, dt)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, tc)?;
             oper_lin.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
 

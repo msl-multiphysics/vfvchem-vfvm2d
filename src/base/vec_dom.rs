@@ -26,11 +26,13 @@ pub struct VectorDomain {
     // value data
     pub vecdom_type: VecDomType,
     pub value: Vec<(f64, f64)>,  // vid -> (u, v)
-    pub value_prev: Vec<(f64, f64)>,
+    pub value_prv1: Vec<(f64, f64)>,  // 1st previous timestep
+    pub value_prv2: Vec<(f64, f64)>,  // 2nd previous timestep
 
     // gradient data
     pub grad: Vec<(f64, f64, f64, f64)>,  // vid -> (du/dx, du/dy, dv/dx, dv/dy)
-    pub grad_prev: Vec<(f64, f64, f64, f64)>,
+    pub grad_prv1: Vec<(f64, f64, f64, f64)>,
+    pub grad_prv2: Vec<(f64, f64, f64, f64)>,
 }
 
 impl VectorDomain {
@@ -44,11 +46,13 @@ impl VectorDomain {
         // point and node data
         vecdom.vecdom_type = VecDomType::Constant;
         vecdom.value = vec![value; dom.num_vert()];
-        vecdom.value_prev = vecdom.value.clone();
+        vecdom.value_prv1 = vecdom.value.clone();
+        vecdom.value_prv2 = vecdom.value.clone();
 
         // gradient data
         vecdom.grad = vec![(0.0, 0.0, 0.0, 0.0); dom.num_vert()];
-        vecdom.grad_prev = vecdom.grad.clone();
+        vecdom.grad_prv1 = vecdom.grad.clone();
+        vecdom.grad_prv2 = vecdom.grad.clone();
 
         Ok(vecdom)
     }
@@ -71,11 +75,13 @@ impl VectorDomain {
         // point data
         vecdom.vecdom_type = VecDomType::Function { func, unkn_id };
         vecdom.value = vec![(f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
-        vecdom.value_prev = vecdom.value.clone();
+        vecdom.value_prv1 = vecdom.value.clone();
+        vecdom.value_prv2 = vecdom.value.clone();
 
         // gradient data
         vecdom.grad = vec![(f64::NAN, f64::NAN, f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
-        vecdom.grad_prev = vecdom.grad.clone();
+        vecdom.grad_prv1 = vecdom.grad.clone();
+        vecdom.grad_prv2 = vecdom.grad.clone();
 
         Ok(vecdom)
     }
@@ -90,18 +96,22 @@ impl VectorDomain {
         // point data
         vecdom.vecdom_type = VecDomType::Unknown { start: usize::MAX };  // placeholder
         vecdom.value = vec![value_init; dom.num_vert()];
-        vecdom.value_prev = vecdom.value.clone();
+        vecdom.value_prv1 = vecdom.value.clone();
+        vecdom.value_prv2 = vecdom.value.clone();
 
         // gradient data
         vecdom.grad = vec![(0.0, 0.0, 0.0, 0.0); dom.num_vert()];
-        vecdom.grad_prev = vecdom.grad.clone();
+        vecdom.grad_prv1 = vecdom.grad.clone();
+        vecdom.grad_prv2 = vecdom.grad.clone();
 
         Ok(vecdom)
     }
 
     pub fn update_prev(&mut self) {
-        self.value_prev = self.value.clone();
-        self.grad_prev = self.grad.clone();
+        self.value_prv2 = self.value_prv1.clone();
+        self.grad_prv2 = self.grad_prv1.clone();
+        self.value_prv1 = self.value.clone();
+        self.grad_prv1 = self.grad.clone();
     }
 
     pub fn update_grad(&mut self, tri: &Triangle) {
@@ -227,10 +237,25 @@ impl VectorDomain {
         (valu_c, valv_c)
     }
 
-    pub fn interp_vert_prev(&self, offc: (f64, f64), vid_v: usize) -> (f64, f64){
+    pub fn interp_vert_prv1(&self, offc: (f64, f64), vid_v: usize) -> (f64, f64){
         // get value and gradient
-        let (valu_v, valv_v) = self.value_prev[vid_v];
-        let (gradux_v, graduy_v, gradvx_v, gradvy_v) = self.grad_prev[vid_v];
+        let (valu_v, valv_v) = self.value_prv1[vid_v];
+        let (gradux_v, graduy_v, gradvx_v, gradvy_v) = self.grad_prv1[vid_v];
+        let (ox, oy) = offc;
+
+        // compute value
+        let valu_o = ox * gradux_v + oy * graduy_v;
+        let valv_o = ox * gradvx_v + oy * gradvy_v;
+        let valu_c = valu_v + valu_o;
+        let valv_c = valv_v + valv_o;
+
+        (valu_c, valv_c)
+    }
+
+    pub fn interp_vert_prv2(&self, offc: (f64, f64), vid_v: usize) -> (f64, f64){
+        // get value and gradient
+        let (valu_v, valv_v) = self.value_prv2[vid_v];
+        let (gradux_v, graduy_v, gradvx_v, gradvy_v) = self.grad_prv2[vid_v];
         let (ox, oy) = offc;
 
         // compute value

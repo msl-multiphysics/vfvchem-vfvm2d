@@ -7,7 +7,7 @@ pub trait TransientBase {
     fn initial_start(&mut self, vars: &mut Variables) -> Result<usize, VFVChemError>;  // set start indices and compute matrix sizes
     fn initial_dirichlet(&mut self, vars: &mut Variables, mat_size: usize) -> Result<(), VFVChemError>;  // load dirichlet values into unknown-type variables
     fn initial_operator(&mut self, vars: &Variables) -> Result<(), VFVChemError>;  // initialize operators
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError>;  // assemble global matrix
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError>;  // assemble global matrix
 
     // default solver loop
     fn solve(
@@ -44,6 +44,12 @@ pub trait TransientBase {
         // initialize operators
         self.initial_operator(vars)?;
 
+        // time coefficients
+        // d(phi)/dt = tc0 * phi + tc1 * phi_prv1 + tc2 * phi_prv2
+        // bdf1 for the first timestep; bdf2 afterward
+        let tc_bdf1 = (1.0 / dt, -1.0 / dt, 0.0);
+        let tc_bdf2 = (1.5 / dt, -2.0 / dt, 0.5 / dt);
+
         // load dirichlet values into unknown fields
         _update_func(vars, 0.0);  // update function-type variables
         self.initial_dirichlet(vars, mat_size)?;  // set dirichlet values
@@ -55,7 +61,8 @@ pub trait TransientBase {
         _update_func(vars, 0.0);
         _update_grad(vars);
         _update_prev(vars);
-        self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
+        _update_prev(vars);  // twice to fill both previous timesteps; function-type placeholders are NaN
+        self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, tc_bdf1)?;
         lin.set_sparse(&a_triplet, mat_size)?;
         let num_triplet = a_triplet.len();
         let time_3 = Instant::now();
@@ -72,16 +79,16 @@ pub trait TransientBase {
             // used for first iteration
             let time_t0 = Instant::now();
             let t = dt * ((ts + 1) as f64);
+            let tc = if ts == 0 { tc_bdf1 } else { tc_bdf2 };
             a_triplet = Vec::with_capacity(num_triplet);  // reset A
             b_vec = vec![0.0; mat_size];  // reset b
             _update_func(vars, t);
             _update_grad(vars);
-            self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
+            self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, tc)?;
             let time_t1 = Instant::now();
             time_asm += time_t1 - time_t0;
 
             // iterate to convergence
-            // backward euler solves for timestep ts + 1
             let mut is_conv = false;
             for iter in 0..max_iter {
                 // solve for undamped solution
@@ -102,7 +109,7 @@ pub trait TransientBase {
                 _solu_to_unkn(vars, &x_damp_vec);
                 _update_func(vars, t);
                 _update_grad(vars);
-                self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, dt)?;
+                self.assemble_matrix(vars, &mut a_triplet, &mut b_vec, tc)?;
                 let time_i3 = Instant::now();
                 time_asm += time_i3 - time_i2;
 

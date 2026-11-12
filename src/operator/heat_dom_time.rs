@@ -35,7 +35,7 @@ impl HeatDomTime {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the LHS of Ax = b
@@ -47,8 +47,9 @@ impl HeatDomTime {
         // discretize into centroid values
         // -rho_c * cp_c * d(T_c)/dt * dA
         //
-        // discretize using backward euler
-        // -rho_c * cp_c * (T_c - T_prev)/dt * dA
+        // discretize using time coefficients tc = (tc0, tc1, tc2)
+        // bdf1: tc = (1, -1, 0) / dt; bdf2: tc = (3/2, -2, 1/2) / dt
+        // -rho_c * cp_c * (tc0 * T_c + tc1 * T_prv1 + tc2 * T_prv2) * dA
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -56,6 +57,7 @@ impl HeatDomTime {
         let temp_dom = &vars.scldom[self.temp_id];
         let den_dom = &vars.scldom[self.den_id];
         let hcap_dom = &vars.scldom[self.hcap_id];
+        let (tc0, tc1, tc2) = tc;
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -65,14 +67,15 @@ impl HeatDomTime {
 
             // get centroid properties
             let temp_o = temp_dom.correct_vert(offc, vid_v);
-            let temp_c_prev = temp_dom.interp_vert_prev(offc, vid_v);
+            let temp_c_prv1 = temp_dom.interp_vert_prv1(offc, vid_v);
+            let temp_c_prv2 = temp_dom.interp_vert_prv2(offc, vid_v);
             let den_c = den_dom.interp_vert(offc, vid_v);
             let hcap_c = hcap_dom.interp_vert(offc, vid_v);
 
             // load into matrix
-            let coeff_v = -den_c * hcap_c * area / dt;
-            self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_v, coeff_v)?;
-            self.add_scl_b(vars, b_vec, self.temp_id, vid_v, coeff_v * (-temp_o + temp_c_prev))?;
+            let coeff_v = -den_c * hcap_c * area;
+            self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_v, coeff_v * tc0)?;
+            self.add_scl_b(vars, b_vec, self.temp_id, vid_v, coeff_v * (-tc0 * temp_o - tc1 * temp_c_prv1 - tc2 * temp_c_prv2))?;
         }
 
         Ok(())

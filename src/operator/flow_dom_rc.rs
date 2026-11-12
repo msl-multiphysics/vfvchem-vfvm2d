@@ -34,7 +34,7 @@ impl FlowDomRhieChow {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, _b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // adds the rhie-chow correction for transient equations; used instead of apply
         // must be applied before dirichlet boundaries and pressure point
         //
@@ -42,7 +42,7 @@ impl FlowDomRhieChow {
         // expand a into steady and transient components
         // a vel = mom - b grad(p)
         // a = a_s + a_t
-        // a_t = rho_c * dA / dt
+        // a_t = rho_c * dA * tc0
         //
         // the `apply` function below uses a (with a_s + a_t)
         // this uses the combined d
@@ -67,6 +67,7 @@ impl FlowDomRhieChow {
         let tri = &vars.tri[self.dom_id];
         let vel_dom = &vars.vecdom[self.vel_id];
         let den_dom = &vars.scldom[self.den_id];
+        let (tc0, _, _) = tc;
         
         // get steady rhie-chow coefficients
         let rc_vec = _get_rc(dom, tri, vel_dom, a_triplet)?;
@@ -74,7 +75,7 @@ impl FlowDomRhieChow {
         for vid in 0..dom.num_vert() {
             let area = tri.vert_area[vid];
             let den_c = den_dom.interp_vert(tri.vert_offc[vid], vid);
-            let coeff_t = -den_c * area / dt;  // a_t
+            let coeff_t = -den_c * area * tc0;  // a_t
             let rc = rc_vec[vid];
             let rcs = area / (area / rc - coeff_t);
             rcs_vec.push(rcs);

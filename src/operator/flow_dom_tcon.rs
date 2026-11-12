@@ -32,7 +32,7 @@ impl FlowDomTimeContinuity {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the LHS of Ax = b
@@ -44,13 +44,15 @@ impl FlowDomTimeContinuity {
         // discretize into centroid values
         // -d(rho_c)/dt * dA
         //
-        // discretize using backward euler
-        // -(rho_c - rho_prev)/dt * dA
+        // discretize using time coefficients tc = (tc0, tc1, tc2)
+        // bdf1: tc = (1, -1, 0) / dt; bdf2: tc = (3/2, -2, 1/2) / dt
+        // -(tc0 * rho_c + tc1 * rho_prv1 + tc2 * rho_prv2) * dA
 
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
         let den_dom = &vars.scldom[self.den_id];
+        let (tc0, tc1, tc2) = tc;
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -60,10 +62,11 @@ impl FlowDomTimeContinuity {
 
             // get centroid properties
             let den_c = den_dom.interp_vert(offc, vid_v);
-            let den_c_prev = den_dom.interp_vert_prev(offc, vid_v);
+            let den_c_prv1 = den_dom.interp_vert_prv1(offc, vid_v);
+            let den_c_prv2 = den_dom.interp_vert_prv2(offc, vid_v);
 
             // load into matrix
-            self.add_scl_b(vars, b_vec, self.pres_id, vid_v, (den_c - den_c_prev) * area / dt)?;
+            self.add_scl_b(vars, b_vec, self.pres_id, vid_v, (tc0 * den_c + tc1 * den_c_prv1 + tc2 * den_c_prv2) * area)?;
         }
 
         Ok(())

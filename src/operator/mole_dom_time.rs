@@ -32,7 +32,7 @@ impl MoleDomTime {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, dt: f64) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the LHS of Ax = b
@@ -44,14 +44,16 @@ impl MoleDomTime {
         // discretize into centroid values
         // -rho_c * d(c_c)/dt * dA
         //
-        // discretize using backward euler
-        // -rho_c * (c_c - c_prev)/dt * dA
+        // discretize using time coefficients tc = (tc0, tc1, tc2)
+        // bdf1: tc = (1, -1, 0) / dt; bdf2: tc = (3/2, -2, 1/2) / dt
+        // -rho_c * (tc0 * c_c + tc1 * c_prv1 + tc2 * c_prv2) * dA
 
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
         let conc_dom = &vars.scldom[self.conc_id];
         let den_dom = &vars.scldom[self.den_id];
+        let (tc0, tc1, tc2) = tc;
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -61,13 +63,14 @@ impl MoleDomTime {
 
             // get centroid properties
             let conc_o = conc_dom.correct_vert(offc, vid_v);
-            let conc_c_prev = conc_dom.interp_vert_prev(offc, vid_v);
+            let conc_c_prv1 = conc_dom.interp_vert_prv1(offc, vid_v);
+            let conc_c_prv2 = conc_dom.interp_vert_prv2(offc, vid_v);
             let den_c = den_dom.interp_vert(offc, vid_v);
 
             // load into matrix
-            let coeff_v = -den_c * area / dt;
-            self.add_sclscl_a(vars, a_triplet, self.conc_id, vid_v, self.conc_id, vid_v, coeff_v)?;
-            self.add_scl_b(vars, b_vec, self.conc_id, vid_v, coeff_v * (-conc_o + conc_c_prev))?;
+            let coeff_v = -den_c * area;
+            self.add_sclscl_a(vars, a_triplet, self.conc_id, vid_v, self.conc_id, vid_v, coeff_v * tc0)?;
+            self.add_scl_b(vars, b_vec, self.conc_id, vid_v, coeff_v * (-tc0 * conc_o - tc1 * conc_c_prv1 - tc2 * conc_c_prv2))?;
         }
 
         Ok(())

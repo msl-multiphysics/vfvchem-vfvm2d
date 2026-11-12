@@ -26,11 +26,13 @@ pub struct ScalarDomain {
     // value data
     pub scldom_type: SclDomType,
     pub value: Vec<f64>,  // vid -> value (v)
-    pub value_prev: Vec<f64>,
+    pub value_prv1: Vec<f64>,  // 1st previous timestep
+    pub value_prv2: Vec<f64>,  // 2nd previous timestep
 
     // gradient data
     pub grad: Vec<(f64, f64)>,  // vid -> (dv/dx, dv/dy)
-    pub grad_prev: Vec<(f64, f64)>,
+    pub grad_prv1: Vec<(f64, f64)>,
+    pub grad_prv2: Vec<(f64, f64)>,
 }
 
 impl ScalarDomain {
@@ -44,11 +46,13 @@ impl ScalarDomain {
         // point and node data
         scldom.scldom_type = SclDomType::Constant;
         scldom.value = vec![value; dom.num_vert()];
-        scldom.value_prev = scldom.value.clone();
+        scldom.value_prv1 = scldom.value.clone();
+        scldom.value_prv2 = scldom.value.clone();
 
         // gradient data
         scldom.grad = vec![(0.0, 0.0); dom.num_vert()];
-        scldom.grad_prev = scldom.grad.clone();
+        scldom.grad_prv1 = scldom.grad.clone();
+        scldom.grad_prv2 = scldom.grad.clone();
 
         Ok(scldom)
     }
@@ -71,11 +75,13 @@ impl ScalarDomain {
         // point data
         scldom.scldom_type = SclDomType::Function { func, unkn_id };
         scldom.value = vec![f64::NAN; dom.num_vert()];  // placeholder
-        scldom.value_prev = scldom.value.clone();
+        scldom.value_prv1 = scldom.value.clone();
+        scldom.value_prv2 = scldom.value.clone();
 
         // gradient data
         scldom.grad = vec![(f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
-        scldom.grad_prev = scldom.grad.clone();
+        scldom.grad_prv1 = scldom.grad.clone();
+        scldom.grad_prv2 = scldom.grad.clone();
 
         Ok(scldom)
     }
@@ -90,18 +96,22 @@ impl ScalarDomain {
         // point data
         scldom.scldom_type = SclDomType::Unknown { start: usize::MAX };  // placeholder
         scldom.value = vec![value_init; dom.num_vert()];
-        scldom.value_prev = scldom.value.clone();
+        scldom.value_prv1 = scldom.value.clone();
+        scldom.value_prv2 = scldom.value.clone();
 
         // gradient data
         scldom.grad = vec![(0.0, 0.0); dom.num_vert()];
-        scldom.grad_prev = scldom.grad.clone();
+        scldom.grad_prv1 = scldom.grad.clone();
+        scldom.grad_prv2 = scldom.grad.clone();
 
         Ok(scldom)
     }
 
     pub fn update_prev(&mut self) {
-        self.value_prev = self.value.clone();
-        self.grad_prev = self.grad.clone();
+        self.value_prv2 = self.value_prv1.clone();
+        self.grad_prv2 = self.grad_prv1.clone();
+        self.value_prv1 = self.value.clone();
+        self.grad_prv1 = self.grad.clone();
     }
 
     pub fn update_grad(&mut self, tri: &Triangle) {
@@ -233,10 +243,23 @@ impl ScalarDomain {
         value_c
     }
 
-    pub fn interp_vert_prev(&self, offc: (f64, f64), vid_v: usize) -> f64 {
+    pub fn interp_vert_prv1(&self, offc: (f64, f64), vid_v: usize) -> f64 {
         // get value and gradient
-        let value_v = self.value_prev[vid_v];
-        let (gradx_v, grady_v) = self.grad_prev[vid_v];
+        let value_v = self.value_prv1[vid_v];
+        let (gradx_v, grady_v) = self.grad_prv1[vid_v];
+        let (ox, oy) = offc;
+
+        // compute value
+        let value_o = ox * gradx_v + oy * grady_v;
+        let value_c = value_v + value_o;
+
+        value_c
+    }
+
+    pub fn interp_vert_prv2(&self, offc: (f64, f64), vid_v: usize) -> f64 {
+        // get value and gradient
+        let value_v = self.value_prv2[vid_v];
+        let (gradx_v, grady_v) = self.grad_prv2[vid_v];
         let (ox, oy) = offc;
 
         // compute value
