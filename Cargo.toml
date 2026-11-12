@@ -17,8 +17,5 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 
-[profile.dev.package.faer]
-opt-level = 3
-
 [profile.dev.package.rslab]
 opt-level = 3

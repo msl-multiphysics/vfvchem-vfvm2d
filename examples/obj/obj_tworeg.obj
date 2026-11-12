@@ -1,23 +1,23 @@
 # vertices
 v 0.0 0.0 0.0
-v 1.0 0.0 0.0
-v 1.0 1.0 0.0
-v 0.0 1.0 0.0
+v 0.1 0.0 0.0
+v 0.1 0.1 0.0
+v 0.0 0.1 0.0
 
 # 1d groups
-g bnd_b
+g bnd_b  # boundary, bottom
 l 1 2
-g bnd_r
+g bnd_r  # boundary, right
 l 2 3
-g bnd_t
+g bnd_t  # boundary, top
 l 3 4
-g bnd_l
+g bnd_l  # boundary, left
 l 4 1
-g itf_d
+g itf_d  # interface, diagonal
 l 3 1
 
 # 2d groups
-g dom_lo
+g dom_br  # domain, bottom-right triangle
 l 1 2 3 1
-g dom_up
+g dom_tl  # domain, top-left triangle
 l 3 4 1 3

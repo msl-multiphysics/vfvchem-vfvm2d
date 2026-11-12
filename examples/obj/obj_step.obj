@@ -1,20 +1,21 @@
 # vertices
-v 0.0 0.4 0.0
-v 0.0 0.2 0.0
-v 2.4 0.0 0.0
-v 2.4 0.4 0.0
-v 0.4 0.2 0.0
-v 0.4 0.0 0.0
+v 0.00 0.05 0.00
+v 0.10 0.05 0.00
+v 0.10 0.00 0.00
+v 0.60 0.00 0.00
+v 0.60 0.10 0.00
+v 0.00 0.10 0.00
 
 # 1d groups
-g bnd_i
-l 1 2
-g bnd_o
-l 3 4
-g bnd_w
-l 2 5 6 3
-l 4 1
+g bnd_b  # boundary, bottom
+l 1 2 3 4
+g bnd_o  # boundary, outlet
+l 4 5
+g bnd_t  # boundary, top
+l 5 6
+g bnd_i  # boundary, inlet
+l 6 1
 
 # 2d groups
-g dom_f
-l 2 5 6 3 4 1 2
+g dom_f  # domain, flow channel
+l 1 2 3 4 5 6 1

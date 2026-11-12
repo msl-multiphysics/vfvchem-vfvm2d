@@ -264,8 +264,8 @@ fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64
     // outline
     // find shortest perpendicular distance to segments
     // find shortest distance to corners if within corner distance
-    // if corner distance is short enough, use refinement length
-    // otherwise, use ramp length
+    // if corner distance is short enough, use corner refinement length
+    // otherwise, use boundary refinement length
     // return spacing and distance from segments
 
     // initialize minimum distances
@@ -320,6 +320,7 @@ fn _point_space(curve_pos: &Vec<[(f64, f64); 2]>, nds_space: f64, off_space: f64
     let m = ((1.0 + (q - p) * (bnd_ratio - 1.0) / p).ln() / bnd_ratio.ln()) as i32;
     let dist_bnd = dist2_bnd.sqrt();
     let hc_bnd = bnd_ratio.ln() * ((q - p) / (bnd_ratio.powi(m) - 1.0) + dist_bnd - p);
+    let hc_bnd = hc_bnd.min(q);
     
     // return
     (hc_crn.min(hc_bnd), dist_bnd)

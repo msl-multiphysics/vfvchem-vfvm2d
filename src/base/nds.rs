@@ -145,7 +145,7 @@ fn _nodes_line(pos0: (f64, f64), pos1: (f64, f64), nds_space: f64, off_space: f6
 
     // compute regularly spaced node positions
     let clear_reg = len_s - 2.0 * b;  // amount of space for regular spacing
-    let num_reg = ((clear_reg / nds_space) as usize).saturating_sub(1);  // number of regularly spaced points
+    let num_reg = (clear_reg / nds_space) as usize;  // number of regularly spaced intervals
     let ds = clear_reg / (num_reg as f64);
     let space_reg = (1..num_reg).map(|i| start_cnr + (i as f64) * ds);
 

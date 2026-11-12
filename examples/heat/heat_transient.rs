@@ -1,44 +1,78 @@
 use vfvchem_vfvm2d::*;
 
-// cargo run --release --example heat_transient
+/// Transient heat transfer in a square domain.
+/// Run with: `cargo run --release --example heat_transient`
+///
+///          bnd_t
+///       +---------+
+///       |         |
+/// bnd_l |   dom   | bnd_r
+///       |         |
+///       +---------+
+///          bnd_b
+///
+/// Domains:
+/// dom - main domain
+///
+/// Boundaries:
+/// bnd_l - left boundary
+/// bnd_r - right boundary
+/// bnd_b - bottom boundary
+/// bnd_t - top boundary
+///
+/// Domain Properties:
+/// dom - density (rho = 900.0 kg m-3)
+/// dom - heat capacity (cp = 1200.0 J kg-1 K-1)
+/// dom - thermal conductivity (k = 0.1 W m-1 K-1)
+/// dom - heat source (Q = -500.0 W m-3)
+///
+/// Initial Conditions:
+/// dom - temperature (T = 300 K)
+/// 
+/// Boundary Conditions:
+/// bnd_l - outward flux (q = 100.0 W m-2)
+/// bnd_r - temperature (T = 300 K)
+/// bnd_b - no flux (q = 0.0 W m-2)
+/// bnd_t - temperature (T = 400 K)
+///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.02, 0.05, "examples/output_heat_transient")?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.002, 0.005, "examples/output_heat_transient")?;
 
     // geometry
-    let dom = vars.add_dom("dom")?;
-    let bnd_l = vars.add_bnd(dom, "bnd_l")?;
-    let bnd_r = vars.add_bnd(dom, "bnd_r")?;
-    let bnd_b = vars.add_bnd(dom, "bnd_b")?;
-    let bnd_t = vars.add_bnd(dom, "bnd_t")?;
+    let dom = vars.add_dom("dom")?;  // domain
+    let bnd_l = vars.add_bnd(dom, "bnd_l")?;  // left boundary
+    let bnd_r = vars.add_bnd(dom, "bnd_r")?;  // right boundary
+    let bnd_b = vars.add_bnd(dom, "bnd_b")?;  // bottom boundary
+    let bnd_t = vars.add_bnd(dom, "bnd_t")?;  // top boundary
 
     // unknowns
-    let temp = vars.add_scldom_unkn(dom, 0.0, "temp")?;
+    let temp = vars.add_scldom_unkn(dom, 300.0, "temp")?;  // temperature (T); put initial value for temperature
 
     // domain values
-    let den = vars.add_scldom_cnst(dom, 1.0, "den")?;
-    let hcap = vars.add_scldom_cnst(dom, 1.0, "hcap")?;
-    let cond = vars.add_scldom_cnst(dom, 1.0, "cond")?;
-    let hlin = vars.add_scldom_cnst(dom, 0.0, "hlin")?;
-    let hsrc = vars.add_scldom_cnst(dom, -500.0, "hsrc")?;  // positive if source; negative if sink
+    let den = vars.add_scldom_cnst(dom, 900.0, "den")?;     // density (rho)
+    let hcap = vars.add_scldom_cnst(dom, 1200.0, "hcap")?;  // heat capacity (cp)
+    let cond = vars.add_scldom_cnst(dom, 0.1, "cond")?;     // thermal conductivity (k)
+    let hlin = vars.add_scldom_cnst(dom, 0.0, "hlin")?;     // linear source (L); multiply by temperature to yield additional source
+    let hsrc = vars.add_scldom_cnst(dom, -500.0, "hsrc")?;  // heat source (Q); positive if source, negative if sink
 
     // boundary values
-    let hflx_l = vars.add_sclbnd_cnst(bnd_l, 50.0)?;  // positive if outward; negative if inward
-    let temp_r = vars.add_sclbnd_cnst(bnd_r, 300.0)?;
-    let hflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0)?;
-    let temp_t = vars.add_sclbnd_cnst(bnd_t, 400.0)?;
+    let hflx_l = vars.add_sclbnd_cnst(bnd_l, 100.0)?;  // heat flux (q); positive if outward, negative if inward
+    let temp_r = vars.add_sclbnd_cnst(bnd_r, 300.0)?;  // temperature
+    let hflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0)?;    // heat flux
+    let temp_t = vars.add_sclbnd_cnst(bnd_t, 400.0)?;  // temperature
 
     // physics
     let mut phys = TransientHeat::new()?;
-    phys.add_heat_dom(dom, temp, den, hcap, cond, hlin, hsrc)?;  // arguments: domain, T, rho, cp, k, L, Q
-    phys.add_hflx_bnd(bnd_l, hflx_l)?;  // arguments: boundary, q
-    phys.add_temp_bnd(bnd_r, temp_r)?;  // arguments: boundary, T
-    phys.add_hflx_bnd(bnd_b, hflx_b)?;  // arguments: boundary, q
-    phys.add_temp_bnd(bnd_t, temp_t)?;  // arguments: boundary, T
+    phys.add_heat_dom(dom, temp, den, hcap, cond, hlin, hsrc)?;    // heat transfer domain: dom, T, rho, cp, k, L, Q
+    phys.add_hflx_bnd(bnd_l, hflx_l)?;  // heat flux boundary: bnd, q
+    phys.add_temp_bnd(bnd_r, temp_r)?;  // temperature boundary: bnd, T
+    phys.add_hflx_bnd(bnd_b, hflx_b)?;  // heat flux boundary: bnd, q
+    phys.add_temp_bnd(bnd_t, temp_t)?;  // temperature boundary: bnd, T
 
     // solver
-    let mut lin = RslabLu::new(4)?;
-    phys.solve(&mut vars, &mut lin, 10, 1e-3, 1.0, 0.01, 100, 1)?;  // dt = 0.01, 100 steps, write every 10
+    let mut lin = RslabLu::new(4)?;  // matrix solver
+    phys.solve(&mut vars, &mut lin, 10, 1e-3, 1.0, 100.0, 100, 1)?;  // physics solver
 
     Ok(())
 }

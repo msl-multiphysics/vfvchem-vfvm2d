@@ -1,0 +1,41 @@
+# vertices
+v 0.00 0.00 0.00
+v 0.20 0.00 0.00
+v 0.45 0.00 0.00
+v 0.45 0.05 0.00
+v 0.45 0.10 0.00
+v 0.25 0.10 0.00
+v 0.00 0.10 0.00
+v 0.00 0.05 0.00
+v 0.20 0.05 0.00
+v 0.25 0.05 0.00
+
+# 1d groups
+g bnd_bl  # boundary, bottom left
+l 8 1 2
+g bnd_br  # boundary, bottom right
+l 2 3
+g bnd_o   # boundary, outlet
+l 3 4
+g bnd_tr  # boundary, top right
+l 4 5 6
+g bnd_tl  # boundary, top left
+l 6 7
+g bnd_i   # boundary, inlet
+l 7 8
+g bnd_lc  # boundary, left block to channel
+l 8 9 2
+g bnd_rc  # boundary, right block to channel
+l 4 10 6
+g itf_lc  # interface, left block to channel
+l 8 9 2
+g itf_rc  # interface, right block to channel
+l 4 10 6
+
+# 2d groups
+g dom_f  # domain, flow channel
+l 8 9 2 3 4 10 6 7 8
+g dom_l  # domain, left block
+l 1 2 9 8 1
+g dom_r  # domain, right block
+l 4 5 6 10 4
