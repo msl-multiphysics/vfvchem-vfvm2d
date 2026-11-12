@@ -25,7 +25,7 @@ use vfvchem_vfvm2d::*;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj("examples/obj/obj_vortex.obj", 0.0005, 0.001, "examples/output_flow_vortex")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_vortex.obj", 0.001, 0.002, "examples/output_flow_vortex")?;
 
     // geometry
     let dom_f = vars.add_dom("dom_f")?;  // flow channel

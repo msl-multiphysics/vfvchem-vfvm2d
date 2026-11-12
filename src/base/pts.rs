@@ -146,8 +146,8 @@ fn _point_sample(nds: &Nodes, curve_eid: &Vec<usize>, pts_space: f64, bnd_ratio:
     let crn_space = nds.crn_space;
     let crn_ratio = nds.crn_ratio;
 
-    // initialize active points (try creating more points around)
-    let mut pts_act = Vec::new();  
+    // initialize active points
+    let mut pts_act: Vec<usize> = (0..num_nds).collect();
 
     // insert initial point
     for _ in 0..max_try {
