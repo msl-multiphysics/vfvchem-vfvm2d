@@ -27,10 +27,10 @@ use vfvchem_vfvm2d::*;
 /// -------------
 /// 
 /// Domain Properties:
-/// dom - density (rho = 1.2 kg m-3)
-/// dom - heat capacity (cp = 1005.0 J kg-1 K-1)
-/// dom - thermal conductivity (k = 0.025 W m-1 K-1)
-/// dom - heat source (Q = 0.0 W m-3)
+/// dom_f - density (rho = 1.2 kg m-3)
+/// dom_f - heat capacity (cp = 1005.0 J kg-1 K-1)
+/// dom_f - thermal conductivity (k = 0.025 W m-1 K-1)
+/// dom_f - heat source (Q = 0.0 W m-3)
 ///
 /// Boundary Conditions:
 /// bnd_i - temperature (T = 300.0 K)
@@ -54,7 +54,7 @@ use vfvchem_vfvm2d::*;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.002, 0.005, "examples/output_flow_step")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.002, 0.005, "examples/output_heatflow_step")?;
 
     // geometry
     let dom_f = vars.add_dom("dom_f")?;  // flow channel
@@ -74,12 +74,12 @@ fn main() -> Result<(), VFVChemError> {
     let cond_f = vars.add_scldom_cnst(dom_f, 0.025, "cond")?;     // thermal conductivity (k)
     let hlin_f = vars.add_scldom_cnst(dom_f, 0.0, "hlin")?;       // linear source (L)
     let hsrc_f = vars.add_scldom_cnst(dom_f, 0.0, "hsrc")?;       // heat source (Q)
-    let visc_f = vars.add_scldom_cnst(dom_f, 1.0e-3, "visc")?;    // viscosity (mu)
+    let visc_f = vars.add_scldom_cnst(dom_f, 1.8e-5, "visc")?;    // viscosity (mu)
     let fce_f = vars.add_vecdom_cnst(dom_f, (0.0, 0.0), "fce")?;  // body force (fce)
 
     // non-constant boundary values
     let vel_func: VecBndFunc = Box::new(|_t, (_x, y), _unkn| {  // t, (x, y), [unkn] -> (u, v)
-        let u = 0.75 * 4.0 * (y - 0.05) * (0.10 - y) / (0.05 * 0.05);
+        let u = 0.075 * 4.0 * (y - 0.05) * (0.10 - y) / (0.05 * 0.05);
         (u, 0.0)
     });
     let vel_i = vars.add_vecbnd_func(bnd_i, vel_func, vec![])?;

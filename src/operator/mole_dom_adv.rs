@@ -54,7 +54,7 @@ impl OperatorBase for MoleDomAdvection {
         // int_lin -(rho * vel * c) . n dl
         // sum_ngh -(rho * vel * c)_f . n dl
         //
-        // define mass flux
+        // define flux
         // let F = rho * vel . n * dl
         // sum_ngh (-F_f * c_f) -> 1st term
         //

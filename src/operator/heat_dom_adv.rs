@@ -57,7 +57,7 @@ impl OperatorBase for HeatDomAdvection {
         // int_lin -(rho * cp * vel * T) . n dl
         // sum_ngh -(rho * cp * vel * T)_f . n dl
         //
-        // define enthalpy flux
+        // define flux
         // let F = rho * cp * vel . n * dl
         // sum_ngh (-F_f * T_f) -> 1st term
         //

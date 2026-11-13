@@ -81,7 +81,7 @@ impl Triangle {
         }
 
         // get triangulation
-        let tri_vid = _delaunay(&vert_pos, &curve_pos)?;
+        let tri_vid = _delaunay(&vert_pos, &curve_pos, dom.num_pts())?;
 
         // step 2: compute per-triangle data
 
@@ -337,14 +337,18 @@ impl Triangle {
     }
 }
 
-fn _delaunay(vert_pos: &Vec<[f64; 2]>, curve_pos: &Vec<[(f64, f64); 2]>) -> Result<Vec<[usize; 3]>, VFVChemError> {
+fn _delaunay(vert_pos: &Vec<[f64; 2]>, curve_pos: &Vec<[(f64, f64); 2]>, num_pts: usize) -> Result<Vec<[usize; 3]>, VFVChemError> {
     // outline:
     // simple delaunay triangulation
-    // remove triangles with edges outside domain
+    // remove triangles outside domain
     //
     // notes:
     // assume that circle around boundary segments has nothing inside it
     // simple delaunay triangulation should line the boundary segments 
+    // nodes are offset from corners; triangles can only cross the boundary at concave corners
+    // triangles with points are inside since points are inside the domain
+    // triangles with only nodes are outside if two or more edges are outside
+    // keeping triangles that cut concave corners ensures that the domain boundary only has nodes
 
     // step 1: delaunay triangulation
 
@@ -365,6 +369,12 @@ fn _delaunay(vert_pos: &Vec<[f64; 2]>, curve_pos: &Vec<[(f64, f64); 2]>) -> Resu
         let (Node::Value(vid0), Node::Value(vid1), Node::Value(vid2)) = (nds0, nds1, nds2) else { continue };
         let tri_vid = [vid0, vid1, vid2];
 
+        // insert triangle if any vertex is a point
+        if tri_vid.iter().any(|&vid| vid < num_pts) {
+            tri_vec.push([vid0, vid1, vid2]);
+            continue;
+        }
+
         // get triangle vertex positions
         let mut tri_pos = [[0.0; 2]; 3];
         for i in 0..3 {
@@ -373,8 +383,8 @@ fn _delaunay(vert_pos: &Vec<[f64; 2]>, curve_pos: &Vec<[(f64, f64); 2]>) -> Resu
         }
         
         // iterate through edges and compute midpoint
-        // reject triangle if any edge is outside domain
-        let mut is_inside = true;
+        // count edges outside domain
+        let mut num_out = 0;
         for i in 0..3 {
             // compute midpoint
             let [xa, ya] = tri_pos[i];
@@ -384,13 +394,12 @@ fn _delaunay(vert_pos: &Vec<[f64; 2]>, curve_pos: &Vec<[(f64, f64); 2]>) -> Resu
 
             // check if inside
             if !_vertex_inside(curve_pos, xv, yv) {
-                is_inside = false;
-                break;
+                num_out += 1;
             }
         }
 
-        // insert triangle only if fully inside
-        if is_inside {
+        // insert triangle if inside or if it cuts a concave corner
+        if num_out <= 1 {
             tri_vec.push([vid0, vid1, vid2]);
         }
     }

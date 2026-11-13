@@ -27,9 +27,9 @@ use vfvchem_vfvm2d::*;
 /// -----------------
 /// 
 /// Domain Properties:
-/// dom - density (rho = 1.2 kg m-3)
-/// dom - viscosity (mu = 1.8e-5 Pa s)
-/// dom - body force (fce = <0.0, 0.0> N m-3)
+/// dom_f - density (rho = 1.2 kg m-3)
+/// dom_f - viscosity (mu = 1.8e-5 Pa s)
+/// dom_f - body force (fce = <0.0, 0.0> N m-3)
 ///
 /// Boundary Conditions:
 /// bnd_i - velocity (parabolic; average velocity = 0.05 m s-1)

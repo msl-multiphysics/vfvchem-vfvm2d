@@ -52,7 +52,7 @@ impl OperatorBase for FlowDomAdvection {
         // int_lin -(rho * vel * vel) . n dl
         // sum_ngh -(rho * vel * vel)_f . n dl
         //
-        // define mass flux
+        // define flux
         // let F = rho * vel . n * dl
         // sum_ngh (-F_f * vel_f) -> 1st term
         //
