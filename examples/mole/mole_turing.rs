@@ -2,7 +2,7 @@ use vfvchem_vfvm2d::*;
 use std::collections::HashMap;
 
 /// Turing pattern formation (Brusselator) in a square domain.
-/// Run with: `cargo run --release --example mass_square`
+/// Run with: `cargo run --release --example mole_turing`
 ///
 /// Geometry
 /// --------
@@ -43,7 +43,7 @@ use std::collections::HashMap;
 /// 
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.001, 0.001, "examples/output_mass_square")?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.001, 0.001, "examples/output_mole_turing")?;
 
     // geometry
     let dom = vars.add_dom("dom")?;  // domain

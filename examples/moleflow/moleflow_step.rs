@@ -2,7 +2,7 @@ use vfvchem_vfvm2d::*;
 use std::collections::HashMap;
 
 /// Steady-state heat and momentum transfer past a backward-facing step.
-/// Run with: `cargo run --release --example massflow_step`
+/// Run with: `cargo run --release --example moleflow_step`
 ///
 /// Geometry
 /// --------
@@ -54,7 +54,7 @@ use std::collections::HashMap;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.001, 0.002, "examples/output_massflow_step")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_step.obj", 0.001, 0.002, "examples/output_moleflow_step")?;
 
     // geometry
     let dom_f = vars.add_dom("dom_f")?;  // flow channel

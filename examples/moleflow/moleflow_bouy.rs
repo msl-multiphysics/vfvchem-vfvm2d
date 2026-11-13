@@ -2,7 +2,7 @@ use vfvchem_vfvm2d::*;
 use std::collections::HashMap;
 
 /// Transient buoyancy-driven flow in a square cavity.
-/// Run with: `cargo run --release --example massflow_bouy`
+/// Run with: `cargo run --release --example moleflow_bouy`
 ///
 /// Geometry
 /// --------
@@ -57,7 +57,7 @@ use std::collections::HashMap;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.002, 0.004, "examples/output_massflow_bouy")?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.002, 0.004, "examples/output_moleflow_bouy")?;
 
     // geometry
     let dom = vars.add_dom("dom")?;  // domain

@@ -11,6 +11,54 @@ rslab = { git = "https://github.com/milanofthe/rslab", tag = "v1.7.0" }
 simple_delaunay_lib = "0.2"
 thiserror = "1"
 
+[[example]]
+name = "quickstart"
+path = "examples/quickstart.rs"
+
+[[example]]
+name = "heat_transient"
+path = "examples/heat/heat_transient.rs"
+
+[[example]]
+name = "heat_tworeg"
+path = "examples/heat/heat_tworeg.rs"
+
+[[example]]
+name = "flow_lid"
+path = "examples/flow/flow_lid.rs"
+
+[[example]]
+name = "flow_step"
+path = "examples/flow/flow_step.rs"
+
+[[example]]
+name = "flow_tworeg"
+path = "examples/flow/flow_tworeg.rs"
+
+[[example]]
+name = "heatflow_channel"
+path = "examples/heatflow/heatflow_channel.rs"
+
+[[example]]
+name = "heatflow_step"
+path = "examples/heatflow/heatflow_step.rs"
+
+[[example]]
+name = "mole_turing"
+path = "examples/mole/mole_turing.rs"
+
+[[example]]
+name = "moleflow_bouy"
+path = "examples/moleflow/moleflow_bouy.rs"
+
+[[example]]
+name = "moleflow_step"
+path = "examples/moleflow/moleflow_step.rs"
+
+[[example]]
+name = "heatmoleflow_step"
+path = "examples/heatmoleflow/heatmoleflow_step.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"
