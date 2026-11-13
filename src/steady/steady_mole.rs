@@ -71,13 +71,13 @@ impl SteadyMole {
         Ok(())
     }
 
-    pub fn add_hflx_bnd(&mut self, comp_id: usize, bnd_id: usize, nflx_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_nflx_bnd(&mut self, comp_id: usize, bnd_id: usize, nflx_id: usize) -> Result<(), VFVChemError> {
         self.nflx_bnd[comp_id].push(bnd_id);
         self.nflx_nflx[comp_id].insert(bnd_id, nflx_id);
         Ok(())
     }
 
-    pub fn add_hcnt_itf(&mut self, comp_id: usize, itf_id: usize) -> Result<(), VFVChemError> {
+    pub fn add_ncnt_itf(&mut self, comp_id: usize, itf_id: usize) -> Result<(), VFVChemError> {
         self.ncnt_itf[comp_id].push(itf_id);
         Ok(())
     }

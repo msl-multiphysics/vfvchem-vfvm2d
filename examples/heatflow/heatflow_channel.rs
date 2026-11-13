@@ -78,7 +78,7 @@ use vfvchem_vfvm2d::*;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj("examples/obj/obj_channel.obj", 0.002, 0.005, "examples/output_heatflow_channel")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_channel.obj", 0.001, 0.002, "examples/output_heatflow_channel")?;
 
     // geometry
     let dom_f = vars.add_dom("dom_f")?;  // flow channel
