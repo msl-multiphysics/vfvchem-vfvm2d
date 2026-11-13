@@ -16,7 +16,7 @@ pub struct HeatDomDiffusion {
 impl HeatDomDiffusion {
     pub fn new(vars: &Variables, dom_id: usize, temp_id: usize, cond_id: usize) -> Result<HeatDomDiffusion, VFVChemError> {
         // adds the diffusion term to the heat transfer equation
-        // rho * cp * d(T)/dt + rho * cp * vel . grad(T) = -div( -k * grad(T) ) + L * T + R
+        // rho * cp * d(T)/dt + rho * cp * vel . grad(T) = -div( -k * grad(T) ) + L * T + S
         //                                                 ^^^^^^^^^^^^^^^^^^^^
 
         // input checking

@@ -19,7 +19,7 @@ pub struct MoleDomAdvection {
 impl MoleDomAdvection {
     pub fn new(vars: &Variables, dom_id: usize, conc_id: usize, vel_id: usize, den_id: usize) -> Result<MoleDomAdvection, VFVChemError> {
         // adds the advection term to the mass transfer equation
-        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -rho * D_ij * grad(c_j) ) + L_i * c_i + R_i
+        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -rho * D_ij * grad(c_j) ) + L_i * c_i + S_i
         //                   ^^^^^^^^^^^^^^^^^^^^^
 
         // input checking

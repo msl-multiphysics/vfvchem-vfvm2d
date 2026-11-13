@@ -20,7 +20,7 @@ pub struct HeatDomAdvection {
 impl HeatDomAdvection {
     pub fn new(vars: &Variables, dom_id: usize, temp_id: usize, vel_id: usize, den_id: usize, hcap_id: usize) -> Result<HeatDomAdvection, VFVChemError> {
         // adds the advection term to the heat transfer equation
-        // rho * cp * d(T)/dt + rho * cp * vel . grad(T) = -div( -k * grad(T) ) + L * T + R
+        // rho * cp * d(T)/dt + rho * cp * vel . grad(T) = -div( -k * grad(T) ) + L * T + S
         //                      ^^^^^^^^^^^^^^^^^^^^^^^^
 
         // input checking

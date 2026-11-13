@@ -16,7 +16,7 @@ pub struct SclDomSource {
 impl SclDomSource {
     pub fn new(vars: &Variables, dom_id: usize, unk_id: usize, src_id: usize) -> Result<SclDomSource, VFVChemError> {
         // adds the source term to the scalar transport equation
-        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -rho * D_ij * grad(c_j) ) + L_i * c_i + R_i
+        // rho * d(c_i)/dt + rho * vel . grad(c_i) = -div( -rho * D_ij * grad(c_j) ) + L_i * c_i + S_i
         //                                                                                         ^^^
 
         // input checking
@@ -36,10 +36,10 @@ impl SclDomSource {
 impl OperatorBase for SclDomSource {
     fn apply(&self, vars: &Variables, _a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>) -> Result<(), VFVChemError> {
         // get surface integral
-        // int_surf R dA
+        // int_surf S dA
         //
         // discretize into centroid values
-        // R_c * dA
+        // S_c * dA
         
         // get objects
         let dom = &vars.dom[self.dom_id];

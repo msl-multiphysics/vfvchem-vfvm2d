@@ -30,7 +30,7 @@ use std::collections::HashMap;
 /// Domain Properties:
 /// dom - density (rho = 1.0 kg m-3)
 /// dom - diffusion coefficient (D00 = 1.0e-6 m2 s-1; D11 = 1.0e-5 m2 s-1)
-/// dom - reaction rate (R0 = 1.0 - 2.8 * c0 + c0^2 * c1 ; R1 = 1.8 * c0 - c0^2 * c1)
+/// dom - molar source (R0 = 1.0 - 2.8 * c0 + c0^2 * c1 ; R1 = 1.8 * c0 - c0^2 * c1)
 ///
 /// Boundary Conditions:
 /// bnd_l - no flux (N = 0.0 mol m-2 s-1)
@@ -64,9 +64,9 @@ fn main() -> Result<(), VFVChemError> {
     }
 
     // non-constant domain values
-    // split reaction rates into L * c + R to improve stability; L multiplies theconcentration of the same component
-    // R0 = 1.0 + (-2.8 + c0 * c1) * c0
-    // R1 = 1.8 * c0 + (-c0^2) * c1
+    // split reaction rates into R_i = L_i * c_i + S_i to improve stability
+    // R0 = (-2.8 + c0 * c1) * c0 + 1.0
+    // R1 =          (-c0^2) * c1 + 1.8 * c0
     let nlin0_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| {
         -2.8 + unkn[0] * unkn[1]
     });
@@ -78,12 +78,12 @@ fn main() -> Result<(), VFVChemError> {
     let nsrc1_func: SclDomFunc = Box::new(|_t, (_x, _y), unkn| {
         1.8 * unkn[0]
     });
-    let nsrc1 = vars.add_scldom_func(dom, nsrc1_func, vec![conc0, conc1], "nsrc1")?;  // molar source (R1)
+    let nsrc1 = vars.add_scldom_func(dom, nsrc1_func, vec![conc0, conc1], "nsrc1")?;  // molar source (S1)
 
     // constant domain values
     let den = vars.add_scldom_cnst(dom, 1.0, "den")?;        // density (rho)
     let diff00 = vars.add_scldom_cnst(dom, 1.0e-6, "d00")?;  // diffusion coefficient (D00)
-    let nsrc0 = vars.add_scldom_cnst(dom, 1.0, "nsrc0")?;    // molar source (R0)
+    let nsrc0 = vars.add_scldom_cnst(dom, 1.0, "nsrc0")?;    // molar source (S0)
     let diff11 = vars.add_scldom_cnst(dom, 1.0e-5, "d11")?;  // diffusion coefficient (D11)
     
     // boundary values
