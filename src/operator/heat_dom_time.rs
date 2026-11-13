@@ -35,7 +35,7 @@ impl HeatDomTime {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, twgt: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the LHS of Ax = b
@@ -47,9 +47,8 @@ impl HeatDomTime {
         // discretize into centroid values
         // -rho_c * cp_c * d(T_c)/dt * dA
         //
-        // discretize using time coefficients tc = (tc0, tc1, tc2)
-        // bdf1: tc = (1, -1, 0) / dt; bdf2: tc = (3/2, -2, 1/2) / dt
-        // -rho_c * cp_c * (tc0 * T_c + tc1 * T_prv1 + tc2 * T_prv2) * dA
+        // discretize using time weights
+        // d(T_c)/dt = tw0 * T_c + tw1 * T_prv1 + tw2 * T_prv2
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -57,7 +56,7 @@ impl HeatDomTime {
         let temp_dom = &vars.scldom[self.temp_id];
         let den_dom = &vars.scldom[self.den_id];
         let hcap_dom = &vars.scldom[self.hcap_id];
-        let (tc0, tc1, tc2) = tc;
+        let (tw0, tw1, tw2) = twgt;
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -74,8 +73,8 @@ impl HeatDomTime {
 
             // load into matrix
             let coeff_v = -den_c * hcap_c * area;
-            self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_v, coeff_v * tc0)?;
-            self.add_scl_b(vars, b_vec, self.temp_id, vid_v, coeff_v * (-tc0 * temp_o - tc1 * temp_c_prv1 - tc2 * temp_c_prv2))?;
+            self.add_sclscl_a(vars, a_triplet, self.temp_id, vid_v, self.temp_id, vid_v, coeff_v * tw0)?;
+            self.add_scl_b(vars, b_vec, self.temp_id, vid_v, coeff_v * (-tw0 * temp_o - tw1 * temp_c_prv1 - tw2 * temp_c_prv2))?;
         }
 
         Ok(())

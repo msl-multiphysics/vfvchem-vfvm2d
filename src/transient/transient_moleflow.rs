@@ -357,13 +357,13 @@ impl TransientBase for TransientMoleFlow {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, twgt: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // mass transfer
         
         // domain
         for (oper_time, oper_adv, oper_diff_vec, oper_lin, oper_src) in self.oper_dom_mole.iter() {
             // properties for comp_i
-            oper_time.apply_time(vars, a_triplet, b_vec, tc)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, twgt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_lin.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
@@ -396,14 +396,14 @@ impl TransientBase for TransientMoleFlow {
 
         // domain
         for (oper_time, oper_adv, oper_grad, oper_diff, oper_dtrn, oper_ddil, oper_src, oper_tden, oper_div) in self.oper_dom_flow.iter() {
-            oper_time.apply_time(vars, a_triplet, b_vec, tc)?;
+            oper_time.apply_time(vars, a_triplet, b_vec, twgt)?;
             oper_adv.apply(vars, a_triplet, b_vec)?;
             oper_grad.apply(vars, a_triplet, b_vec)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
             oper_dtrn.apply(vars, a_triplet, b_vec)?;
             oper_ddil.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;
-            oper_tden.apply_time(vars, a_triplet, b_vec, tc)?;
+            oper_tden.apply_time(vars, a_triplet, b_vec, twgt)?;
             oper_div.apply(vars, a_triplet, b_vec)?;
         }
 
@@ -414,7 +414,7 @@ impl TransientBase for TransientMoleFlow {
 
         // rhie-chow stabilization
         for oper_rc in self.oper_dom_rc.iter() {
-            oper_rc.apply_time(vars, a_triplet, b_vec, tc)?;
+            oper_rc.apply_time(vars, a_triplet, b_vec, twgt)?;
         }
 
         // continuity

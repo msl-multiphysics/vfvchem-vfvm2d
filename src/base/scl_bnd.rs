@@ -22,7 +22,6 @@ pub struct ScalarBoundary {
     // node data
     pub sclbnd_type: SclBndType,
     pub value: Vec<f64>,  // idx -> value
-    pub value_prv1: Vec<f64>,
 }
 
 impl ScalarBoundary {
@@ -35,8 +34,7 @@ impl ScalarBoundary {
         // node data
         sclbnd.sclbnd_type = SclBndType::Constant;
         sclbnd.value = vec![value; bnd.num_nds()];
-        sclbnd.value_prv1 = sclbnd.value.clone();
-        
+
         Ok(sclbnd)
     }
 
@@ -57,13 +55,8 @@ impl ScalarBoundary {
         // node data
         sclbnd.sclbnd_type = SclBndType::Function { func, unkn_id };
         sclbnd.value = vec![f64::NAN; bnd.num_nds()];  // placeholder
-        sclbnd.value_prv1 = sclbnd.value.clone();
 
         Ok(sclbnd)
-    }
-
-    pub fn update_prev(&mut self) {
-        self.value_prv1 = self.value.clone();
     }
 
     pub fn update_func(vars: &mut Variables, sclbnd_id: usize, t: f64) {

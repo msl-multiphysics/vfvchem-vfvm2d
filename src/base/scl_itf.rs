@@ -23,7 +23,6 @@ pub struct ScalarInterface {
     // node data
     pub sclitf_type: SclItfType,
     pub value: Vec<f64>,  // idx -> value
-    pub value_prv1: Vec<f64>,
 
     // output file
     pub file_name: String,  // file path without extension
@@ -40,7 +39,6 @@ impl ScalarInterface {
         // node data
         sclitf.sclitf_type = SclItfType::Constant;
         sclitf.value = vec![value; itf.num_nds()];
-        sclitf.value_prv1 = sclitf.value.clone();
         
         Ok(sclitf)
     }
@@ -62,13 +60,8 @@ impl ScalarInterface {
         // node data
         sclitf.sclitf_type = SclItfType::Function { func, unkn_a_id, unkn_b_id };
         sclitf.value = vec![f64::NAN; itf.num_nds()];  // placeholder
-        sclitf.value_prv1 = sclitf.value.clone();
 
         Ok(sclitf)
-    }
-
-    pub fn update_prev(&mut self) {
-        self.value_prv1 = self.value.clone();
     }
 
     pub fn update_func(vars: &mut Variables, sclitf_id: usize, t: f64) {

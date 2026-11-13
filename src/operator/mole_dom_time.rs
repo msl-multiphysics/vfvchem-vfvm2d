@@ -32,7 +32,7 @@ impl MoleDomTime {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, twgt: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the LHS of Ax = b
@@ -44,16 +44,15 @@ impl MoleDomTime {
         // discretize into centroid values
         // -rho_c * d(c_c)/dt * dA
         //
-        // discretize using time coefficients tc = (tc0, tc1, tc2)
-        // bdf1: tc = (1, -1, 0) / dt; bdf2: tc = (3/2, -2, 1/2) / dt
-        // -rho_c * (tc0 * c_c + tc1 * c_prv1 + tc2 * c_prv2) * dA
+        // discretize using time weights
+        // d(c_c)/dt = tw0 * c_c + tw1 * c_prv1 + tw2 * c_prv2
 
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
         let conc_dom = &vars.scldom[self.conc_id];
         let den_dom = &vars.scldom[self.den_id];
-        let (tc0, tc1, tc2) = tc;
+        let (tw0, tw1, tw2) = twgt;
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -69,8 +68,8 @@ impl MoleDomTime {
 
             // load into matrix
             let coeff_v = -den_c * area;
-            self.add_sclscl_a(vars, a_triplet, self.conc_id, vid_v, self.conc_id, vid_v, coeff_v * tc0)?;
-            self.add_scl_b(vars, b_vec, self.conc_id, vid_v, coeff_v * (-tc0 * conc_o - tc1 * conc_c_prv1 - tc2 * conc_c_prv2))?;
+            self.add_sclscl_a(vars, a_triplet, self.conc_id, vid_v, self.conc_id, vid_v, coeff_v * tw0)?;
+            self.add_scl_b(vars, b_vec, self.conc_id, vid_v, coeff_v * (-tw0 * conc_o - tw1 * conc_c_prv1 - tw2 * conc_c_prv2))?;
         }
 
         Ok(())

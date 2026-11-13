@@ -32,7 +32,7 @@ impl FlowDomTime {
         Ok(oper)
     }
 
-    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
+    pub fn apply_time(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, twgt: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // the LHS of the PDE is for the time derivative
         // the RHS of the PDE is discretized into the LHS of Ax = b
         // invert the sign to transfer the term to the LHS of Ax = b
@@ -44,16 +44,15 @@ impl FlowDomTime {
         // discretize into centroid values
         // -rho_c * d(vel_c)/dt * dA
         //
-        // discretize using time coefficients tc = (tc0, tc1, tc2)
-        // bdf1: tc = (1, -1, 0) / dt; bdf2: tc = (3/2, -2, 1/2) / dt
-        // -rho_c * (tc0 * vel_c + tc1 * vel_prv1 + tc2 * vel_prv2) * dA
+        // discretize using time weights
+        // d(vel_c)/dt = tw0 * vel_c + tw1 * vel_prv1 + tw2 * vel_prv2
 
         // get objects
         let dom = &vars.dom[self.dom_id];
         let tri = &vars.tri[self.dom_id];
         let vel_dom = &vars.vecdom[self.vel_id];
         let den_dom = &vars.scldom[self.den_id];
-        let (tc0, tc1, tc2) = tc;
+        let (tw0, tw1, tw2) = twgt;
 
         // iterate through points
         for vid_v in 0..dom.num_vert() {
@@ -69,10 +68,10 @@ impl FlowDomTime {
 
             // load into matrix
             let coeff_v = -den_c * area;
-            self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, coeff_v * tc0)?;
-            self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, coeff_v * tc0)?;
-            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, coeff_v * (-tc0 * velx_o - tc1 * velx_c_prv1 - tc2 * velx_c_prv2))?;
-            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, coeff_v * (-tc0 * vely_o - tc1 * vely_c_prv1 - tc2 * vely_c_prv2))?;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 0, vid_v, self.vel_id, 0, vid_v, coeff_v * tw0)?;
+            self.add_vecvec_a(vars, a_triplet, self.vel_id, 1, vid_v, self.vel_id, 1, vid_v, coeff_v * tw0)?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 0, vid_v, coeff_v * (-tw0 * velx_o - tw1 * velx_c_prv1 - tw2 * velx_c_prv2))?;
+            self.add_vec_b(vars, b_vec, self.vel_id, 1, vid_v, coeff_v * (-tw0 * vely_o - tw1 * vely_c_prv1 - tw2 * vely_c_prv2))?;
         }
 
         Ok(())

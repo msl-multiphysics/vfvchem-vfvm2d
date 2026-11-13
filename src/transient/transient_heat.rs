@@ -145,10 +145,10 @@ impl TransientBase for TransientHeat {
         Ok(())
     }
 
-    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, tc: (f64, f64, f64)) -> Result<(), VFVChemError> {
+    fn assemble_matrix(&self, vars: &Variables, a_triplet: &mut Vec<(usize, usize, f64)>, b_vec: &mut Vec<f64>, twgt: (f64, f64, f64)) -> Result<(), VFVChemError> {
         // domain
         for (oper_twgt, oper_diff, oper_lin, oper_src) in self.oper_dom_heat.iter() {
-            oper_twgt.apply_time(vars, a_triplet, b_vec, tc)?;
+            oper_twgt.apply_time(vars, a_triplet, b_vec, twgt)?;
             oper_diff.apply(vars, a_triplet, b_vec)?;
             oper_lin.apply(vars, a_triplet, b_vec)?;
             oper_src.apply(vars, a_triplet, b_vec)?;

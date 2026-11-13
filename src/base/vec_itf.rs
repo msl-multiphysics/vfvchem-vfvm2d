@@ -23,7 +23,6 @@ pub struct VectorInterface {
     // node data
     pub vecitf_type: VecItfType,
     pub value: Vec<(f64, f64)>,  // idx -> value
-    pub value_prv1: Vec<(f64, f64)>,
 
     // output file
     pub file_name: String,  // file path without extension
@@ -40,7 +39,6 @@ impl VectorInterface {
         // node data
         vecitf.vecitf_type = VecItfType::Constant;
         vecitf.value = vec![value; itf.num_nds()];
-        vecitf.value_prv1 = vecitf.value.clone();
         
         Ok(vecitf)
     }
@@ -62,13 +60,8 @@ impl VectorInterface {
         // node data
         vecitf.vecitf_type = VecItfType::Function { func, unkn_a_id, unkn_b_id };
         vecitf.value = vec![(f64::NAN, f64::NAN); itf.num_nds()];  // placeholder
-        vecitf.value_prv1 = vecitf.value.clone();
 
         Ok(vecitf)
-    }
-
-    pub fn update_prev(&mut self) {
-        self.value_prv1 = self.value.clone();
     }
 
     pub fn update_func(vars: &mut Variables, vecitf_id: usize, t: f64) {
