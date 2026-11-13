@@ -305,7 +305,7 @@ impl SteadyBase for SteadyHeatMoleFlow {
             let dom_cond_id = self.heat_cond[&dom_id];
             let dom_hlin_id = self.heat_hlin[&dom_id];
             let dom_hsrc_id = self.heat_hsrc[&dom_id];
-            let oper_awgt = HeatDomAdvection::new(vars, dom_id, dom_temp_id, dom_vel_id, dom_den_id, dom_cond_id, dom_hcap_id)?;
+            let oper_awgt = HeatDomAdvection::new(vars, dom_id, dom_temp_id, dom_vel_id, dom_cond_id, dom_den_id, dom_hcap_id)?;
             let oper_diff = HeatDomDiffusion::new(vars, dom_id, dom_temp_id, dom_cond_id)?;
             let oper_lin = SclDomLinear::new(vars, dom_id, dom_temp_id, dom_hlin_id)?;
             let oper_src = SclDomSource::new(vars, dom_id, dom_temp_id, dom_hsrc_id)?;
