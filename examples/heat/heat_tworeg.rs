@@ -3,6 +3,9 @@ use vfvchem_vfvm2d::*;
 /// Steady-state heat transfer in a divided domain.
 /// Run with: `cargo run --release --example heat_tworeg`
 ///
+/// Geometry
+/// --------
+/// 
 ///          bnd_t
 ///       +---------+
 ///       |dom_tl / |
@@ -23,6 +26,9 @@ use vfvchem_vfvm2d::*;
 ///
 /// Interfaces:
 /// itf_d - diagonal interface
+/// 
+/// Heat Transfer
+/// -------------
 /// 
 /// Domain Properties:
 /// dom_br - thermal conductivity (k = 0.1 W m-1 K-1)

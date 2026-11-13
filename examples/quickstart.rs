@@ -3,6 +3,9 @@ use vfvchem_vfvm2d::*;
 /// Steady-state heat transfer in a square domain.
 /// Run with: `cargo run --release --example quickstart`
 ///
+/// Geometry
+/// --------
+/// 
 ///          bnd_t
 ///       +---------+
 ///       |         |
@@ -20,6 +23,9 @@ use vfvchem_vfvm2d::*;
 /// bnd_b - bottom boundary
 /// bnd_t - top boundary
 ///
+/// Heat Transfer
+/// -------------
+/// 
 /// Domain Properties:
 /// dom - thermal conductivity (k = 0.1 W m-1 K-1)
 /// dom - heat source (Q = -500.0 W m-3)

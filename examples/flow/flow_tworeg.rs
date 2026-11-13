@@ -2,7 +2,10 @@ use vfvchem_vfvm2d::*;
 
 /// Steady-state lid-driven cavity flow in a divided domain.
 /// Run with: `cargo run --release --example flow_tworeg`
-///
+/// 
+/// Geometry
+/// --------
+/// 
 ///          bnd_t
 ///       +---------+
 ///       |dom_tl / |
@@ -24,6 +27,9 @@ use vfvchem_vfvm2d::*;
 /// Interfaces:
 /// itf_d - diagonal interface
 ///
+/// Momentum Transfer
+/// -----------------
+/// 
 /// Domain Properties:
 /// dom_br - density (rho = 1000.0 kg m-3)
 /// dom_br - viscosity (mu = 0.001 Pa s)

@@ -3,6 +3,9 @@ use vfvchem_vfvm2d::*;
 /// Transient heat transfer in a square domain.
 /// Run with: `cargo run --release --example heat_transient`
 ///
+/// Geometry
+/// --------
+/// 
 ///          bnd_t
 ///       +---------+
 ///       |         |
@@ -20,6 +23,9 @@ use vfvchem_vfvm2d::*;
 /// bnd_b - bottom boundary
 /// bnd_t - top boundary
 ///
+/// Heat Transfer
+/// -------------
+/// 
 /// Domain Properties:
 /// dom - density (rho = 900.0 kg m-3)
 /// dom - heat capacity (cp = 1200.0 J kg-1 K-1)

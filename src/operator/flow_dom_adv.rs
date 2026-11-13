@@ -16,7 +16,7 @@ pub struct FlowDomAdvection {
 }
 
 impl FlowDomAdvection {
-    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize, _: usize) -> Result<FlowDomAdvection, VFVChemError> {
+    pub fn new(vars: &Variables, dom_id: usize, vel_id: usize, den_id: usize) -> Result<FlowDomAdvection, VFVChemError> {
         // adds the advection term to the Navier-Stokes equation
         // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         //                   ^^^^^^^^^^^^^^^^^^^^^

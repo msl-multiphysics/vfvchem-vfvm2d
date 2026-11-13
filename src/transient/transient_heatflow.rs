@@ -211,7 +211,7 @@ impl TransientBase for TransientHeatFlow {
             let dom_hlin_id = self.heat_hlin[&dom_id];
             let dom_hsrc_id = self.heat_hsrc[&dom_id];
             let oper_time = HeatDomTime::new(vars, dom_id, dom_temp_id, dom_den_id, dom_hcap_id)?;
-            let oper_awgt = HeatDomAdvection::new(vars, dom_id, dom_temp_id, dom_vel_id, dom_cond_id, dom_den_id, dom_hcap_id)?;
+            let oper_awgt = HeatDomAdvection::new(vars, dom_id, dom_temp_id, dom_vel_id, dom_den_id, dom_hcap_id)?;
             let oper_diff = HeatDomDiffusion::new(vars, dom_id, dom_temp_id, dom_cond_id)?;
             let oper_lin = SclDomLinear::new(vars, dom_id, dom_temp_id, dom_hlin_id)?;
             let oper_src = SclDomSource::new(vars, dom_id, dom_temp_id, dom_hsrc_id)?;
@@ -267,7 +267,7 @@ impl TransientBase for TransientHeatFlow {
             let dom_visc_id = self.flow_visc[&dom_id];
             let dom_fce_id = self.flow_fce[&dom_id];
             let oper_time = FlowDomTime::new(vars, dom_id, dom_vel_id, dom_den_id)?;
-            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id, dom_visc_id)?;
+            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id)?;
             let oper_grad = FlowDomGradient::new(vars, dom_id, dom_vel_id, dom_pres_id)?;
             let oper_diff = FlowDomDiffusion::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
             let oper_dtrn = FlowDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;

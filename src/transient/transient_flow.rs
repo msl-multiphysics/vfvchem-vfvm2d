@@ -131,7 +131,7 @@ impl TransientBase for TransientFlow {
             let dom_visc_id = self.flow_visc[&dom_id];
             let dom_fce_id = self.flow_fce[&dom_id];
             let oper_time = FlowDomTime::new(vars, dom_id, dom_vel_id, dom_den_id)?;
-            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id, dom_visc_id)?;
+            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id)?;
             let oper_grad = FlowDomGradient::new(vars, dom_id, dom_vel_id, dom_pres_id)?;
             let oper_diff = FlowDomDiffusion::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
             let oper_dtrn = FlowDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;

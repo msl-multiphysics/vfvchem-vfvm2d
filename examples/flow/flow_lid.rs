@@ -3,6 +3,9 @@ use vfvchem_vfvm2d::*;
 /// Steady-state lid-driven cavity flow in a square domain.
 /// Run with: `cargo run --release --example flow_lid`
 ///
+/// Geometry
+/// --------
+/// 
 ///          bnd_t
 ///       +---------+
 ///       |         |
@@ -20,6 +23,9 @@ use vfvchem_vfvm2d::*;
 /// bnd_b - bottom boundary
 /// bnd_t - top boundary
 ///
+/// Momentum Transfer
+/// -----------------
+/// 
 /// Domain Properties:
 /// dom - density (rho = 1000.0 kg m-3)
 /// dom - viscosity (mu = 0.001 Pa s)

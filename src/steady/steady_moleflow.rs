@@ -229,10 +229,9 @@ impl SteadyBase for SteadyMoleFlow {
             let dom_conc_id = self.mole_conc[comp_id][&dom_id];
             let dom_den_id = self.mole_den[comp_id][&dom_id];
             let dom_vel_id = self.mole_vel[comp_id][&dom_id];
-            let dom_diff_id = self.mole_diff[comp_id][&dom_id][&comp_id];
             let dom_nlin_id = self.mole_nlin[comp_id][&dom_id];
             let dom_nsrc_id = self.mole_nsrc[comp_id][&dom_id];
-            let oper_adv = MoleDomAdvection::new(vars, dom_id, dom_conc_id, dom_vel_id, dom_den_id, dom_diff_id)?;
+            let oper_adv = MoleDomAdvection::new(vars, dom_id, dom_conc_id, dom_vel_id, dom_den_id)?;
             let oper_lin = SclDomLinear::new(vars, dom_id, dom_conc_id, dom_nlin_id)?;
             let oper_src = SclDomSource::new(vars, dom_id, dom_conc_id, dom_nsrc_id)?;
 
@@ -300,7 +299,7 @@ impl SteadyBase for SteadyMoleFlow {
             let dom_den_id = self.flow_den[&dom_id];
             let dom_visc_id = self.flow_visc[&dom_id];
             let dom_fce_id = self.flow_fce[&dom_id];
-            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id, dom_visc_id)?;
+            let oper_adv = FlowDomAdvection::new(vars, dom_id, dom_vel_id, dom_den_id)?;
             let oper_grad = FlowDomGradient::new(vars, dom_id, dom_vel_id, dom_pres_id)?;
             let oper_diff = FlowDomDiffusion::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
             let oper_dtrn = FlowDomTranspose::new(vars, dom_id, dom_vel_id, dom_visc_id)?;
