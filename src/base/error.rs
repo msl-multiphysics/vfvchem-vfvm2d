@@ -233,11 +233,11 @@ pub enum VFVChemError {
     SolverNonPositiveInitialStepSize {
         dt_init: f64,
     },
-    #[error("Solver: Minimum time step `dt_min` must be greater than the initial timestep. Got dt_min = {dt_min}.")]
+    #[error("Solver: Minimum time step `dt_min` must be positive and no greater than the initial timestep. Got dt_min = {dt_min}.")]
     SolverInvalidMinimumStepSize {
         dt_min: f64,
     },
-    #[error("Solver: Maximum time step `dt_max` must be greater than the minimum timestep. Got dt_max = {dt_max}.")]
+    #[error("Solver: Maximum time step `dt_max` must be no less than the initial timestep. Got dt_max = {dt_max}.")]
     SolverInvalidMaximumStepSize {
         dt_max: f64,
     },
@@ -245,7 +245,7 @@ pub enum VFVChemError {
     SolverInvalidGrowthMinimum {
         grow_min: f64,
     },
-    #[error("Solver: Maximum growth factor `grow_max` must be greater than one. Got grow_max = {grow_max}.")]
+    #[error("Solver: Maximum growth factor `grow_max` must be in (1, 1 + sqrt(2)) for bdf2 stability. Got grow_max = {grow_max}.")]
     SolverInvalidGrowthMaximum {
         grow_max: f64,
     },
@@ -257,7 +257,15 @@ pub enum VFVChemError {
     SolverAdaptiveDidNotConverge {
         dt_min: f64,
     },
-    #[error("Solver: Output times must be non-negative and monotonically increasing, and the first step must be greater than dt_init.")]
+    #[error("Solver: Local time error exceeds the tolerance at minimum timestep {dt_min}.")]
+    SolverAdaptiveTimeErrorTooLarge {
+        dt_min: f64,
+    },
+    #[error("Solver: Adaptive solver rejected {max_reject} consecutive steps.")]
+    SolverAdaptiveTooManyRejections {
+        max_reject: usize,
+    },
+    #[error("Solver: Output times must be non-negative and strictly increasing, with a positive final time.")]
     SolverAdaptiveInvalidOutputTime {},
 
     // physics

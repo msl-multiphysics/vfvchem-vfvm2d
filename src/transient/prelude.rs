@@ -1,5 +1,5 @@
 // base class
-// pub use super::transient_adapt::*;
+pub use super::transient_adapt::*;
 pub use super::transient_base::*;
 
 // solvers

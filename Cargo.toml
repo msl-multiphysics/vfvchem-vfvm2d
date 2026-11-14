@@ -59,6 +59,14 @@ path = "examples/moleflow/moleflow_step.rs"
 name = "heatmoleflow_step"
 path = "examples/heatmoleflow/heatmoleflow_step.rs"
 
+[[example]]
+name = "bench_force"
+path = "examples/benchmarks/bench_force.rs"
+
+[[example]]
+name = "bench_decay"
+path = "examples/benchmarks/bench_decay.rs"
+
 [profile.release]
 opt-level = 3
 lto = "fat"
