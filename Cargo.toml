@@ -20,8 +20,8 @@ name = "heat_transient"
 path = "examples/heat/heat_transient.rs"
 
 [[example]]
-name = "heat_tworeg"
-path = "examples/heat/heat_tworeg.rs"
+name = "heat_diag"
+path = "examples/heat/heat_diag.rs"
 
 [[example]]
 name = "flow_lid"
@@ -32,8 +32,8 @@ name = "flow_step"
 path = "examples/flow/flow_step.rs"
 
 [[example]]
-name = "flow_tworeg"
-path = "examples/flow/flow_tworeg.rs"
+name = "flow_diag"
+path = "examples/flow/flow_diag.rs"
 
 [[example]]
 name = "heatflow_channel"

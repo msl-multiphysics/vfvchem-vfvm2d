@@ -1,7 +1,7 @@
 use vfvchem_vfvm2d::*;
 
 /// Steady-state lid-driven cavity flow in a divided domain.
-/// Run with: `cargo run --release --example flow_tworeg`
+/// Run with: `cargo run --release --example flow_diag`
 /// 
 /// Geometry
 /// --------
@@ -49,7 +49,7 @@ use vfvchem_vfvm2d::*;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_obj("examples/obj/obj_tworeg.obj", 0.001, 0.002, "examples/output_flow_tworeg")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_diag.obj", 0.001, 0.002, "examples/output_flow_diag")?;
 
     // geometry
     let dom_br = vars.add_dom("dom_br")?;  // bottom-right triangle

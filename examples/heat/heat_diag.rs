@@ -1,7 +1,7 @@
 use vfvchem_vfvm2d::*;
 
 /// Steady-state heat transfer in a divided domain.
-/// Run with: `cargo run --release --example heat_tworeg`
+/// Run with: `cargo run --release --example heat_diag`
 ///
 /// Geometry
 /// --------
@@ -48,7 +48,7 @@ use vfvchem_vfvm2d::*;
 fn main() -> Result<(), VFVChemError> {
     // variables
     // import custom geometry with Variables::new_obj
-    let mut vars = Variables::new_obj("examples/obj/obj_tworeg.obj", 0.002, 0.005, "examples/output_heat_tworeg")?;
+    let mut vars = Variables::new_obj("examples/obj/obj_diag.obj", 0.002, 0.005, "examples/output_heat_diag")?;
 
     // geometry
     // for new_obj, the domain, boundary, and interface names are defined in the obj file
