@@ -32,9 +32,9 @@ pub struct TransientFlow {
     pub oper_dom_flow: Vec<(FlowDomTime, FlowDomAdvection, FlowDomGradient, FlowDomDiffusion, FlowDomTranspose, FlowDomDilatatory, VecDomSource, FlowDomTimeContinuity, FlowDomDivergence)>,
     pub oper_dom_rc: Vec<FlowDomRhieChow>,
     pub oper_bnd_vel: Vec<(VecBndDirichlet, FlowBndDivergence)>,
-    pub oper_bnd_pres: Vec<SclBndDirichlet>,
+    pub oper_bnd_pres: Vec<(SclBndDirichlet, FlowBndTranspose, FlowBndDilatatory)>,
     pub oper_itf_fcnt: Vec<(VecItfContinuity, SclItfContinuity)>,
-    pub oper_pts_ref: FlowNdsReference,
+    pub oper_nds_ref: FlowNdsReference,
 }
 
 impl TransientFlow {
@@ -102,7 +102,7 @@ impl TransientBase for TransientFlow {
         for (oper_dir, _) in self.oper_bnd_vel.iter_mut() {
             oper_dir.apply_initial(vars, mat_size)?;
         }
-        for oper_dir in self.oper_bnd_pres.iter_mut() {
+        for (oper_dir, _, _) in self.oper_bnd_pres.iter_mut() {
             oper_dir.apply_initial(vars, mat_size)?;
         }
 
@@ -170,17 +170,21 @@ impl TransientBase for TransientFlow {
         }
         for &bnd_id in self.pres_bnd.iter() {
             let dom_id = vars.bnd[bnd_id].dom_id;
+            let dom_vel_id = self.flow_vel[&dom_id];
             let dom_pres_id = self.flow_pres[&dom_id];
+            let dom_visc_id = self.flow_visc[&dom_id];
             let bnd_pres_id = self.pres_pres[&bnd_id];
             let oper_dir = SclBndDirichlet::new(vars, bnd_id, dom_pres_id, bnd_pres_id)?;
-            self.oper_bnd_pres.push(oper_dir);
+            let oper_dtrn = FlowBndTranspose::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            let oper_ddil = FlowBndDilatatory::new(vars, bnd_id, dom_vel_id, dom_visc_id)?;
+            self.oper_bnd_pres.push((oper_dir, oper_dtrn, oper_ddil));
         }
 
         // reference pressure
         if self.pref_use {
             let dom_id = self.pref_dom;
             let unk_id = self.flow_pres[&dom_id];
-            self.oper_pts_ref = FlowNdsReference::new(vars, dom_id, unk_id, self.pref_nid, self.pref_pres)?;
+            self.oper_nds_ref = FlowNdsReference::new(vars, dom_id, unk_id, self.pref_nid, self.pref_pres)?;
         }
 
         Ok(())
@@ -204,6 +208,10 @@ impl TransientBase for TransientFlow {
         for (_, oper_div) in self.oper_bnd_vel.iter() {
             oper_div.apply(vars, a_triplet, b_vec)?;
         }
+        for (_, oper_dtrn, oper_ddil) in self.oper_bnd_pres.iter() {
+            oper_dtrn.apply(vars, a_triplet, b_vec)?;
+            oper_ddil.apply(vars, a_triplet, b_vec)?;
+        }
 
         // rhie-chow stabilization
         for oper_rc in self.oper_dom_rc.iter() {
@@ -220,13 +228,13 @@ impl TransientBase for TransientFlow {
         for (oper_dir, _) in self.oper_bnd_vel.iter() {
             oper_dir.apply(vars, a_triplet, b_vec)?;
         }
-        for oper_dir in self.oper_bnd_pres.iter() {
+        for (oper_dir, _, _) in self.oper_bnd_pres.iter() {
             oper_dir.apply(vars, a_triplet, b_vec)?;
         }
 
         // reference pressure
         if self.pref_use {
-            self.oper_pts_ref.apply(vars, a_triplet, b_vec)?;
+            self.oper_nds_ref.apply(vars, a_triplet, b_vec)?;
         }
 
         Ok(())

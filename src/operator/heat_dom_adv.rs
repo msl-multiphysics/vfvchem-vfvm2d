@@ -1,7 +1,7 @@
 use crate::base::prelude::*;
 use crate::operator::prelude::*;
 
-const VENKATAKRISHNAN_SCALE: f64 = 1.0;
+const VENKATAKRISHNAN_SCALE: f64 = 5.0;
 
 #[derive(Default)]
 pub struct HeatDomAdvection {
@@ -89,6 +89,10 @@ impl OperatorBase for HeatDomAdvection {
         //
         // let T_u be the upwind vertex temperature (either T_v or T_n)
         // T_f = T_u + alp_u * grad(T)_u . (x_f - x_u)
+        //
+        // also evaluate boundary terms
+        // sum_bnd -F_b * (T_b - T_v) + F_b * T_o
+        // F_b = (0.75 * F_v + 0.25 * F_n) * half
 
         // get objects
         let dom = &vars.dom[self.dom_id];
@@ -160,9 +164,40 @@ impl OperatorBase for HeatDomAdvection {
             let norm_n = &tri.face_norm[vid_v];
             let offc = tri.vert_offc[vid_v];
             let skew_n = &tri.face_skew[vid_v];
+            let list_b = &tri.bnd_vid[vid_v];
+            let half_b = &tri.bnd_half[vid_v];
+            let norm_b = &tri.bnd_norm[vid_v];
+            let tang_b = &tri.bnd_tang[vid_v];
 
             // get centroid properties
             let temp_o = temp_dom.correct_vert(offc, vid_v);
+
+            // get vertex properties
+            let (gradx_v, grady_v) = temp_dom.grad[vid_v];
+            let (velx_v, vely_v) = vel_dom.value[vid_v];
+            let den_v = den_dom.value[vid_v];
+            let hcap_v = hcap_dom.value[vid_v];
+
+            // iterate through boundary half-edges
+            for (blc, &vid_n) in list_b.iter().enumerate() {
+                // get geometry
+                let half = half_b[blc];
+                let (nx, ny) = norm_b[blc];
+                let (tx, ty) = tang_b[blc];
+                let (rx, ry) = (0.5 * half * tx, 0.5 * half * ty);  // x_b - x_v
+
+                // get half-edge flux
+                let (velx_n, vely_n) = vel_dom.value[vid_n];
+                let den_n = den_dom.value[vid_n];
+                let hcap_n = hcap_dom.value[vid_n];
+                let flux_v = den_v * hcap_v * (velx_v * nx + vely_v * ny);
+                let flux_n = den_n * hcap_n * (velx_n * nx + vely_n * ny);
+                let flux = (0.75 * flux_v + 0.25 * flux_n) * half;
+
+                // load explicit boundary term
+                let temp_corr = gradx_v * rx + grady_v * ry;  // T_b - T_v
+                self.add_scl_b(vars, b_vec, self.temp_id, vid_v, -flux * (temp_o - temp_corr))?;
+            }
 
             // iterate through faces
             for (loc, &vid_n) in list_n.iter().enumerate() {

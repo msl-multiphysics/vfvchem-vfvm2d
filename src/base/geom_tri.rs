@@ -35,6 +35,7 @@ pub struct Triangle {
     pub bnd_vid: Vec<Vec<usize>>,  // vid, blc (boundary loc) -> neighbor vid along boundary; empty for points
     pub bnd_half: Vec<Vec<f64>>,  // vid, blc -> half-edge length along boundary
     pub bnd_norm: Vec<Vec<(f64, f64)>>,  // vid, blc -> outward normal on half-edge
+    pub bnd_tang: Vec<Vec<(f64, f64)>>,  // vid, blc -> unit tangent from vertex toward neighbor along boundary
 
     // gradient weight data
     // delta_u = [u1 - u0, u2 - u0, ...]; u0 and uj are point and neighbor values
@@ -208,6 +209,7 @@ impl Triangle {
         let mut bnd_vid = vec![Vec::new(); num_vert];
         let mut bnd_half = vec![Vec::new(); num_vert];
         let mut bnd_norm = vec![Vec::new(); num_vert];
+        let mut bnd_tang = vec![Vec::new(); num_vert];
 
         // iterate through edges belonging to only one triangle
         for (&(vida, vidb), &(num_tri, vidk)) in ec_map.iter() {
@@ -233,9 +235,11 @@ impl Triangle {
             bnd_vid[vida].push(vidb);
             bnd_half[vida].push(0.5 * dist);
             bnd_norm[vida].push((nx, ny));
+            bnd_tang[vida].push((dx / dist, dy / dist));
             bnd_vid[vidb].push(vida);
             bnd_half[vidb].push(0.5 * dist);
             bnd_norm[vidb].push((nx, ny));
+            bnd_tang[vidb].push((-dx / dist, -dy / dist));
         }
 
         // step 3: compute per-vertex data
@@ -331,6 +335,7 @@ impl Triangle {
         tri.bnd_vid = bnd_vid;
         tri.bnd_half = bnd_half;
         tri.bnd_norm = bnd_norm;
+        tri.bnd_tang = bnd_tang;
         tri.grad_wgt = grad_wgt;
 
         Ok(tri)

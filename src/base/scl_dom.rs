@@ -210,10 +210,9 @@ impl ScalarDomain {
         let (sx, sy) = skew;
 
         // compute value
-        let value_m = 2.0 * value_v * value_n / (value_v + value_n);
+        let value_m = if value_v * value_n > 0.0 { 2.0 * value_v * value_n / (value_v + value_n) } else { 0.0 };  // guard against zero or opposite signs
         let value_s = 0.5 * ((gradx_v + gradx_n) * sx + (grady_v + grady_n) * sy);
         let value_f = value_m + value_s;
-        let value_f = if value_f > 0.0 { value_f } else { 0.0 };  // guard against negative values
 
         value_f
     }

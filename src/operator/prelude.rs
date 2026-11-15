@@ -34,5 +34,7 @@ pub use super::flow_dom_grad::*;
 pub use super::flow_dom_rc::*;
 pub use super::flow_dom_tcon::*;
 pub use super::flow_dom_time::*;
+pub use super::flow_bnd_ddil::*;
 pub use super::flow_bnd_div::*;
+pub use super::flow_bnd_dtrn::*;
 pub use super::flow_nds_ref::*;

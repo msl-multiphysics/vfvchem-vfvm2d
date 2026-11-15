@@ -61,11 +61,27 @@ path = "examples/heatmoleflow/heatmoleflow_step.rs"
 
 [[example]]
 name = "bench_force"
-path = "examples/benchmarks/bench_force.rs"
+path = "examples/benchmark/bench_force.rs"
 
 [[example]]
 name = "bench_decay"
-path = "examples/benchmarks/bench_decay.rs"
+path = "examples/benchmark/bench_decay.rs"
+
+[[example]]
+name = "bench_vert"
+path = "examples/benchmark/bench_vert.rs"
+
+[[example]]
+name = "bench_heat"
+path = "examples/benchmark/bench_heat.rs"
+
+[[example]]
+name = "bench_flow"
+path = "examples/benchmark/bench_flow.rs"
+
+[[example]]
+name = "bench_heatflow"
+path = "examples/benchmark/bench_heatflow.rs"
 
 [profile.release]
 opt-level = 3

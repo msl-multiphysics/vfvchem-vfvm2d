@@ -35,5 +35,7 @@ pub mod flow_dom_grad;
 pub mod flow_dom_rc;
 pub mod flow_dom_tcon;
 pub mod flow_dom_time;
+pub mod flow_bnd_ddil;
 pub mod flow_bnd_div;
+pub mod flow_bnd_dtrn;
 pub mod flow_nds_ref;
