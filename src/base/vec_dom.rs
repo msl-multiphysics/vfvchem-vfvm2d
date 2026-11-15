@@ -1,8 +1,7 @@
 use crate::base::prelude::*;
 
-// input: time, (x, y), slice of unknown values at a point
-// output: function value at the point
-pub type VecDomFunc = Box<dyn Fn(f64, (f64, f64), &[f64]) -> (f64, f64) + Send + Sync>;
+pub type VecDomFunc = Box<dyn Fn(f64, (f64, f64), &[f64]) -> (f64, f64) + Send + Sync>;  // time, (x, y), slice of unknowns -> value
+pub type VecPosFunc = Box<dyn Fn(f64, f64) -> (f64, f64) + Send + Sync>;  // (x, y) -> value
 
 #[derive(Default)]
 pub enum VecDomType {
@@ -101,6 +100,70 @@ impl VectorDomain {
 
         // gradient data
         vecdom.grad = vec![(0.0, 0.0, 0.0, 0.0); dom.num_vert()];
+        vecdom.grad_prv1 = vecdom.grad.clone();
+        vecdom.grad_prv2 = vecdom.grad.clone();
+
+        Ok(vecdom)
+    }
+
+    pub fn new_cnst_nonuniform(vecdom_id: usize, pts: &Points, nds: &Nodes, dom: &Domain, value_func: VecPosFunc, name: &str) -> Result<VectorDomain, VFVChemError> {
+        // default class
+        let mut vecdom = VectorDomain::default();
+        vecdom.name = name.to_string();
+        vecdom.vecdom_id = vecdom_id;
+        vecdom.dom_id = dom.dom_id;
+
+        // compute values
+        let mut value = Vec::with_capacity(dom.num_vert());  // vid -> value
+        for &gpt in dom.pts_gpt.iter() {
+            let (x, y) = pts.pts_pos[gpt];
+            value.push(value_func(x, y));
+        }
+        for &gnd in dom.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+
+        // point data
+        vecdom.vecdom_type = VecDomType::Constant;
+        vecdom.value = value;
+        vecdom.value_prv1 = vecdom.value.clone();
+        vecdom.value_prv2 = vecdom.value.clone();
+
+        // gradient data
+        vecdom.grad = vec![(f64::NAN, f64::NAN, f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
+        vecdom.grad_prv1 = vecdom.grad.clone();
+        vecdom.grad_prv2 = vecdom.grad.clone();
+
+        Ok(vecdom)
+    }
+
+    pub fn new_unkn_nonuniform(vecdom_id: usize, pts: &Points, nds: &Nodes, dom: &Domain, value_func: VecPosFunc, name: &str) -> Result<VectorDomain, VFVChemError> {
+        // default class
+        let mut vecdom = VectorDomain::default();
+        vecdom.name = name.to_string();
+        vecdom.vecdom_id = vecdom_id;
+        vecdom.dom_id = dom.dom_id;
+
+        // compute values
+        let mut value = Vec::with_capacity(dom.num_vert());  // vid -> value
+        for &gpt in dom.pts_gpt.iter() {
+            let (x, y) = pts.pts_pos[gpt];
+            value.push(value_func(x, y));
+        }
+        for &gnd in dom.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+
+        // point data
+        vecdom.vecdom_type = VecDomType::Unknown { start: usize::MAX };  // placeholder
+        vecdom.value = value;
+        vecdom.value_prv1 = vecdom.value.clone();
+        vecdom.value_prv2 = vecdom.value.clone();
+
+        // gradient data
+        vecdom.grad = vec![(f64::NAN, f64::NAN, f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
         vecdom.grad_prv1 = vecdom.grad.clone();
         vecdom.grad_prv2 = vecdom.grad.clone();
 

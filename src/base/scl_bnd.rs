@@ -59,6 +59,26 @@ impl ScalarBoundary {
         Ok(sclbnd)
     }
 
+    pub fn new_cnst_nonuniform(sclbnd_id: usize, nds: &Nodes, bnd: &Boundary, value_func: SclPosFunc) -> Result<ScalarBoundary, VFVChemError> {
+        // default class
+        let mut sclbnd = ScalarBoundary::default();
+        sclbnd.sclbnd_id = sclbnd_id;
+        sclbnd.bnd_id = bnd.bnd_id;
+
+        // compute values
+        let mut value = Vec::with_capacity(bnd.num_nds());  // idx -> value
+        for &gnd in bnd.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+
+        // node data
+        sclbnd.sclbnd_type = SclBndType::Constant;
+        sclbnd.value = value;
+
+        Ok(sclbnd)
+    }
+
     pub fn update_func(vars: &mut Variables, sclbnd_id: usize, t: f64) {
         // does not use &mut self for similarity with scldom's update_func
         // assume that scldoms in unkn_id have the same dom as sclbnd_id

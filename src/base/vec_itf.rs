@@ -64,6 +64,26 @@ impl VectorInterface {
         Ok(vecitf)
     }
 
+    pub fn new_cnst_nonuniform(vecitf_id: usize, nds: &Nodes, itf: &Interface, value_func: VecPosFunc) -> Result<VectorInterface, VFVChemError> {
+        // default class
+        let mut vecitf = VectorInterface::default();
+        vecitf.vecitf_id = vecitf_id;
+        vecitf.itf_id = itf.itf_id;
+
+        // compute values
+        let mut value = Vec::with_capacity(itf.num_nds());  // idx -> value
+        for &gnd in itf.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+
+        // node data
+        vecitf.vecitf_type = VecItfType::Constant;
+        vecitf.value = value;
+        
+        Ok(vecitf)
+    }
+
     pub fn update_func(vars: &mut Variables, vecitf_id: usize, t: f64) {
         // does not use &mut self for similarity with scldom's update_func
         // assume that scldoms in unkn_id have the same dom as vecitf_id

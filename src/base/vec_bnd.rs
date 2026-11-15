@@ -59,6 +59,26 @@ impl VectorBoundary {
         Ok(vecbnd)
     }
 
+    pub fn new_cnst_nonuniform(vecbnd_id: usize, nds: &Nodes, bnd: &Boundary, value_func: VecPosFunc) -> Result<VectorBoundary, VFVChemError> {
+        // default class
+        let mut vecbnd = VectorBoundary::default();
+        vecbnd.vecbnd_id = vecbnd_id;
+        vecbnd.bnd_id = bnd.bnd_id;
+
+        // compute values
+        let mut value = Vec::with_capacity(bnd.num_nds());  // idx -> value
+        for &gnd in bnd.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+
+        // node data
+        vecbnd.vecbnd_type = VecBndType::Constant;
+        vecbnd.value = value;
+        
+        Ok(vecbnd)
+    }
+
     pub fn update_func(vars: &mut Variables, vecbnd_id: usize, t: f64) {
         // does not use &mut self for similarity with scldom's update_func
         // assume that scldoms in unkn_id have the same dom as vecbnd_id

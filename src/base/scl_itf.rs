@@ -64,6 +64,26 @@ impl ScalarInterface {
         Ok(sclitf)
     }
 
+    pub fn new_cnst_nonuniform(sclitf_id: usize, nds: &Nodes, itf: &Interface, value_func: SclPosFunc) -> Result<ScalarInterface, VFVChemError> {
+        // default class
+        let mut sclitf = ScalarInterface::default();
+        sclitf.sclitf_id = sclitf_id;
+        sclitf.itf_id = itf.itf_id;
+
+        // compute values
+        let mut value = Vec::with_capacity(itf.num_nds());  // idx -> value
+        for &gnd in itf.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+
+        // node data
+        sclitf.sclitf_type = SclItfType::Constant;
+        sclitf.value = value;
+        
+        Ok(sclitf)
+    }
+
     pub fn update_func(vars: &mut Variables, sclitf_id: usize, t: f64) {
         // does not use &mut self for similarity with scldom's update_func
         // assume that scldoms in unkn_id have the same dom as sclitf_id

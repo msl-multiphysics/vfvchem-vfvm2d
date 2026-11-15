@@ -39,7 +39,7 @@ use std::collections::HashMap;
 /// bnd_t - no flux (N = 0.0 mol m-2 s-1)
 ///
 /// Initial Conditions:
-/// dom - concentration (c0 = 1.0 mol kg-1 with 1% perturbation; c1 = 1.8 mol kg-1)
+/// dom - concentration (c0 = 1.0 mol kg-1 with 1% spatial perturbation; c1 = 1.8 mol kg-1)
 /// 
 fn main() -> Result<(), VFVChemError> {
     // variables
@@ -53,15 +53,12 @@ fn main() -> Result<(), VFVChemError> {
     let bnd_t = vars.add_bnd(dom, "bnd_t")?;  // top boundary
 
     // unknowns
-    let conc0 = vars.add_scldom_unkn(dom, 1.0, "conc0")?;  // concentration (c0)
+    // perturb conc0 to trigger the instability; uniform IC is an exact steady state
+    let conc0 = vars.add_scldom_unkn_nonuniform(dom, Box::new(|x, y| {
+        let noise = ((x * 12.9898 + y * 78.233).sin() * 43758.5453).fract();  // pseudo-random in [0, 1)
+        1.0 + 0.01 * noise
+    }), "conc0")?;  // concentration (c0)
     let conc1 = vars.add_scldom_unkn(dom, 1.8, "conc1")?;  // concentration (c1)
-
-    // perturb initial conditions to trigger the instability
-    // uniform initial conditions are an exact steady state and remain uniform
-    for (vid, conc) in vars.scldom[conc0].value.iter_mut().enumerate() {
-        let noise = ((vid as f64 * 12.9898).sin() * 43758.5453).fract();  // pseudo-random in (-1, 1)
-        *conc += 0.01 * noise;
-    }
 
     // non-constant domain values
     // split reaction rates into R_i = L_i * c_i + S_i to improve stability

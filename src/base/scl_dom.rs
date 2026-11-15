@@ -1,8 +1,7 @@
 use crate::base::prelude::*;
 
-// input: time, (x, y), slice of unknown values at a point
-// output: function value at the point
-pub type SclDomFunc = Box<dyn Fn(f64, (f64, f64), &[f64]) -> f64 + Send + Sync>;
+pub type SclDomFunc = Box<dyn Fn(f64, (f64, f64), &[f64]) -> f64 + Send + Sync>;  // time, (x, y), slice of unknowns -> value
+pub type SclPosFunc = Box<dyn Fn(f64, f64) -> f64 + Send + Sync>;  // (x, y) -> value
 
 #[derive(Default)]
 pub enum SclDomType {
@@ -105,6 +104,74 @@ impl ScalarDomain {
         scldom.grad_prv2 = scldom.grad.clone();
 
         Ok(scldom)
+    }
+
+    pub fn new_cnst_nonuniform(scldom_id: usize, pts: &Points, nds: &Nodes, dom: &Domain, value_func: SclPosFunc, name: &str) -> Result<ScalarDomain, VFVChemError> {
+        // default class
+        let mut scldom = ScalarDomain::default();
+        scldom.name = name.to_string();
+        scldom.scldom_id = scldom_id;
+        scldom.dom_id = dom.dom_id;
+        
+        // compute values
+        let mut value = Vec::with_capacity(dom.num_vert());  // vid -> value
+        for &gpt in dom.pts_gpt.iter() {
+            let (x, y) = pts.pts_pos[gpt];
+            value.push(value_func(x, y));
+        }
+        for &gnd in dom.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+        
+        // point data
+        scldom.scldom_type = SclDomType::Constant;
+        scldom.value = value;
+        scldom.value_prv1 = scldom.value.clone();
+        scldom.value_prv2 = scldom.value.clone();
+
+        // gradient data
+        scldom.grad = vec![(f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
+        scldom.grad_prv1 = scldom.grad.clone();
+        scldom.grad_prv2 = scldom.grad.clone();
+
+        Ok(scldom)
+    }
+
+    pub fn new_unkn_nonuniform(scldom_id: usize, pts: &Points, nds: &Nodes, dom: &Domain, value_func: SclPosFunc, name: &str) -> Result<ScalarDomain, VFVChemError> {
+        // default class
+        let mut scldom = ScalarDomain::default();
+        scldom.name = name.to_string();
+        scldom.scldom_id = scldom_id;
+        scldom.dom_id = dom.dom_id;
+        
+        // compute values
+        let mut value = Vec::with_capacity(dom.num_vert());  // vid -> value
+        for &gpt in dom.pts_gpt.iter() {
+            let (x, y) = pts.pts_pos[gpt];
+            value.push(value_func(x, y));
+        }
+        for &gnd in dom.nds_gnd.iter() {
+            let (x, y) = nds.nds_pos[gnd];
+            value.push(value_func(x, y));
+        }
+        
+        // point data
+        scldom.scldom_type = SclDomType::Unknown { start: usize::MAX };  // placeholder
+        scldom.value = value;
+        scldom.value_prv1 = scldom.value.clone();
+        scldom.value_prv2 = scldom.value.clone();
+
+        // gradient data
+        scldom.grad = vec![(f64::NAN, f64::NAN); dom.num_vert()];  // placeholder
+        scldom.grad_prv1 = scldom.grad.clone();
+        scldom.grad_prv2 = scldom.grad.clone();
+
+        Ok(scldom)
+    }
+
+    pub fn set_cnst(&mut self) {
+        self.scldom_type = SclDomType::Constant;
     }
 
     pub fn update_prev(&mut self) {
