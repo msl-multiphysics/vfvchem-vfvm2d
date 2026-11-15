@@ -1,7 +1,7 @@
 use vfvchem_vfvm2d::*;
 
-/// Adaptive time stepping with nonlinear decay.
-/// Run with: `cargo run --release --example bench_decay`
+/// Transient heat transfer in a square domain with adaptive time stepping.
+/// Run with: `cargo run --release --example heat_adapt`
 ///
 /// Geometry
 /// --------
@@ -43,7 +43,7 @@ use vfvchem_vfvm2d::*;
 ///
 fn main() -> Result<(), VFVChemError> {
     // variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.1, 0.1, "examples/output_bench_decay")?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 1.0, 1.0, 0.1, 0.1, "examples/output_heat_adapt")?;
 
     // geometry
     let dom = vars.add_dom("dom")?;  // domain
@@ -52,8 +52,9 @@ fn main() -> Result<(), VFVChemError> {
     let bnd_b = vars.add_bnd(dom, "bnd_b")?;  // bottom boundary
     let bnd_t = vars.add_bnd(dom, "bnd_t")?;  // top boundary
 
-    // unknowns
-    let temp = vars.add_scldom_unkn_nonuniform(dom, Box::new(|x, _y| 1.0 + 0.5 * x), "temp")?;  // temperature (T)
+    // non-uniform unknowns
+    let temp_func: SclPosFunc = Box::new(|x, _y| 1.0 + 0.5 * x);
+    let temp = vars.add_scldom_unkn_nonuniform(dom, temp_func, "temp")?;  // temperature (T)
 
     // non-constant domain values
     let den_func: SclDomFunc = Box::new(|_t, (x, y), _unkn| {
@@ -86,7 +87,6 @@ fn main() -> Result<(), VFVChemError> {
     phys.add_hflx_bnd(bnd_t, hflx_t)?;  // heat flux boundary: bnd, q
 
     // solver
-    // max_iter, tol, damp, dt_init, dt_min, dt_max, t_end, num_step
     let mut lin = RslabLu::new(4)?;  // matrix solver
     phys.solve_adaptive(&mut vars, &mut lin, 50, 1e-6, 1.0, 0.5, 1e-8, 2.0, 10.0, 10)?;  // physics solver
 

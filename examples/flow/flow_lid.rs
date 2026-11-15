@@ -37,7 +37,6 @@ use vfvchem_vfvm2d::*;
 /// bnd_b - no slip (vel = <0.0, 0.0> m s-1)
 /// bnd_t - velocity (vel = <0.01, 0.0> m s-1)
 ///
-///
 fn main() -> Result<(), VFVChemError> {
     // variables
     let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.001, 0.002, "examples/output_flow_lid")?;

@@ -1,6 +1,6 @@
 use vfvchem_vfvm2d::*;
 
-/// Nonlinear heat conduction with k(T) = k0 * (1 + beta * T).
+/// Heat conduction with non-constant thermal conductivity.
 /// Run with: `cargo run --release --example bench_heat`
 ///
 /// Geometry
@@ -27,7 +27,7 @@ use vfvchem_vfvm2d::*;
 /// -------------
 /// 
 /// Domain Properties:
-/// dom - thermal conductivity (k = 1.0 * (1 + 0.01 * T) W m-1 K-1)
+/// dom - thermal conductivity (k = 1.0 * (1 + 0.01 * T))
 ///
 /// Boundary Conditions:
 /// bnd_l - temperature (T from Kirchhoff transform of 1D slab)
@@ -36,50 +36,54 @@ use vfvchem_vfvm2d::*;
 /// bnd_t - no flux (q = 0.0 W m-2)
 ///
 fn main() -> Result<(), VFVChemError> {
-    const LEN: f64 = 0.1;
-    const TEMP_HOT: f64 = 100.0;
-    const COND_0: f64 = 1.0;
-    const BETA: f64 = 0.01;
-    let phi_hot = TEMP_HOT + 0.5 * BETA * TEMP_HOT * TEMP_HOT;
-
     // variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, LEN, LEN, 0.005, 0.005, "examples/output_bench_heat")?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.1, 0.005, 0.005, "examples/output_bench_heat")?;
 
     // geometry
-    let dom = vars.add_dom("dom")?;
-    let bnd_l = vars.add_bnd(dom, "bnd_l")?;
-    let bnd_r = vars.add_bnd(dom, "bnd_r")?;
-    let bnd_b = vars.add_bnd(dom, "bnd_b")?;
-    let bnd_t = vars.add_bnd(dom, "bnd_t")?;
+    let dom = vars.add_dom("dom")?;  // domain
+    let bnd_l = vars.add_bnd(dom, "bnd_l")?;  // left boundary
+    let bnd_r = vars.add_bnd(dom, "bnd_r")?;  // right boundary
+    let bnd_b = vars.add_bnd(dom, "bnd_b")?;  // bottom boundary
+    let bnd_t = vars.add_bnd(dom, "bnd_t")?;  // top boundary
 
     // unknowns
-    let temp = vars.add_scldom_unkn(dom, 0.5 * TEMP_HOT, "temp")?;
+    let temp = vars.add_scldom_unkn(dom, 50.0, "temp")?;  // temperature (T)
 
-    // domain values; conductivity depends on the temperature unknown
-    let cond = vars.add_scldom_func(dom, Box::new(move |_t, _pos, u| COND_0 * (1.0 + BETA * u[0])), vec![temp], "cond")?;
-    let hlin = vars.add_scldom_cnst(dom, 0.0, "hlin")?;
-    let hsrc = vars.add_scldom_cnst(dom, 0.0, "hsrc")?;
+    // non-constant domain values
+    let cond_func: SclDomFunc = Box::new(|_t, _pos, unkn| {
+        1.0 * (1.0 + 0.01 * unkn[0])
+    });
+    let cond = vars.add_scldom_func(dom, cond_func, vec![temp], "cond")?;  // thermal conductivity (k)
 
-    // boundary values; T = (sqrt(1 + 2 beta phi) - 1) / beta with phi = phi_hot * (1 - x / L)
-    let tset_l = vars.add_sclbnd_func(bnd_l, Box::new(move |_t, (x, _y), _u| {
-        let phi = phi_hot * (1.0 - x / LEN);
-        ((1.0 + 2.0 * BETA * phi).sqrt() - 1.0) / BETA
-    }), vec![])?;
-    let tset_r = vars.add_sclbnd_cnst(bnd_r, 0.0)?;
-    let hflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0)?;
-    let hflx_t = vars.add_sclbnd_cnst(bnd_t, 0.0)?;
+    // constant domain values
+    let hlin = vars.add_scldom_cnst(dom, 0.0, "hlin")?;  // linear source (L)
+    let hsrc = vars.add_scldom_cnst(dom, 0.0, "hsrc")?;  // heat source (Q)
+
+    // non-constant boundary values
+    // T = (sqrt(1 + 2 beta phi) - 1) / beta with phi = phi_hot * (1 - x / L)
+    // phi_hot = T_hot + 0.5 * beta * T_hot^2 = 100 + 0.5 * 0.01 * 100^2 = 150
+    let temp_func: SclBndFunc = Box::new(|_t, (x, _y), _unkn| {
+        let phi = 150.0 * (1.0 - x / 0.1);
+        ((1.0 + 2.0 * 0.01 * phi).sqrt() - 1.0) / 0.01
+    });
+    let temp_l = vars.add_sclbnd_func(bnd_l, temp_func, vec![])?;  // temperature
+
+    // constant boundary values
+    let temp_r = vars.add_sclbnd_cnst(bnd_r, 0.0)?;  // temperature
+    let hflx_b = vars.add_sclbnd_cnst(bnd_b, 0.0)?;  // heat flux (q)
+    let hflx_t = vars.add_sclbnd_cnst(bnd_t, 0.0)?;  // heat flux
 
     // physics
     let mut phys = SteadyHeat::new()?;
-    phys.add_heat_dom(dom, temp, cond, hlin, hsrc)?;
-    phys.add_temp_bnd(bnd_l, tset_l)?;
-    phys.add_temp_bnd(bnd_r, tset_r)?;
-    phys.add_hflx_bnd(bnd_b, hflx_b)?;
-    phys.add_hflx_bnd(bnd_t, hflx_t)?;
+    phys.add_heat_dom(dom, temp, cond, hlin, hsrc)?;  // heat transfer domain: dom, T, k, L, Q
+    phys.add_temp_bnd(bnd_l, temp_l)?;  // temperature boundary: bnd, T
+    phys.add_temp_bnd(bnd_r, temp_r)?;  // temperature boundary: bnd, T
+    phys.add_hflx_bnd(bnd_b, hflx_b)?;  // heat flux boundary: bnd, q
+    phys.add_hflx_bnd(bnd_t, hflx_t)?;  // heat flux boundary: bnd, q
 
     // solver
-    let mut lin = RslabLu::new(4)?;
-    phys.solve(&mut vars, &mut lin, 50, 1e-3, 1.0)?;
+    let mut lin = RslabLu::new(4)?;  // matrix solver
+    phys.solve(&mut vars, &mut lin, 50, 1e-3, 1.0)?;  // physics solver
 
     Ok(())
 }

@@ -52,12 +52,14 @@ fn main() -> Result<(), VFVChemError> {
     let bnd_b = vars.add_bnd(dom, "bnd_b")?;  // bottom boundary
     let bnd_t = vars.add_bnd(dom, "bnd_t")?;  // top boundary
 
-    // unknowns
-    // perturb conc0 to trigger the instability; uniform IC is an exact steady state
-    let conc0 = vars.add_scldom_unkn_nonuniform(dom, Box::new(|x, y| {
-        let noise = ((x * 12.9898 + y * 78.233).sin() * 43758.5453).fract();  // pseudo-random in [0, 1)
+    // non-uniform unknowns
+    let conc0_func: SclPosFunc = Box::new(|x, y| {
+        let noise = ((x * 12.9898 + y * 78.233).sin() * 43758.5453).fract();  // perturb conc0 to trigger instability; pseudo-random in [0, 1)
         1.0 + 0.01 * noise
-    }), "conc0")?;  // concentration (c0)
+    });
+    let conc0 = vars.add_scldom_unkn_nonuniform(dom, conc0_func, "conc0")?;  // concentration (c0)
+    
+    // uniform unknowns
     let conc1 = vars.add_scldom_unkn(dom, 1.8, "conc1")?;  // concentration (c1)
 
     // non-constant domain values

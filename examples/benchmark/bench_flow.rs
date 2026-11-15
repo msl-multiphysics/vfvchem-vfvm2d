@@ -1,6 +1,6 @@
 use vfvchem_vfvm2d::*;
 
-/// Planar Poiseuille flow with viscosity mu(y).
+/// Poiseuille flow with non-constant viscosity.
 /// Run with: `cargo run --release --example bench_flow`
 ///
 /// Geometry
@@ -28,66 +28,65 @@ use vfvchem_vfvm2d::*;
 /// 
 /// Domain Properties:
 /// dom - density (rho = 1000.0 kg m-3)
-/// dom - viscosity (mu = 0.1 * (1 + 3 y / H) Pa s)
+/// dom - viscosity (mu = 0.1 * (1 + 3 y / 0.05))
 ///
 /// Boundary Conditions:
-/// bnd_l - velocity (fully developed u(y), v = 0)
+/// bnd_l - velocity (fully developed profile)
 /// bnd_r - pressure (p = 0 Pa)
-/// bnd_b - no slip (u = 0, v = 0)
-/// bnd_t - no slip (u = 0, v = 0)
+/// bnd_b - no slip (vel = <0.0, 0.0> m s-1)
+/// bnd_t - no slip (vel = <0.0, 0.0> m s-1)
 ///
 fn main() -> Result<(), VFVChemError> {
-    const LEN: f64 = 0.1;
-    const HGT: f64 = 0.05;
-    const GRAD: f64 = 8.0;      // G = -dp/dx (Pa m-1)
-    const VISC_0: f64 = 0.1;    // mu_0 (Pa s)
-    const VISC_A: f64 = 3.0;    // a; mu(H) / mu(0) = 4
-    const DEN_0: f64 = 1000.0;  // rho_0 (kg m-3)
-
-    // fully developed inlet profile for mu = mu_0 * (1 + a y / H)
-    let vel_exact = |y: f64| {
-        let shear_0 = GRAD * HGT / (1.0 + VISC_A).ln() - GRAD * HGT / VISC_A;
-        let xi = 1.0 + VISC_A * y / HGT;
-        let gha = GRAD * HGT / VISC_A;
-        HGT / (VISC_A * VISC_0) * ((shear_0 + gha) * xi.ln() - gha * (xi - 1.0))
-    };
-
     // variables
-    let mut vars = Variables::new_bounds(0.0, 0.0, LEN, HGT, 0.005, 0.005, "examples/output_bench_flow")?;
+    let mut vars = Variables::new_bounds(0.0, 0.0, 0.1, 0.05, 0.005, 0.005, "examples/output_bench_flow")?;
 
     // geometry
-    let dom = vars.add_dom("dom")?;
-    let bnd_l = vars.add_bnd(dom, "bnd_l")?;
-    let bnd_r = vars.add_bnd(dom, "bnd_r")?;
-    let bnd_b = vars.add_bnd(dom, "bnd_b")?;
-    let bnd_t = vars.add_bnd(dom, "bnd_t")?;
+    let dom = vars.add_dom("dom")?;  // domain
+    let bnd_l = vars.add_bnd(dom, "bnd_l")?;  // left boundary
+    let bnd_r = vars.add_bnd(dom, "bnd_r")?;  // right boundary
+    let bnd_b = vars.add_bnd(dom, "bnd_b")?;  // bottom boundary
+    let bnd_t = vars.add_bnd(dom, "bnd_t")?;  // top boundary
 
     // unknowns
-    let vel = vars.add_vecdom_unkn(dom, (0.0, 0.0), "vel")?;
-    let pres = vars.add_scldom_unkn(dom, 0.0, "pres")?;
+    let vel = vars.add_vecdom_unkn(dom, (0.0, 0.0), "vel")?;  // velocity (vel)
+    let pres = vars.add_scldom_unkn(dom, 0.0, "pres")?;  // pressure (p)
 
-    // domain values
-    let den = vars.add_scldom_cnst(dom, DEN_0, "den")?;
-    let visc = vars.add_scldom_func(dom, Box::new(|_t, (_x, y), _u| VISC_0 * (1.0 + VISC_A * y / HGT)), vec![], "visc")?;
-    let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "fce")?;
+    // non-constant domain values
+    let visc_func: SclDomFunc = Box::new(|_t, (_x, y), _unkn| {
+        0.1 * (1.0 + 3.0 * y / 0.05)
+    });
+    let visc = vars.add_scldom_func(dom, visc_func, vec![], "visc")?;  // viscosity (mu)
 
-    // boundary values
-    let vel_l = vars.add_vecbnd_func(bnd_l, Box::new(move |_t, (_x, y), _u| (vel_exact(y), 0.0)), vec![])?;
-    let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0))?;
-    let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.0, 0.0))?;
-    let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0)?;
+    // constant domain values
+    let den = vars.add_scldom_cnst(dom, 1000.0, "den")?;  // density (rho)
+    let fce = vars.add_vecdom_cnst(dom, (0.0, 0.0), "fce")?;  // body force (fce)
+
+    // non-constant boundary values
+    let vel_func: VecBndFunc = Box::new(|_t, (_x, y), _unkn| {
+        let shear_0 = 8.0 * 0.05 / 4.0_f64.ln() - 8.0 * 0.05 / 3.0;
+        let xi = 1.0 + 3.0 * y / 0.05;
+        let gha = 8.0 * 0.05 / 3.0;
+        let u = 0.05 / (3.0 * 0.1) * ((shear_0 + gha) * xi.ln() - gha * (xi - 1.0));
+        (u, 0.0)
+    });
+    let vel_l = vars.add_vecbnd_func(bnd_l, vel_func, vec![])?;  // velocity
+
+    // constant boundary values
+    let vel_b = vars.add_vecbnd_cnst(bnd_b, (0.0, 0.0))?;  // velocity
+    let vel_t = vars.add_vecbnd_cnst(bnd_t, (0.0, 0.0))?;  // velocity
+    let pres_r = vars.add_sclbnd_cnst(bnd_r, 0.0)?;  // pressure
 
     // physics
     let mut phys = SteadyFlow::new()?;
-    phys.add_flow_dom(dom, vel, pres, den, visc, fce)?;
-    phys.add_vel_bnd(bnd_l, vel_l)?;
-    phys.add_vel_bnd(bnd_b, vel_b)?;
-    phys.add_vel_bnd(bnd_t, vel_t)?;
-    phys.add_pres_bnd(bnd_r, pres_r)?;
+    phys.add_flow_dom(dom, vel, pres, den, visc, fce)?;  // flow domain: dom, vel, p, rho, mu, fce
+    phys.add_vel_bnd(bnd_l, vel_l)?;  // velocity boundary: bnd, vel
+    phys.add_vel_bnd(bnd_b, vel_b)?;  // velocity boundary: bnd, vel
+    phys.add_vel_bnd(bnd_t, vel_t)?;  // velocity boundary: bnd, vel
+    phys.add_pres_bnd(bnd_r, pres_r)?;  // pressure boundary: bnd, p
 
     // solver
-    let mut lin = RslabLu::new(4)?;
-    phys.solve(&mut vars, &mut lin, 50, 1e-3, 1.0)?;
+    let mut lin = RslabLu::new(4)?;  // matrix solver
+    phys.solve(&mut vars, &mut lin, 50, 1e-3, 1.0)?;  // physics solver
 
     Ok(())
 }

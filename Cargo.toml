@@ -24,6 +24,10 @@ name = "heat_diag"
 path = "examples/heat/heat_diag.rs"
 
 [[example]]
+name = "heat_adapt"
+path = "examples/heat/heat_adapt.rs"
+
+[[example]]
 name = "flow_lid"
 path = "examples/flow/flow_lid.rs"
 
@@ -62,10 +66,6 @@ path = "examples/heatmoleflow/heatmoleflow_step.rs"
 [[example]]
 name = "bench_force"
 path = "examples/benchmark/bench_force.rs"
-
-[[example]]
-name = "bench_decay"
-path = "examples/benchmark/bench_decay.rs"
 
 [[example]]
 name = "bench_vert"

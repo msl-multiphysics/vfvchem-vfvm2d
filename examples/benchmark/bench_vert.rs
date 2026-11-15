@@ -6,28 +6,28 @@ use vfvchem_vfvm2d::*;
 /// Geometry
 /// --------
 /// 
-///         bnd_tl     bnd_tr
-///       +--------+--------+
-///       |        |        |
-/// bnd_l | dom_l itf_v dom_r| bnd_r
-///       |        |        |
-///       +--------+--------+
-///         bnd_bl     bnd_br
+///        bnd_tl   bnd_tr
+///       +-------+-------+
+///       |       |       |
+/// bnd_l | dom_l | dom_r | bnd_r
+///       |       |       |
+///       +-------+-------+
+///        bnd_bl   bnd_br
 ///
 /// Domains:
-/// dom_l - left region (0.05 m x 0.1 m)
-/// dom_r - right region (0.05 m x 0.1 m)
+/// dom_l - left block
+/// dom_r - right block
 ///
 /// Boundaries:
-/// bnd_l - left boundary of dom_l
-/// bnd_r - right boundary of dom_r
-/// bnd_bl - bottom boundary of dom_l
-/// bnd_tl - top boundary of dom_l
-/// bnd_br - bottom boundary of dom_r
-/// bnd_tr - top boundary of dom_r
+/// bnd_l - left boundary
+/// bnd_r - right boundary
+/// bnd_bl - bottom boundary of left block
+/// bnd_tl - top boundary of left block
+/// bnd_br - bottom boundary of right block
+/// bnd_tr - top boundary of right block
 ///
 /// Interfaces:
-/// itf_v - vertical interface between dom_l and dom_r
+/// itf_v - vertical interface
 ///
 /// Heat Transfer
 /// -------------

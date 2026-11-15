@@ -117,14 +117,6 @@ impl Variables {
         Ok(scldom_id)
     }
 
-    pub fn add_scldom_cnst_nonuniform(&mut self, dom_id: usize, value_func: SclPosFunc, name: &str) -> Result<usize, VFVChemError> {
-        let scldom_id = self.scldom.len();
-        let dom = &self.dom[dom_id];
-        let scldom = ScalarDomain::new_cnst_nonuniform(scldom_id, &self.pts, &self.nds, dom, value_func, name)?;
-        self.scldom.push(scldom);
-        Ok(scldom_id)
-    }
-
     pub fn add_scldom_unkn_nonuniform(&mut self, dom_id: usize, value_func: SclPosFunc, name: &str) -> Result<usize, VFVChemError> {
         let scldom_id = self.scldom.len();
         let dom = &self.dom[dom_id];
@@ -149,14 +141,6 @@ impl Variables {
         Ok(sclbnd_id)
     }
 
-    pub fn add_sclbnd_cnst_nonuniform(&mut self, bnd_id: usize, value_func: SclPosFunc) -> Result<usize, VFVChemError> {
-        let sclbnd_id = self.sclbnd.len();
-        let bnd = &self.bnd[bnd_id];
-        let sclbnd = ScalarBoundary::new_cnst_nonuniform(sclbnd_id, &self.nds, bnd, value_func)?;
-        self.sclbnd.push(sclbnd);
-        Ok(sclbnd_id)
-    }
-
     pub fn add_sclitf_cnst(&mut self, itf_id: usize, value: f64) -> Result<usize, VFVChemError> {
         let sclitf_id = self.sclitf.len();
         let itf = &self.itf[itf_id];
@@ -169,14 +153,6 @@ impl Variables {
         let sclitf_id = self.sclitf.len();
         let itf = &self.itf[itf_id];
         let sclitf = ScalarInterface::new_func(sclitf_id, itf, &self.scldom, func, unkn_a_id, unkn_b_id)?;
-        self.sclitf.push(sclitf);
-        Ok(sclitf_id)
-    }
-
-    pub fn add_sclitf_cnst_nonuniform(&mut self, itf_id: usize, value_func: SclPosFunc) -> Result<usize, VFVChemError> {
-        let sclitf_id = self.sclitf.len();
-        let itf = &self.itf[itf_id];
-        let sclitf = ScalarInterface::new_cnst_nonuniform(sclitf_id, &self.nds, itf, value_func)?;
         self.sclitf.push(sclitf);
         Ok(sclitf_id)
     }
@@ -206,14 +182,6 @@ impl Variables {
         Ok(vecdom_id)
     }
 
-    pub fn add_vecdom_cnst_nonuniform(&mut self, dom_id: usize, value_func: VecPosFunc, name: &str) -> Result<usize, VFVChemError> {
-        let vecdom_id = self.vecdom.len();
-        let dom = &self.dom[dom_id];
-        let vecdom = VectorDomain::new_cnst_nonuniform(vecdom_id, &self.pts, &self.nds, dom, value_func, name)?;
-        self.vecdom.push(vecdom);
-        Ok(vecdom_id)
-    }
-
     pub fn add_vecdom_unkn_nonuniform(&mut self, dom_id: usize, value_func: VecPosFunc, name: &str) -> Result<usize, VFVChemError> {
         let vecdom_id = self.vecdom.len();
         let dom = &self.dom[dom_id];
@@ -238,14 +206,6 @@ impl Variables {
         Ok(vecbnd_id)
     }
 
-    pub fn add_vecbnd_cnst_nonuniform(&mut self, bnd_id: usize, value_func: VecPosFunc) -> Result<usize, VFVChemError> {
-        let vecbnd_id = self.vecbnd.len();
-        let bnd = &self.bnd[bnd_id];
-        let vecbnd = VectorBoundary::new_cnst_nonuniform(vecbnd_id, &self.nds, bnd, value_func)?;
-        self.vecbnd.push(vecbnd);
-        Ok(vecbnd_id)
-    }
-
     pub fn add_vecitf_cnst(&mut self, itf_id: usize, value: (f64, f64)) -> Result<usize, VFVChemError> {
         let vecitf_id = self.vecitf.len();
         let itf = &self.itf[itf_id];
@@ -258,14 +218,6 @@ impl Variables {
         let vecitf_id = self.vecitf.len();
         let itf = &self.itf[itf_id];
         let vecitf = VectorInterface::new_func(vecitf_id, itf, &self.scldom, func, unkn_a_id, unkn_b_id)?;
-        self.vecitf.push(vecitf);
-        Ok(vecitf_id)
-    }
-
-    pub fn add_vecitf_cnst_nonuniform(&mut self, itf_id: usize, value_func: VecPosFunc) -> Result<usize, VFVChemError> {
-        let vecitf_id = self.vecitf.len();
-        let itf = &self.itf[itf_id];
-        let vecitf = VectorInterface::new_cnst_nonuniform(vecitf_id, &self.nds, itf, value_func)?;
         self.vecitf.push(vecitf);
         Ok(vecitf_id)
     }
