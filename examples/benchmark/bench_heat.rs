@@ -15,7 +15,7 @@ use vfvchem_vfvm2d::*;
 ///          bnd_b
 ///
 /// Domains:
-/// dom - main domain (0.1 m x 0.1 m)
+/// dom - main domain
 ///
 /// Boundaries:
 /// bnd_l - left boundary
@@ -30,7 +30,7 @@ use vfvchem_vfvm2d::*;
 /// dom - thermal conductivity (k = 1.0 * (1 + 0.01 * T))
 ///
 /// Boundary Conditions:
-/// bnd_l - temperature (T from Kirchhoff transform of 1D slab)
+/// bnd_l - temperature (T from Kirchhoff transform)
 /// bnd_r - temperature (T = 0 K)
 /// bnd_b - no flux (q = 0.0 W m-2)
 /// bnd_t - no flux (q = 0.0 W m-2)

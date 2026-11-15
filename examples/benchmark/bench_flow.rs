@@ -15,13 +15,13 @@ use vfvchem_vfvm2d::*;
 ///          bnd_b
 ///
 /// Domains:
-/// dom - channel (0.1 m x 0.05 m)
+/// dom - main domain
 ///
 /// Boundaries:
-/// bnd_l - inlet
-/// bnd_r - outlet
-/// bnd_b - bottom wall
-/// bnd_t - top wall
+/// bnd_l - left boundary
+/// bnd_r - right boundary
+/// bnd_b - bottom boundary
+/// bnd_t - top boundary
 ///
 /// Momentum Transfer
 /// -----------------

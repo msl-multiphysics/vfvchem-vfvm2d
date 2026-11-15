@@ -64,10 +64,6 @@ name = "heatmoleflow_step"
 path = "examples/heatmoleflow/heatmoleflow_step.rs"
 
 [[example]]
-name = "bench_force"
-path = "examples/benchmark/bench_force.rs"
-
-[[example]]
 name = "bench_vert"
 path = "examples/benchmark/bench_vert.rs"
 
@@ -80,8 +76,24 @@ name = "bench_flow"
 path = "examples/benchmark/bench_flow.rs"
 
 [[example]]
-name = "bench_heatflow"
-path = "examples/benchmark/bench_heatflow.rs"
+name = "bench_cavity"
+path = "examples/benchmark/bench_cavity.rs"
+
+[[example]]
+name = "bench_graetz"
+path = "examples/benchmark/bench_graetz.rs"
+
+[[example]]
+name = "bench_mole"
+path = "examples/benchmark/bench_mole.rs"
+
+[[example]]
+name = "bench_tayloraris"
+path = "examples/benchmark/bench_tayloraris.rs"
+
+[[example]]
+name = "bench_vortex"
+path = "examples/benchmark/bench_vortex.rs"
 
 [profile.release]
 opt-level = 3
