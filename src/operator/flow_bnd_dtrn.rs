@@ -18,9 +18,6 @@ impl FlowBndTranspose {
         // adds the boundary term of the transpose term to the Navier-Stokes equation
         // rho * d(vel)/dt + rho * vel . grad(vel) = -grad(p) + div( mu * ( grad(vel) + grad(vel)^T ) + lam * div(vel) * I ) + fce
         //                                                      ^^^^^^^^^               ^^^^^^^^^^^
-        //
-        // used on pressure boundaries where the momentum equation is solved
-        // together with the natural condition mu * grad(vel) . n = 0, this gives a do-nothing outlet
 
         // input checking
         check_bnd_vecdom(vars, bnd_id, vel_id)?;
