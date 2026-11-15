@@ -2,10 +2,10 @@
 name = "vfvchem_vfvm2d"
 version = "0.0.0"
 edition = "2024"
+rust-version = "1.89"
 
 [dependencies]
 anyhow = "1.0"
-itertools = "0.13"
 rand = "0.9"
 rslab = { git = "https://github.com/milanofthe/rslab", tag = "v1.7.0" }
 simple_delaunay_lib = "0.2"
@@ -82,10 +82,6 @@ path = "examples/benchmark/bench_cavity.rs"
 [[example]]
 name = "bench_graetz"
 path = "examples/benchmark/bench_graetz.rs"
-
-[[example]]
-name = "bench_mole"
-path = "examples/benchmark/bench_mole.rs"
 
 [[example]]
 name = "bench_tayloraris"

@@ -1,7 +1,7 @@
 use vfvchem_vfvm2d::*;
 use std::collections::HashMap;
 
-/// Steady-state heat and momentum transfer past a backward-facing step.
+/// Steady-state mass and momentum transfer past a backward-facing step.
 /// Run with: `cargo run --release --example moleflow_step`
 ///
 /// Geometry

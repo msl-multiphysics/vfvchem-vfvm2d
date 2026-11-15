@@ -21,7 +21,7 @@ impl SclItfContinuity {
     pub fn new(vars: &Variables, itf_id: usize, unk_a_id: usize, unk_b_id: usize) -> Result<SclItfContinuity, VFVChemError> {
         // sets a continuous value and flux across an interface
         // c_i^a = c_i^b
-        // R^a + R^b = 0
+        // bal^a + bal^b = 0
 
         // input checking
         check_itf_scldom(vars, itf_id, unk_a_id, unk_b_id)?;
